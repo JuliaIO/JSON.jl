@@ -1,17 +1,10 @@
-#JSON Parser
-#Modified and Adapted from http://www.mathworks.com/matlabcentral/fileexchange/23393
-#Original BSD Licence, (c) 2011, François Glineur
-
-
 module JSON
-
-using Base
 
 export parse
 
-
+#Modified and Adapted from http://www.mathworks.com/matlabcentral/fileexchange/23393
+#Original BSD Licence, (c) 2011, François Glineur
 function parse(strng::String)
-
     pos::Int = 1
     len::Int = length(strng)
 
@@ -20,8 +13,7 @@ function parse(strng::String)
     index_esc::Int = 1
 
     esc_locations::Array{Int64,1}  = map(x->x.offset, [each_match(r"[\"\\\\]", strng)...])
-    len_esc=length(esc_locations)  
-
+    len_esc = length(esc_locations)  
 
     function parse_object()
         parse_char('{')
@@ -108,33 +100,33 @@ function parse(strng::String)
             end
             nc = strng[pos]
             if nc == '"' 
-                    pos = nextind(strng, pos)
-                    return string(str)
+                pos = nextind(strng, pos)
+                return string(str)
             elseif nc ==  '\\'
-                    if pos+1 > len
-                        error("End of file reached right after escape character")
-                    end
+                if pos+1 > len
+                    error("End of file reached right after escape character")
+                end
+                pos = nextind(strng, pos)
+                anc = strng[pos]
+                 if anc == '"' || anc == '\\' || anc == '/'
+                    str = strcat(str, strng[pos])
                     pos = nextind(strng, pos)
-                    anc = strng[pos]
-                     if anc == '"' || anc == '\\' || anc == '/'
-                            str = strcat(str, strng[pos])
-                            pos = nextind(strng, pos)
-                     elseif anc ==  'b' || anc == 'f'|| anc == 'n' || anc == 'r' || anc == 't'
-                            str = strcat(str, unescape_string(strcat('\\', string[pos])))
-                            pos = nextind(strng, pos)
-                     elseif  anc == 'u'
-                            startpos = prevind(strng, pos)
-                            endpos = movpos(4)
-                            if endpos > len
-                                error("End of file reached in escaped unicode character")
-                            end
-                            
-                            str = strcat(str, unescape_string(strng[startpos:endpos]))
-                            pos =  nextind(strng, endpos)
+                 elseif anc ==  'b' || anc == 'f'|| anc == 'n' || anc == 'r' || anc == 't'
+                    str = strcat(str, unescape_string(strcat('\\', string[pos])))
+                    pos = nextind(strng, pos)
+                 elseif  anc == 'u'
+                    startpos = prevind(strng, pos)
+                    endpos = movpos(4)
+                    if endpos > len
+                        error("End of file reached in escaped unicode character")
                     end
+                    
+                    str = strcat(str, unescape_string(strng[startpos:endpos]))
+                    pos =  nextind(strng, endpos)
+                end
             else #This can be optimised if we have a preselected list of string terminators
-                    str = strcat(str,strng[pos])
-                    pos = nextind(strng, pos)
+                str = strcat(str,strng[pos])
+                pos = nextind(strng, pos)
             end
         end
         error("End of file while expecting end of string")
@@ -154,38 +146,38 @@ function parse(strng::String)
     function  parse_value()
         nc = next_char()
         if nc == '"'
-                val = parse_string()
-                return val
+            val = parse_string()
+            return val
         elseif nc == '['
-                val = parse_array()
-                return val
+            val = parse_array()
+            return val
         elseif nc == '{'
-                val = parse_object()
-                return val
+            val = parse_object()
+            return val
         elseif nc == '-' || nc == '0' || nc == '1' || nc == '2' || nc == '3' || nc == '4' || nc == '5' || nc == '6' || nc == '7' || nc == '8' || nc == '9'
-                val = parse_number()
-                return val
+            val = parse_number()
+            return val
         elseif nc == 't'
-                endpos = movpos(3)
-                if endpos <= len && strng[pos:endpos] == "true"
-                    val = true
-                    pos = nextind(strng, endpos)
-                    return val
-                end
+            endpos = movpos(3)
+            if endpos <= len && strng[pos:endpos] == "true"
+                val = true
+                pos = nextind(strng, endpos)
+                return val
+            end
         elseif nc == 'f'
-                endpos = movpos( 4)
-                if endpos <= len && strng[pos:endpos] == "false"
-                    val = false
-                    pos = nextind(strng, endpos)
-                    return val
-                end
+            endpos = movpos(4)
+            if endpos <= len && strng[pos:endpos] == "false"
+                val = false
+                pos = nextind(strng, endpos)
+                return val
+            end
         elseif nc == 'n'
-                endpos = movpos( 3)
-                if endpos <= len && strng[pos:endpos] == "null"
-                    val = nothing
-                    pos = nextind(strng, endpos)
-                    return val
-                end
+            endpos = movpos(3)
+            if endpos <= len && strng[pos:endpos] == "null"
+                val = nothing
+                pos = nextind(strng, endpos)
+                return val
+            end
         end
         error("Value expected at position $pos: $(errpos())"  )
     end
@@ -213,8 +205,8 @@ function parse(strng::String)
         nc = next_char()
         if nc == '{'
             return parse_object()
-        elseif nc ==  '['
-             return  parse_array()
+        elseif nc == '['
+            return parse_array()
         else
             error("Outer level structure must be an object or an array")
         end
