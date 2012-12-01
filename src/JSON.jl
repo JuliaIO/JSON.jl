@@ -1,6 +1,43 @@
 module JSON
 
-export parse
+export parse,
+       print_to_json, #Prints a compact (no extra whitespace or identation) JSON representation 
+       to_json #Gives a compact JSON representation as a String
+
+print_to_json(io::IO, s::String) = print(io, "\"$s\"")
+
+print_to_json(io::IO, s::Union(Integer, FloatingPoint)) = print(io, s)
+
+print_to_json(io::IO, n::Nothing) = print(io, "null")
+
+print_to_json(io::IO, b::Bool) = print(io, b ? "true" : "false")
+
+function print_to_json(io::IO, a::Associative)
+    print(io, "{")
+    first = true
+    for (key, value) in a
+        if first 
+            first = false
+        else
+            print(io, ",")
+        end
+        print(io, "\"$key\":")
+        print_to_json(io, value)
+    end
+    print(io, "}") 
+end
+
+function print_to_json(io::IO, a::Vector)
+    print(io, "[")
+    for x in a[1:end-1]
+        print_to_json(io, x)
+        print(io, ",")
+    end
+    print_to_json(io, a[end])
+    print(io, "]")
+end
+
+to_json(a) = sprint(print_to_json, a)
 
 #Modified and Adapted from http://www.mathworks.com/matlabcentral/fileexchange/23393
 #Original BSD Licence, (c) 2011, François Glineur
