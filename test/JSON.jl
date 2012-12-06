@@ -1,12 +1,18 @@
 load("JSON")
 
-load("test/json_samples")
+load("JSON/test/json_samples")
 
 
 @assert JSON.parse(a) != nothing
 @assert JSON.parse(b) != nothing
 @assert JSON.parse(c) != nothing
 @assert JSON.parse(d) != nothing
+
+cj=JSON.parse(c);
+@assert typeof(cj["widget"]["image"]["hOffset"]) == Int
+@assert cj["widget"]["image"]["hOffset"] == 250
+@assert typeof(cj["widget"]["text"]["size"]) == Float64
+@assert cj["widget"]["text"]["size"] == 36.5
 
 j=JSON.parse(e) 
 @assert  j!= nothing

@@ -177,7 +177,11 @@ function parse(strng::String)
         end
         delta = m.offset + length(m.match)
         pos = pos + delta -1
-        return float(m.match)
+        if int_able(m.match) 
+            return int(m.match)
+        else 
+            return float64(m.match)
+        end
     end
 
     function  parse_value()
@@ -249,6 +253,14 @@ function parse(strng::String)
         end
     end
 
+end
+
+function int_able(s::String)
+  ismatch(r"^(-)?\d+$", s)
+end
+
+function float_able(s::String)
+  ismatch(r"^(-)?\d+(\.\d+(e(-?)\d+)?)?$", s)
 end
 
 end
