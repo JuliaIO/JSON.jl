@@ -1,6 +1,6 @@
 The Julia JSON package is licensed under the MIT License:
 
-> Copyright (c) 2012: Stefan Karpinski, Avik Sengupta, David de Laat 
+> Copyright (c) 2012: Avik Sengupta, Stefan Karpinski, David de Laat 
 > and other contributors: https://github.com/aviks/JSON.jl/contributors
 > 
 > Permission is hereby granted, free of charge, to any person obtaining
