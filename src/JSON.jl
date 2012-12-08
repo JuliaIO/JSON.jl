@@ -37,6 +37,24 @@ function print_to_json(io::IO, a::Vector)
     print(io, "]")
 end
 
+function print_to_json(io::IO, a)
+    print(io, "{")
+
+    range = typeof(a).names
+    if length(range) > 0
+        print(io, "\"", range[1], "\":")
+        print_to_json(io, a.(range[1]))
+
+        for name in range[2:end]
+            print(io, ",")
+            print(io, "\"", name, "\":")
+            print_to_json(io, a.(name))
+        end
+    end
+
+    print(io, "}")
+end
+
 to_json(a) = sprint(print_to_json, a)
 
 #Modified and Adapted from http://www.mathworks.com/matlabcentral/fileexchange/23393
