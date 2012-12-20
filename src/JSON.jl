@@ -250,7 +250,7 @@ function parse(strng::String)
         if pos+20<len
             return "$(strng[pos:pos+20])..."
         else 
-            return "strng[pos:len]"
+            return strng[pos:len]
         end 
     end
 
