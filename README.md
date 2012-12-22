@@ -3,7 +3,7 @@
 ##Installation
 
 ```julia
-load("pkg")
+require("pkg")
 Pkg.init() #If not run once before
 Pkg.add("JSON")
 ```
@@ -11,7 +11,7 @@ Pkg.add("JSON")
 ##Usage
 
 ```julia
-load("JSON")
+require("JSON")
 JSON.parse(s)
 JSON.to_json(a)
 ```
