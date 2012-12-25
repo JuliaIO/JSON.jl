@@ -29,11 +29,13 @@ end
 
 function print_to_json(io::IO, a::Vector)
     print(io, "[")
-    for x in a[1:end-1]
-        print_to_json(io, x)
-        print(io, ",")
+    if length(a) > 0
+        for x in a[1:end-1]
+            print_to_json(io, x)
+            print(io, ",")
+        end
+        print_to_json(io, a[end])
     end
-    print_to_json(io, a[end])
     print(io, "]")
 end
 
@@ -54,6 +56,9 @@ function print_to_json(io::IO, a)
 
     print(io, "}")
 end
+
+# Default to printing to STDOUT
+print_to_json{T}(a::T) = print_to_json(OUTPUT_STREAM, a)
 
 to_json(a) = sprint(print_to_json, a)
 
@@ -195,10 +200,10 @@ function parse(strng::String)
         end
         delta = m.offset + length(m.match)
         pos = pos + delta -1
-        if int_able(m.match) 
-            return int(m.match)
-        else 
-            return float64(m.match)
+        try
+            return parse_int(m.match)
+        catch
+            return parse_float(m.match)
         end
     end
 
@@ -271,14 +276,6 @@ function parse(strng::String)
         end
     end
 
-end
-
-function int_able(s::String)
-  ismatch(r"^(-)?\d+$", s)
-end
-
-function float_able(s::String)
-  ismatch(r"^(-)?\d+(\.\d+(e(-?)\d+)?)?$", s)
 end
 
 end

@@ -1,6 +1,6 @@
-load("JSON")
+require("JSON")
 
-load("JSON/test/json_samples")
+require("JSON/test/json_samples")
 
 
 @assert JSON.parse(a) != nothing
@@ -52,3 +52,7 @@ u=JSON.parse(unicode)
 
 #Uncomment while doing timing tests
 #@time for i=1:100 ; JSON.parse(d) ; end
+
+# Printing an empty array or Dict shouldn't cause a BoundsError
+@assert JSON.to_json(ASCIIString[]) == "[]"
+@assert JSON.to_json(Dict()) == "{}"
