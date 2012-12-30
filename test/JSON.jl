@@ -50,6 +50,10 @@ u=JSON.parse(unicode)
 @assert u!=nothing
 @assert u["অলিম্পিকস"]["রেকর্ড"][2]["Marathon"] == "জনি হেইস"
 
+#Issue 5 on Github
+issue5 = "[\"A\",\"B\",\"C\\n\"]"
+JSON.parse(issue5)
+
 #Uncomment while doing timing tests
 #@time for i=1:100 ; JSON.parse(d) ; end
 
