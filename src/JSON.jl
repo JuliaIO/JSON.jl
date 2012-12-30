@@ -172,7 +172,7 @@ function parse(strng::String)
                     str = strcat(str, strng[pos])
                     pos = nextind(strng, pos)
                  elseif anc ==  'b' || anc == 'f'|| anc == 'n' || anc == 'r' || anc == 't'
-                    str = strcat(str, unescape_string(strcat('\\', string[pos])))
+                    str = strcat(str, unescape_string(strcat('\\', strng[pos])))
                     pos = nextind(strng, pos)
                  elseif  anc == 'u'
                     startpos = prevind(strng, pos)
