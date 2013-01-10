@@ -103,7 +103,7 @@ function parse(strng::String)
         if next_char() != ']'
             while true
                 val = parse_value()
-                push(object, val)
+                push!(object, val)
                 if next_char() == ']'
                     break
                 end
