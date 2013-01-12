@@ -4,7 +4,7 @@ export parse,
        print_to_json, #Prints a compact (no extra whitespace or identation) JSON representation 
        to_json #Gives a compact JSON representation as a String
 
-print_to_json(io::IO, s::String) = print(io, "\"$s\"")
+print_to_json(io::IO, s::String) = print_quoted(io, s)
 
 print_to_json(io::IO, s::Union(Integer, FloatingPoint)) = print(io, s)
 
