@@ -66,7 +66,7 @@ to_json(a) = sprint(print_to_json, a)
 #Original BSD Licence, (c) 2011, François Glineur
 function parse(strng::String)
     pos::Int = 1
-    len::Int = length(strng)
+    len::Int = length(strng.data)
 
     # String delimiters and escape characters are identified beforehand to improve speed
     len_esc::Int = 0
