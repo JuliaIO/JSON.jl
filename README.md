@@ -3,8 +3,6 @@
 ##Installation
 
 ```julia
-require("pkg")
-Pkg.init() #If not run once before
 Pkg.add("JSON")
 ```
 
