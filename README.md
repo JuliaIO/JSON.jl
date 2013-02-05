@@ -9,7 +9,7 @@ Pkg.add("JSON")
 ##Usage
 
 ```julia
-using JSON
+require("JSON")
 JSON.parse(s)
 JSON.to_json(a)
 ```
