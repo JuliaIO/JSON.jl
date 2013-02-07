@@ -57,6 +57,17 @@ function print_to_json(io::IO, a)
     print(io, "}")
 end
 
+function print_to_json(io::IO, a::DataFrame)
+    d = Dict()
+    keyz = keys(a)
+
+    for key in keyz
+        d[key] = vector(a[key])
+    end
+
+    print_to_json(io, d)
+end
+
 # Default to printing to STDOUT
 print_to_json{T}(a::T) = print_to_json(OUTPUT_STREAM, a)
 
