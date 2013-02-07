@@ -1,14 +1,16 @@
 module JSON
 
+using DataFrames
+
 export parse,
-       print_to_json, #Prints a compact (no extra whitespace or identation) JSON representation 
+       print_to_json, #Prints a compact (no extra whitespace or identation) JSON representation
        to_json #Gives a compact JSON representation as a String
 
 print_to_json(io::IO, s::String) = print_quoted(io, s)
 
 print_to_json(io::IO, s::Union(Integer, FloatingPoint)) = print(io, s)
 
-print_to_json(io::IO, n::Nothing) = print(io, "null")
+print_to_json(io::  IO, n::Nothing) = print(io, "null")
 
 print_to_json(io::IO, b::Bool) = print(io, b ? "true" : "false")
 
@@ -16,7 +18,7 @@ function print_to_json(io::IO, a::Associative)
     print(io, "{")
     first = true
     for (key, value) in a
-        if first 
+        if first
             first = false
         else
             print(io, ",")
@@ -24,7 +26,7 @@ function print_to_json(io::IO, a::Associative)
         print(io, "\"$key\":")
         print_to_json(io, value)
     end
-    print(io, "}") 
+    print(io, "}")
 end
 
 function print_to_json(io::IO, a::Vector)
@@ -57,6 +59,17 @@ function print_to_json(io::IO, a)
     print(io, "}")
 end
 
+function print_to_json(io::IO, a::DataFrame)
+    d = Dict()
+    keyz = keys(a)
+
+    for key in keyz
+        d[key] = vector(a[key])
+    end
+
+    print_to_json(io, d)
+end
+
 # Default to printing to STDOUT
 print_to_json{T}(a::T) = print_to_json(OUTPUT_STREAM, a)
 
@@ -73,7 +86,7 @@ function parse(strng::String)
     index_esc::Int = 1
 
     esc_locations::Array{Int64,1}  = map(x->x.offset, [each_match(r"[\"\\\\]", strng)...])
-    len_esc = length(esc_locations)  
+    len_esc = length(esc_locations)
 
     function parse_object()
         parse_char('{')
@@ -130,9 +143,9 @@ function parse(strng::String)
             error("Unclosed braces at end of file")
         else
             c = strng[pos]
-        end        
+        end
     end
-    
+
     function skip_whitespace()
         while pos <= len && isspace(strng[pos])
             pos = nextind(strng, pos)
@@ -147,7 +160,7 @@ function parse(strng::String)
         end
         str = ""
         while pos <= len
-            while index_esc <= len_esc && esc_locations[index_esc] < pos 
+            while index_esc <= len_esc && esc_locations[index_esc] < pos
                  index_esc = index_esc + 1;
             end
             if index_esc > len_esc
@@ -159,7 +172,7 @@ function parse(strng::String)
                 pos = esc_locations[index_esc];
             end
             nc = strng[pos]
-            if nc == '"' 
+            if nc == '"'
                 pos = nextind(strng, pos)
                 return string(str)
             elseif nc ==  '\\'
@@ -180,7 +193,7 @@ function parse(strng::String)
                     if endpos > len
                         error("End of file reached in escaped unicode character")
                     end
-                    
+
                     str = strcat(str, unescape_string(strng[startpos:endpos]))
                     pos =  nextind(strng, endpos)
                 end
@@ -246,7 +259,7 @@ function parse(strng::String)
         error("Value expected at position $pos: $(errpos())"  )
     end
 
-   
+
     function isspace(c::Char)
         c==' ' || c=='\n' || c=='\t'
     end
@@ -254,12 +267,12 @@ function parse(strng::String)
     function errpos()
         if pos+20<len
             return "$(strng[pos:pos+20])..."
-        else 
+        else
             return strng[pos:len]
-        end 
+        end
     end
 
-    function movpos(x::Int) 
+    function movpos(x::Int)
         endpos = pos
         for i=1:x; endpos = nextind(strng, endpos); end
         return endpos
