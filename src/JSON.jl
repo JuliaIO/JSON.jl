@@ -27,7 +27,7 @@ function print_to_json(io::IO, a::Associative)
     print(io, "}") 
 end
 
-function print_to_json(io::IO, a::Vector)
+function print_to_json(io::IO, a::AbstractVector)
     print(io, "[")
     if length(a) > 0
         for x in a[1:end-1]
