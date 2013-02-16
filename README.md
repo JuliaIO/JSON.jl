@@ -39,3 +39,13 @@ parse(s::String)
 
 Parses a JSON String into a nested Array or Dict
 ```
+
+## FasterJSON
+
+Prototype/experimental JSON parser loosely based off of [Douglas Crockford's reference implementation](https://github.com/douglascrockford/JSON-js/blob/master/json_parse.js). Achieves ~2x the speed of the main JSON module's parser, however it is a bit more reckless. Caution is advised.
+
+```julia
+FasterJSON.parse(str::String)
+
+Parses a JSON String. Will return any of the FasterJSON.TYPES.
+```

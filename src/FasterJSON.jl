@@ -7,6 +7,8 @@ module FasterJSON
   # Types it may encounter as object keys
   KEY_TYPES = Union(String, Number, Bool)
   
+  export parse
+  
   function _search(haystack::String, needle::Union(String, Regex, Char), _start::Int64)
     range = search(haystack, needle, _start)
     return (first(range), last(range))
