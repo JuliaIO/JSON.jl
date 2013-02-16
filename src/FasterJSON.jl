@@ -2,28 +2,35 @@
 # Recklessly faster JSON parser.
 module FasterJSON
   
-  function _search(haystack, needle, _start)
+  # Types it may encounter
+  TYPES = Union(Dict, Array, String, Number, Bool, Nothing)
+  # Types it may encounter as object keys
+  KEY_TYPES = Union(String, Number, Bool)
+  
+  function _search(haystack::String, needle::Union(String, Regex, Char), _start::Int64)
     range = search(haystack, needle, _start)
     return (first(range), last(range))
   end
   
-  function chomp_space(str, s, e)
+  function chomp_space(str::String, s::Int64, e::Int64)
     if !(s < e)
       return s
     end
     c = str[s]
-    while c == ' ' || c == '\t' || c == '\n'
+    while (c == ' ' || c == '\t' || c == '\n') && s < e
       s += 1
       c = str[s]
     end
     return s
   end
   
-  function parse_array(str, s, e)
+  function parse_array(str::String, s::Int64, e::Int64)
     # s = start of array (str[s:e] = "[...")
     s += 1 # Skip over the '['
+    
+    _array = TYPES[]
+    
     s = chomp_space(str, s, e)
-    _array = Any[]
     # Quick check for empty array
     if str[s] == ']'
       return (_array, s + 1, e)
@@ -49,10 +56,13 @@ module FasterJSON
     return (_array, s, e)
   end
   
-  function parse_object(str, s, e)
+  function parse_object(str::String, s::Int64, e::Int64)
     s += 1 # Skip over opening '{'
     
-    obj = Dict{Any,Any}()
+    obj = Dict{KEY_TYPES,TYPES}()
+    
+    # Eat up some space
+    s = chomp_space(str, s, e)
     # Quick check for empty object
     if str[s] == '}'
       return (obj, s + 1, e)
@@ -61,6 +71,7 @@ module FasterJSON
     while true
       s = chomp_space(str, s, e)
       
+      # TODO: Make this only look for KEY_TYPES.
       _key, s, e = parse_value(str, s, e)
       
       ss, se = _search(str, ':', s)
@@ -87,7 +98,7 @@ module FasterJSON
     return(obj, s, e)
   end
   
-  function parse_string(str, s, e)
+  function parse_string(str::String, s::Int64, e::Int64)
     s += 1 # Skip over opening '"'
     
     ts, te = _search(str, '"', s)
@@ -123,7 +134,7 @@ module FasterJSON
     return (join(parts, ""), te + 1, e)
   end
   
-  function parse_bool(str, s, e)
+  function parse_bool(str::String, s::Int64, e::Int64)
     # Looks like "true"
     if str[s] == 't' && str[s + 3] == 'e'
       return (true, s + 4, e)
@@ -138,7 +149,7 @@ module FasterJSON
     end
   end
   
-  function parse_value(str, s, e)
+  function parse_value(str::String, s::Int64, e::Int64)
     s = chomp_space(str, s, e)
     
     if s == e
@@ -164,16 +175,19 @@ module FasterJSON
   
   # TODO: Speed up number parsing
   _separator = r"[^0-9.eE+-]"
-  function parse_number(str, s, e)
+  function parse_number(str::String, s::Int64, e::Int64)
     ss, se = _search(str, _separator, s)
     v = Base.parse(str[s:ss - 1])
     return (v, se, e)
   end
   
-  function parse(_str::String)
-    str = strip(_str)
-    pos = 1
-    len = endof(str)
+  function parse(str::String)
+    pos::Int64 = 1
+    len::Int64 = endof(str)
+    
+    if len < 1
+      return nothing
+    end
     
     v, s, e = parse_value(str, pos, len)
     return v
