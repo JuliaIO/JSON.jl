@@ -56,4 +56,6 @@ issue5 = "[\"A\",\"B\",\"C\\n\"]"
 FasterJSON.parse(issue5)
 
 #Uncomment while doing timing tests
-#@time for i=1:100 ; FasterJSON.parse(d) ; end
+#@time for i=1:100; FasterJSON.parse(d); end
+
+println("All tests passed!")

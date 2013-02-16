@@ -5,14 +5,11 @@ module FasterJSON
   # Types it may encounter
   TYPES = Union(Dict, Array, String, Number, Bool, Nothing)
   # Types it may encounter as object keys
-  KEY_TYPES = Union(String, Number, Bool)
+  KEY_TYPES = Union(String)
   
   export parse
   
-  function _search(haystack::String, needle::Union(String, Regex, Char), _start::Int64)
-    range = search(haystack, needle, _start)
-    return (first(range), last(range))
-  end
+  # TRACING
   
   type Trace
     name::String
@@ -26,12 +23,11 @@ module FasterJSON
   end
   
   type Tracer
-    trace::Bool
+    do_trace::Bool
     stack::Vector{Trace}
     current_depth::Int64
-    tracing::Float64
     
-    Tracer(trace) = new(trace, Trace[], 0, 0.0)
+    Tracer(trace) = new(trace, Trace[], 0)
   end
   
   function start_trace(trace::Bool)
@@ -39,32 +35,28 @@ module FasterJSON
   end
   
   function trace_in(tracer::Tracer, name::String)
-    if !tracer.trace; return; end
-    
+    if !tracer.do_trace; return; end
+    # Create and add trace
     _trace = Trace(name, tracer.current_depth, time())
     push!(tracer.stack, _trace)
-    
-    tracer.current_depth += 1
-    
+    tracer.current_depth += 1 # Increase depth
+    # Return the position (tail index) of the trace
     return endof(tracer.stack) # ti (trace index)
   end
   
   function trace_out(tracer::Tracer, ti::Int64, data::Union(String, Nothing))
-    if !tracer.trace; return; end
-    
-    _start = time()
-    
+    if !tracer.do_trace; return; end
+    # Get the tracer at the index ti and update its values.
     _trace = tracer.stack[ti]
-    _trace.stop = time()
+    _trace.stop = time() 
     _trace.data = data
-    
-    tracer.current_depth -= 1
-    
-    tracer.tracing += (time() - _start)
+    tracer.current_depth -= 1 # Decrease depth
   end
   trace_out(tracer, ti) = trace_out(tracer, ti, nothing)
+  # Called when trace_in returns ti as nothing.
   trace_out(tracer::Tracer, ti::Nothing, data::Any) = @thunk nothing
   
+  # Format a float as 1.234 (using by print_trace).
   function format(e::Float64)
     s = int(floor(e))
     msec = int((e - floor(e)) * 1000)
@@ -72,7 +64,7 @@ module FasterJSON
   end
   
   function print_trace(tracer::Tracer)
-    println("tracing: " * format(tracer.tracing * 1000) * "ms")
+    # println("tracing: " * format(tracer.tracing * 1000) * "ms")
     for trace = tracer.stack
       print_trace(trace)
     end
@@ -86,6 +78,14 @@ module FasterJSON
     )
   end
   
+  # UTILITIES
+  
+  function _search(haystack::String, needle::Union(String, Regex, Char), _start::Int64)
+    range = search(haystack, needle, _start)
+    return (first(range), last(range))
+  end
+  
+  # Eat up spaces starting at s.
   function chomp_space(str::String, s::Int64, e::Int64)
     if !(s < e)
       return s
@@ -98,6 +98,7 @@ module FasterJSON
     return s
   end
   
+  # Used for line counts
   function _count_before(haystack::String, needle::Char, _end::Int64)
     count = 0
     i = 1
@@ -113,6 +114,7 @@ module FasterJSON
   # Prints an error message with an indicator to the source
   function _error(message::String, str::String, s::Int64, e::Int64)
     lines = _count_before(str, '\n', s)
+    # Replace all special multi-line/multi-space characters with a space.
     strnl = replace(str, r"[\b\f\n\r\t\s]", " ")
     # Left index
     li = (s > 20) ? s - 9 : 1
@@ -129,23 +131,20 @@ module FasterJSON
     )
   end
   
+  # PARSING
+  
   function parse_array(str::String, s::Int64, e::Int64, tracer::Tracer)
     _ti = trace_in(tracer, "array")
-    
-    # s = start of array (str[s:e] = "[...")
     s += 1 # Skip over the '['
-    
     _array = TYPES[]
-    
     s = chomp_space(str, s, e)
-    # Quick check for empty array
+    # Check for empty array
     if str[s] == ']'
       trace_out(tracer, _ti)
       return (_array, s + 1, e)
     end
     # Extract values from array
-    cont = true
-    while cont
+    while true
       # Extract value
       v, s, e = parse_value(str, s, e, tracer)
       push!(_array, v)
@@ -154,10 +153,10 @@ module FasterJSON
       c = str[s]
       if c == ','
         s += 1
-        #cont = true
+        continue
       elseif c == ']'
         s += 1
-        cont = false
+        break
       else
         _error(
           "Unexpected char: " * string(c),
@@ -165,66 +164,51 @@ module FasterJSON
         )
       end
     end
-    
     trace_out(tracer, _ti)
     return (_array, s, e)
   end
   
   function parse_object(str::String, s::Int64, e::Int64, tracer::Tracer)
     _ti = trace_in(tracer, "object")
-    
-    
     s += 1 # Skip over opening '{'
-    
     obj = Dict{KEY_TYPES,TYPES}()
-    
     # Eat up some space
     s = chomp_space(str, s, e)
-    # Quick check for empty object
+    # Check for empty object
     if str[s] == '}'
       trace_out(tracer, _ti)
       return (obj, s + 1, e)
     end
-    
-    cont = true
-    while cont
+    while true
       s = chomp_space(str, s, e)
-      
-      # TODO: Make this only look for KEY_TYPES.
-      _key, s, e = parse_value(str, s, e, tracer)
-      
+      # Key
+      _key, s, e = parse_string(str, s, e, tracer)
+      # Separator
       ss, se = _search(str, ':', s)
       # TODO: Error handling if it doesn't find the separator
       if ss < 1
-        _error(
-          "Separator not found ",
-          str, s, e
-        )
+        _error( "Separator not found ", str, s, e)
       end
       # Skip over separator
       s = se + 1
+      # Value
       _value, s, e = parse_value(str, s, e, tracer)
-      # Assign into the dict
-      obj[_key] = _value
-      # Find the next pair or end of object
+      obj[_key] = _value # Building object
+      
       s = chomp_space(str, s, e)
+      # Find the next pair or end of object
       c = str[s]
       if c == ','
         s += 1
-        #cont = true
+        continue
       elseif c == '}'
         s += 1
-        cont = false
+        break
       else
-        _error(
-          "Unexpected char: " * string(c),
-          str, s, e
-        )
+        _error("Unexpected char: " * string(c), str, s, e)
       end
     end
-    
     trace_out(tracer, _ti)
-    
     return (obj, s, e)
   end
   
@@ -232,14 +216,18 @@ module FasterJSON
   #       of the slowest parsing methods).
   function parse_string(str::String, s::Int64, e::Int64, tracer::Tracer)
     _ti = trace_in(tracer, "string")
-    
+    if str[s] != '"'
+      _error("Missing opening string char", str, s, e)
+    end
     s += 1 # Skip over opening '"'
     
+    # Search for a terminating '"'
     ts, te = _search(str, '"', s)
+    # Search for an escape character
     es, ee = _search(str, "\\", s)
     
     parts = String[]
-    
+    # If there are escape characters before the terminator.
     if es < ts
       while es >= s
         push!(parts, str[s:es - 1])
@@ -262,48 +250,43 @@ module FasterJSON
     else
       # pass
     end
-    
+    if ts < 1
+      _error("Missing closing string char", str, s, e)
+    end
+    # Add any remaining content up to the terminator
     push!(parts, str[s:ts - 1])
-    
     trace_out(tracer, _ti)
     return (join(parts, ""), te + 1, e)
   end
   
   function parse_simple(str::String, s::Int64, e::Int64, tracer::Tracer)
     _ti = trace_in(tracer, "simple")
-    
-    # Looks like "true"
     c = str[s]
     if c == 't' && str[s + 3] == 'e'
+      # Looks like "true"
       ret = (true, s + 4, e)
-    # Looks like "false"
     elseif c == 'f' && str[s + 4] == 'e'
+      # Looks like "false"
       ret = (false, s + 5, e)
-    # Looks like "null"
     elseif c == 'n' && str[s + 3] == 'l'
+      # Looks like "null"
       ret = (nothing, s + 4, e)
     else
-      _error(
-        "Unknown simple: " * string(c),
-        str, s, e
-      )
+      _error("Unknown simple: " * string(c), str, s, e)
     end
-    
     trace_out(tracer, _ti)
     return ret
   end
   
   function parse_value(str::String, s::Int64, e::Int64, tracer::Tracer)
     #_ti = trace_in(tracer, "value")
-    
     s = chomp_space(str, s, e)
-    
+    # Nothing left
     if s == e
       return (nothing, s, e)
     end
     
     ch = str[s]
-    
     if ch == '"'
       ret = parse_string(str, s, e, tracer)
     elseif ch == '{'
@@ -315,12 +298,8 @@ module FasterJSON
     elseif ch == 'f' || ch == 't' || ch == 'n'
       ret = parse_simple(str, s, e, tracer)
     else
-      _error(
-        "Unknown value",
-        str, s, e
-      )
+      _error("Unknown value", str, s, e)
     end
-    
     #trace_out(tracer, _ti)
     return ret
   end
@@ -329,7 +308,6 @@ module FasterJSON
     _ti = trace_in(tracer, "number")
     
     p = s
-    
     # Look for negative
     if str[p] == '-'
       p += 1
@@ -389,7 +367,6 @@ module FasterJSON
     end
     
     trace_out(tracer, _ti, vs)
-    
     s = p
     return (v, s, e)
   end
@@ -397,11 +374,10 @@ module FasterJSON
   function parse(str::String)
     pos::Int64 = 1
     len::Int64 = endof(str)
+    # Don't actually trace
     tracer = start_trace(false)
     
-    if len < 1
-      return nothing
-    end
+    if len < 1; return nothing; end
     
     v, s, e = parse_value(str, pos, len, tracer)
     return v
@@ -412,15 +388,10 @@ module FasterJSON
     len::Int64 = endof(str)
     tracer = start_trace(trace)
     
-    if len < 1
-      return nothing
-    end
+    if len < 1; return nothing; end
     
     v, s, e = parse_value(str, pos, len, tracer)
     return v, tracer
   end
   
-end
-
-
-
+end#module FasterJSON
