@@ -228,6 +228,8 @@ module FasterJSON
     return (obj, s, e)
   end
   
+  # TODO: Try to find ways to improve the performance of this (currently one
+  #       of the slowest parsing methods).
   function parse_string(str::String, s::Int64, e::Int64, tracer::Tracer)
     _ti = trace_in(tracer, "string")
     
@@ -335,14 +337,11 @@ module FasterJSON
     # Look for number
     if str[p] == '0'
       p += 1
-      is_decimal = true
       if str[p] == '.'
+        is_decimal = true
         p += 1
       else
-        _error(
-          "Expected decimal",
-          str, p, e
-        )
+        is_decimal = false
       end
     elseif str[p] > '0' && str[p] <= '9'
       p += 1

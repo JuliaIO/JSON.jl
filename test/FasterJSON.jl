@@ -21,7 +21,8 @@ typeof(j) == Dict{String, Any}
 typeof(j["menu"]) == Dict{String, Any}
 @assert length(j["menu"]) == 2
 @assert j["menu"]["header"] == "SVG\tViewerα"
-@assert typeof(j["menu"]["items"]) == Array{Any,1}
+#@assert typeof(j["menu"]["items"]) == Array{Any,1}
+@assert isa(j["menu"]["items"], Array)
 @assert length(j["menu"]["items"]) == 22
 @assert j["menu"]["items"][3] == nothing
 @assert j["menu"]["items"][2]["id"] == "OpenNew"
