@@ -5,7 +5,7 @@ require("JSON/test/json_samples")
 macro timeit(name, ex)
   quote
     t = Inf
-    for i=1:10
+    for i=1:1000
       t = min(t, @elapsed $ex)
     end
     println($name, "\t", JSON.Faster.format(t * 1000))

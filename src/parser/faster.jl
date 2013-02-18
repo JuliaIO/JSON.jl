@@ -213,17 +213,83 @@ module Faster
   end
   
   # Special characters for parse_string
-  const __dq = string('"' )
-  const __bs = string('\\')
-  const __fs = string('/' )
-  const __b  = string('\b')
-  const __f  = string('\f')
-  const __n  = string('\n')
-  const __r  = string('\r')
-  const __t  = string('\t')
+  const _dq = uint8('"' )
+  const _bs = uint8('\\')
+  const _fs = uint8('/' )
+  const _b  = uint8('\b')
+  const _f  = uint8('\f')
+  const _n  = uint8('\n')
+  const _r  = uint8('\r')
+  const _t  = uint8('\t')
   # TODO: Try to find ways to improve the performance of this (currently one
   #       of the slowest parsing methods).
+  
   function parse_string(str::String, s::Int64, e::Int64, tracer::Tracer)
+    _ti = trace_in(tracer, "string")
+    if str[s] != '"'
+      _error("Missing opening string char", str, s, e)
+    end
+    s += 1 # Skip over opening '"'
+    
+    o = Array(Uint8, 0)
+    
+    found_end = false
+    while s <= e
+      c = str[s]
+      if c == '\\'
+        s += 1
+        c = str[s]
+        if c == 'u'
+          # Unicode escape
+          # Get the string
+          u = unescape_string(str[s - 1:s + 4])
+          # Get the uint8s for the string
+          d = bytestring(u).data
+          append!(o, d)
+          s += 4 # Skip over those next four characters
+        elseif c == '"'
+          push!(o, _dq)
+        elseif c == '\\'
+          push!(o, _bs)
+        elseif c == '/'
+          push!(o, _fs)
+        elseif c == 'b'
+          push!(o, _b )
+        elseif c == 'f'
+          push!(o, _f )
+        elseif c == 'n'
+          push!(o, _n )
+        elseif c == 'r'
+          push!(o, _r )
+        elseif c == 't'
+          push!(o, _t )
+        else
+          _error("Unrecognized escaped character: " * string(c), str, s, e)
+        end
+      elseif c == '"'
+        found_end = true
+        s += 1
+        break
+      else
+        push!(o, uint8(c))
+      end
+      s += 1
+    end
+    
+    if !found_end
+      _error("Unterminated string", str, s, e)
+    end
+    
+    r = utf8(o)
+    trace_out(tracer, _ti)
+    return (r, s, e)
+  end
+  
+  # NOTE: SERIOUS PERFORMANCE IMPROVEMENTS LURKING
+  # new parse_string (above): 0.313, 0.312, 0.310 ms
+  # parse_string_old (below): 0.693, 0.687, 0.692 ms
+  
+  function parse_string_old(str::String, s::Int64, e::Int64, tracer::Tracer)
     _ti = trace_in(tracer, "string")
     if str[s] != '"'
       _error("Missing opening string char", str, s, e)
@@ -244,8 +310,8 @@ module Faster
         s = ee + 1
         c = str[s]
         
-        # Unicode escape
-        if c === 'u'
+        if c == 'u'
+          # Unicode escape
           push!(parts, unescape_string(str[s - 1:s + 4]))
           s += 4 # Skip over those next four characters
         elseif c == '"'
