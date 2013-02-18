@@ -154,7 +154,7 @@ d = "{\"web-app\": {
     \"taglib-location\": \"/WEB-INF/tlds/cofax.tld\"}}}"
 
 e="{\"menu\": {
-    \"header\": \"SVG\\\tViewer\\u03b1\",
+    \"header\": \"SVG\\tViewer\\u03b1\",
     \"items\": [
         {\"id\": \"Open\"},
         {\"id\": \"OpenNew\", \"label\": \"Open New\"},
