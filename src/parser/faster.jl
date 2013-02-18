@@ -212,6 +212,15 @@ module Faster
     return (obj, s, e)
   end
   
+  # Special characters for parse_string
+  const __dq = string('"' )
+  const __bs = string('\\')
+  const __fs = string('/' )
+  const __b  = string('\b')
+  const __f  = string('\f')
+  const __n  = string('\n')
+  const __r  = string('\r')
+  const __t  = string('\t')
   # TODO: Try to find ways to improve the performance of this (currently one
   #       of the slowest parsing methods).
   function parse_string(str::String, s::Int64, e::Int64, tracer::Tracer)
@@ -234,14 +243,32 @@ module Faster
         
         s = ee + 1
         c = str[s]
+        
         # Unicode escape
-        if c == 'u'
-          #show(str[s - 1:s + 4]);println()
+        if c === 'u'
           push!(parts, unescape_string(str[s - 1:s + 4]))
           s += 4 # Skip over those next four characters
+        elseif c == '"'
+          s = __dq
+        elseif c == '\\'
+          push!(parts, __bs)
+        elseif c == '/'
+          push!(parts, __fs)
+        elseif c == 'b'
+          push!(parts, __b )
+        elseif c == 'f'
+          push!(parts, __f )
+        elseif c == 'n'
+          push!(parts, __n )
+        elseif c == 'r'
+          push!(parts, __r )
+        elseif c == 't'
+          push!(parts, __t )
         else
-          push!(parts, string(c))
+          # push!(parts, string(c))
+          _error("Unrecognized escaped character: " * string(c), str, s, e)
         end
+        
         s += 1 # Move past the character
         # Find the next escape
         es, ee = _search(str, "\\", s)
