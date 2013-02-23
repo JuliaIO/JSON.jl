@@ -151,11 +151,11 @@ function parse(strng::String)
                  index_esc = index_esc + 1;
             end
             if index_esc > len_esc
-                str = strcat(str, strng[pos:end]);
+                str = string(str, strng[pos:end]);
                 pos = len + 1;
                 break;
             else
-                str = strcat(str, strng[pos:esc_locations[index_esc]-1]);
+                str = string(str, strng[pos:esc_locations[index_esc]-1]);
                 pos = esc_locations[index_esc];
             end
             nc = strng[pos]
@@ -169,10 +169,10 @@ function parse(strng::String)
                 pos = nextind(strng, pos)
                 anc = strng[pos]
                  if anc == '"' || anc == '\\' || anc == '/'
-                    str = strcat(str, strng[pos])
+                    str = string(str, strng[pos])
                     pos = nextind(strng, pos)
                  elseif anc ==  'b' || anc == 'f'|| anc == 'n' || anc == 'r' || anc == 't'
-                    str = strcat(str, unescape_string(strcat('\\', strng[pos])))
+                    str = string(str, unescape_string(string('\\', strng[pos])))
                     pos = nextind(strng, pos)
                  elseif  anc == 'u'
                     startpos = prevind(strng, pos)
@@ -181,11 +181,11 @@ function parse(strng::String)
                         error("End of file reached in escaped unicode character")
                     end
                     
-                    str = strcat(str, unescape_string(strng[startpos:endpos]))
+                    str = string(str, unescape_string(strng[startpos:endpos]))
                     pos =  nextind(strng, endpos)
                 end
             else #This can be optimised if we have a preselected list of string terminators
-                str = strcat(str,strng[pos])
+                str = string(str,strng[pos])
                 pos = nextind(strng, pos)
             end
         end
