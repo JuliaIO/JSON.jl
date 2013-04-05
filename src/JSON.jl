@@ -201,9 +201,9 @@ function parse(strng::String)
         delta = m.offset + length(m.match)
         pos = pos + delta -1
         try
-            return parse_int(m.match)
+            return parseint(m.match)
         catch
-            return parse_float(m.match)
+            return parsefloat(m.match)
         end
     end
 
