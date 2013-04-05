@@ -75,46 +75,46 @@ function parse(strng::String)
     esc_locations::Array{Int64,1}  = map(x->x.offset, [eachmatch(r"[\"\\\\]", strng)...])
     len_esc = length(esc_locations)  
 
-    function parse_object()
-        parse_char('{')
+    function parseobject()
+        parsechar('{')
         object = (String=>Any)[]
         if next_char() != '}'
             while true
-                str = parse_string()
+                str = parsestring()
                 if isempty(str)
                     error("Name of value cannot be empty at position $pos: $(errpos())")
                 end
-                parse_char(':')
-                val = parse_value()
+                parsechar(':')
+                val = parsevalue()
                 object[str] = val
                 if next_char() == '}'
                     break
                 end
-                parse_char(',')
+                parsechar(',')
             end
         end
-        parse_char('}')
+        parsechar('}')
         return object
     end
 
-    function  parse_array()
-        parse_char('[')
+    function  parsearray()
+        parsechar('[')
         object = Any[]
         if next_char() != ']'
             while true
-                val = parse_value()
+                val = parsevalue()
                 push!(object, val)
                 if next_char() == ']'
                     break
                 end
-                parse_char(',')
+                parsechar(',')
             end
         end
-        parse_char(']')
+        parsechar(']')
         return object
     end
 
-    function parse_char(c::Char)
+    function parsechar(c::Char)
         skip_whitespace()
         if pos > len || strng[pos] != c
             error("Expected $c at position $pos: $(errpos())")
@@ -139,7 +139,7 @@ function parse(strng::String)
         end
     end
 
-     function parse_string()
+     function parsestring()
         if next_char() != '"'
             error("String starting with \" expected at position $pos: $(errpos())")
         else
@@ -192,7 +192,7 @@ function parse(strng::String)
         error("End of file while expecting end of string")
     end
 
-    function parse_number()
+    function parsenumber()
         num_regex = r"^[\w]?[-+]?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?[\w]?"
         m = match(num_regex, strng[pos:min(len,pos+40)])
         if m==nothing
@@ -207,19 +207,19 @@ function parse(strng::String)
         end
     end
 
-    function  parse_value()
+    function  parsevalue()
         nc = next_char()
         if nc == '"'
-            val = parse_string()
+            val = parsestring()
             return val
         elseif nc == '['
-            val = parse_array()
+            val = parsearray()
             return val
         elseif nc == '{'
-            val = parse_object()
+            val = parseobject()
             return val
         elseif nc == '-' || nc == '0' || nc == '1' || nc == '2' || nc == '3' || nc == '4' || nc == '5' || nc == '6' || nc == '7' || nc == '8' || nc == '9'
-            val = parse_number()
+            val = parsenumber()
             return val
         elseif nc == 't'
             endpos = movpos(3)
@@ -268,9 +268,9 @@ function parse(strng::String)
     if pos <= len
         nc = next_char()
         if nc == '{'
-            return parse_object()
+            return parseobject()
         elseif nc == '['
-            return parse_array()
+            return parsearray()
         else
             error("Outer level structure must be an object or an array")
         end
