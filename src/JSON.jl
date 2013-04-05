@@ -72,7 +72,7 @@ function parse(strng::String)
     len_esc::Int = 0
     index_esc::Int = 1
 
-    esc_locations::Array{Int64,1}  = map(x->x.offset, [each_match(r"[\"\\\\]", strng)...])
+    esc_locations::Array{Int64,1}  = map(x->x.offset, [eachmatch(r"[\"\\\\]", strng)...])
     len_esc = length(esc_locations)  
 
     function parse_object()
