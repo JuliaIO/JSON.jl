@@ -278,14 +278,14 @@ function parse(strng::String)
 
 end
 
-function parse(io::IO, buff_type)
+function parse(io::IO, el_type)
     obj = ""
     open_bracket = nothing
     close_bracket = nothing
     num_brackets_needed = 1
 
     while open_bracket == nothing
-        c = read(io, buff_type)
+        c = char(read(io, el_type))
         if c == '{'
             open_bracket = '{'
             close_bracket = '}'
@@ -298,7 +298,7 @@ function parse(io::IO, buff_type)
     obj = string(open_bracket)
 
     while num_brackets_needed > 0
-        c = read(io, buff_type)
+        c = char(read(io, el_type))
         obj = string(obj, c)
 
         if c == open_bracket
