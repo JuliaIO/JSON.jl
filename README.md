@@ -1,4 +1,5 @@
-#JSON parsing and printing for Julia.
+#JSON parsing and printing for Julia. 
+[![Build Status](https://travis-ci.org/aviks/JSON.jl.png)](https://travis-ci.org/aviks/JSON.jl)
 
 ##Installation
 
