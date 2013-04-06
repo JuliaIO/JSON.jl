@@ -15,5 +15,6 @@ before_install:
     - git config --global user.email "travis@example.net"
 script:
     - julia -e "Pkg.init()"
+    - mkdir -p ~/.julia/JSON
     - cp -R ./* ~/.julia/JSON/
     - julia ~/.julia/JSON/test/JSON.jl
