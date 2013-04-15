@@ -455,9 +455,9 @@ module Parser
     
     vs = str[s:p - 1]
     if is_decimal
-      v = parse_float(vs)
+      v = parsefloat(vs)
     else
-      v = parse_int(vs)
+      v = parseint(vs)
     end
     
     trace_out(tracer, _ti, vs)
