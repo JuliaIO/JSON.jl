@@ -1,4 +1,4 @@
-require("src/JSON")
+require("JSON")
 
 require("JSON/test/json_samples")
 
