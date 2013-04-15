@@ -1,4 +1,5 @@
-#JSON parsing and printing for Julia.
+#JSON parsing and printing for Julia. 
+[![Build Status](https://travis-ci.org/aviks/JSON.jl.png)](https://travis-ci.org/aviks/JSON.jl)
 
 ##Installation
 
@@ -22,7 +23,7 @@ print_to_json(io::IO, s::Union(Integer, FloatingPoint))
 print_to_json(io::IO, n::Nothing)
 print_to_json(io::IO, b::Bool)
 print_to_json(io::IO, a::Associative)
-print_to_json(io::IO, v::Vector)
+print_to_json(io::IO, v::AbstractVector)
 
 Writes a compact (no extra whitespace or identation) JSON representation
 to the supplied IOStream
