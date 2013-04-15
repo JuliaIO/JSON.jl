@@ -68,4 +68,37 @@ print_to_json{T}(a::T) = print_to_json(OUTPUT_STREAM, a)
 
 to_json(a) = sprint(print_to_json, a)
 
+function parse(io::IO)
+    obj = ""
+    open_bracket = nothing
+    close_bracket = nothing
+    num_brackets_needed = 1
+
+    while open_bracket == nothing
+        c = read(io, Char)
+        if c == '{'
+            open_bracket = '{'
+            close_bracket = '}'
+        elseif c == '['
+            open_bracket = '['
+            close_bracket = ']'
+        end
+    end
+
+    obj = string(open_bracket)
+
+    while num_brackets_needed > 0
+        c = char(read(io, Char))
+        obj = string(obj, c)
+
+        if c == open_bracket
+            num_brackets_needed += 1
+        elseif c == close_bracket
+            num_brackets_needed -= 1
+        end
+    end
+
+    parse(obj)
+end
+
 end
