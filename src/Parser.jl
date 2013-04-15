@@ -1,6 +1,6 @@
 
 # Recklessly faster JSON parser.
-module Faster
+module Parser
   
   # Types it may encounter
   TYPES = Union(Dict, Array, String, Number, Bool, Nothing)
@@ -488,4 +488,4 @@ module Faster
     return v, tracer
   end
   
-end#module FasterJSON
+end#module Parser
