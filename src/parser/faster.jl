@@ -223,21 +223,20 @@ module Faster
   const _t  = uint8('\t')
   # TODO: Try to find ways to improve the performance of this (currently one
   #       of the slowest parsing methods).
-  
   function parse_string(str::String, s::Int64, e::Int64, tracer::Tracer)
     _ti = trace_in(tracer, "string")
     if str[s] != '"'
       _error("Missing opening string char", str, s, e)
     end
-    s += 1 # Skip over opening '"'
+    s = nextind(str, s) # Skip over opening '"'
     
-    o = Array(Uint8, 0)
+    b = IOBuffer()
     
     found_end = false
     while s <= e
       c = str[s]
       if c == '\\'
-        s += 1
+        s = nextind(str, s)
         c = str[s]
         if c == 'u'
           # Unicode escape
@@ -245,42 +244,44 @@ module Faster
           u = unescape_string(str[s - 1:s + 4])
           # Get the uint8s for the string
           d = bytestring(u).data
-          append!(o, d)
-          s += 4 # Skip over those next four characters
+          # append!(o, d)
+          write(b, bytestring(u))
+          # Skip over those next four characters
+          [s = nextind(str, s) for _ = 1:4]
         elseif c == '"'
-          push!(o, _dq)
+          write(b, '"')
         elseif c == '\\'
-          push!(o, _bs)
+          write(b, '\\')
         elseif c == '/'
-          push!(o, _fs)
+          write(b, '/')
         elseif c == 'b'
-          push!(o, _b )
+          write(b, '\b')
         elseif c == 'f'
-          push!(o, _f )
+          write(b, '\f')
         elseif c == 'n'
-          push!(o, _n )
+          write(b, '\n')
         elseif c == 'r'
-          push!(o, _r )
+          write(b, '\r')
         elseif c == 't'
-          push!(o, _t )
+          write(b, '\t')
         else
           _error("Unrecognized escaped character: " * string(c), str, s, e)
         end
       elseif c == '"'
         found_end = true
-        s += 1
+        s = nextind(str, s)
         break
       else
-        push!(o, uint8(c))
+        write(b, c)
       end
-      s += 1
+      s = nextind(str, s)
     end
     
     if !found_end
       _error("Unterminated string", str, s, e)
     end
     
-    r = utf8(o)
+    r = takebuf_string(b)
     trace_out(tracer, _ti)
     return (r, s, e)
   end
