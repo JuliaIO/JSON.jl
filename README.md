@@ -26,7 +26,7 @@ print_to_json(io::IO, a::Associative)
 print_to_json(io::IO, v::AbstractVector)
 
 Writes a compact (no extra whitespace or identation) JSON representation
-to the supplied IOStream
+to the supplied IO
 ```
 
 ```julia
@@ -37,6 +37,7 @@ Returns a compact JSON representation as a String
 
 ```julia
 parse(s::String)
+parse(io::IO)
 
 Parses a JSON String into a nested Array or Dict
 ```
