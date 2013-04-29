@@ -89,7 +89,7 @@ function parse(io::IO)
 
     while num_brackets_needed > 0
         c = char(read(io, Char))
-        obj = string(obj, c)
+        obj = obj * string(c)
 
         if c == open_bracket
             num_brackets_needed += 1
