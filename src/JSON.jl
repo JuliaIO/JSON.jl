@@ -68,12 +68,12 @@ print_to_json{T}(a::T) = print_to_json(OUTPUT_STREAM, a)
 
 to_json(a) = sprint(print_to_json, a)
 
-function parse(io::IO)
-    obj = ""
+function parse(io::AsyncStream)
     open_bracket = nothing
     close_bracket = nothing
     num_brackets_needed = 1
 
+    # find the opening bracket type
     while open_bracket == nothing
         c = read(io, Char)
         if c == '{'
@@ -87,18 +87,29 @@ function parse(io::IO)
 
     obj = string(open_bracket)
 
-    while num_brackets_needed > 0
-        c = char(read(io, Char))
-        obj = obj * string(c)
+    # read chunks at a time until we get a full object
+    while true
+        curr = readavailable(io)
+        nb = length(curr)
 
-        if c == open_bracket
-            num_brackets_needed += 1
-        elseif c == close_bracket
-            num_brackets_needed -= 1
+        i = start(curr)
+        while num_brackets_needed > 0 && !done(curr, i)
+            c, i = next(curr, i)
+
+            if c == open_bracket
+                num_brackets_needed += 1
+            elseif c == close_bracket
+                num_brackets_needed -= 1
+            end
+        end
+
+        obj = RopeString(obj, curr[1:i-1])
+
+        if num_brackets_needed < 1
+            write(io.buffer, curr[i:end])
+            return parse(utf8(obj))
         end
     end
-
-    parse(obj)
 end
 
 end
