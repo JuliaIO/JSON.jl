@@ -41,67 +41,102 @@ validate_unicode(unicode) = begin
                             end
 # -------
 
+finished_async_tests = RemoteRef()
+
+@async begin
+    s = listen(7777)
+    s = accept(s)
+
+    s.line_buffered = false
+    start_reading(s)
+
+    @assert JSON.parse(s) != nothing  # a
+    @assert JSON.parse(s) != nothing  # b
+    validate_c(s)                     # c
+    @assert JSON.parse(s) != nothing  # d
+    validate_e(s)                     # e
+    @assert JSON.parse(s) != nothing  # gmaps
+    @assert JSON.parse(s) != nothing  # colors1
+    @assert JSON.parse(s) != nothing  # colors2
+    @assert JSON.parse(s) != nothing  # colors3
+    @assert JSON.parse(s) != nothing  # twitter
+    @assert JSON.parse(s) != nothing  # facebook
+    validate_flickr(s)                # flickr
+    @assert JSON.parse(s) != nothing  # youtube
+    @assert JSON.parse(s) != nothing  # iphone
+    @assert JSON.parse(s) != nothing  # customer
+    @assert JSON.parse(s) != nothing  # product
+    @assert JSON.parse(s) != nothing  # interop
+    validate_unicode(s)               # unicode
+    @assert JSON.parse(s) != nothing  # issue5
+
+    put(finished_async_tests, nothing)
+end
+
+w = TcpSocket()
+connect(w, "localhost", 7777)
+
 @assert JSON.parse(a) != nothing
-@assert JSON.parse(IOBuffer(a)) != nothing
+write(w, a)
 
 @assert JSON.parse(b) != nothing
-@assert JSON.parse(IOBuffer(b)) != nothing
+write(w, b)
 
 validate_c(c)
-validate_c(IOBuffer(c))
+write(w, c)
 
 @assert JSON.parse(d) != nothing
-@assert JSON.parse(IOBuffer(d)) != nothing
+write(w, d)
 
 validate_e(e)
-validate_e(IOBuffer(e))
-
+write(w, e)
 
 @assert JSON.parse(gmaps) != nothing
-@assert JSON.parse(IOBuffer(gmaps)) != nothing
+write(w, gmaps)
 
 @assert JSON.parse(colors1) != nothing
-@assert JSON.parse(IOBuffer(colors1)) != nothing
+write(w, colors1)
 
 @assert JSON.parse(colors2) != nothing
-@assert JSON.parse(IOBuffer(colors2)) != nothing
+write(w, colors2)
 
 @assert JSON.parse(colors3) != nothing
-@assert JSON.parse(IOBuffer(colors3)) != nothing
+write(w, colors3)
 
 @assert JSON.parse(twitter) != nothing
-@assert JSON.parse(IOBuffer(twitter)) != nothing
+write(w, twitter)
 
 @assert JSON.parse(facebook) != nothing
-@assert JSON.parse(IOBuffer(facebook)) != nothing
+write(w, facebook)
 
 validate_flickr(flickr)
-validate_flickr(IOBuffer(flickr))
+write(w, flickr)
 
 @assert JSON.parse(youtube) != nothing
-@assert JSON.parse(IOBuffer(youtube)) != nothing
+write(w, youtube)
 
 @assert JSON.parse(iphone) != nothing
-@assert JSON.parse(IOBuffer(iphone)) != nothing
+write(w, iphone)
 
 @assert JSON.parse(customer) != nothing
-@assert JSON.parse(IOBuffer(customer)) != nothing
+write(w, customer)
 
 @assert JSON.parse(product) != nothing
-@assert JSON.parse(IOBuffer(product)) != nothing
+write(w, product)
 
 @assert JSON.parse(interop) != nothing
-@assert JSON.parse(IOBuffer(interop)) != nothing
+write(w, interop)
 
 validate_unicode(unicode)
-validate_unicode(IOBuffer(unicode))
+write(w, unicode)
 
 
 #Issue 5 on Github
 issue5 = "[\"A\",\"B\",\"C\\n\"]"
 JSON.parse(issue5)
-JSON.parse(IOBuffer(issue5))
+write(w, issue5)
 
+fetch(finished_async_tests)
 
 #Uncomment while doing timing tests
 #@time for i=1:100 ; JSON.parse(d) ; end
