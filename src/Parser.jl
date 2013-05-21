@@ -3,9 +3,9 @@
 module Parser
   
   # Types it may encounter
-  TYPES = Union(Dict, Array, String, Number, Bool, Nothing)
+  const TYPES = Any # Union(Dict, Array, String, Number, Bool, Nothing)
   # Types it may encounter as object keys
-  KEY_TYPES = Union(String)
+  const KEY_TYPES = Union(String)
   
   export parse
   
