@@ -10,7 +10,11 @@ function parse(strng::String)
   Parser.parse(strng)
 end
 
-print_to_json(io::IO, s::String) = print_quoted(io, s)
+function print_to_json(io::IO, s::String)
+    print(io, '"')
+    print_escaped(io, s, "\"")
+    print(io, '"')
+end
 
 print_to_json(io::IO, s::Union(Integer, FloatingPoint)) = print(io, s)
 

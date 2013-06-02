@@ -69,6 +69,7 @@ finished_async_tests = RemoteRef()
     @assert JSON.parse(s) != nothing  # interop
     validate_unicode(s)               # unicode
     @assert JSON.parse(s) != nothing  # issue5
+    @assert JSON.parse(s) != nothing  # dollars
 
     put(finished_async_tests, nothing)
 end
@@ -135,6 +136,12 @@ write(w, unicode)
 issue5 = "[\"A\",\"B\",\"C\\n\"]"
 JSON.parse(issue5)
 write(w, issue5)
+
+# $ escaping issue
+dollars = ["all of the \$s", "µniçø∂\$"]
+json_dollars = JSON.to_json(dollars)
+@assert JSON.parse(json_dollars) != nothing
+write(w, json_dollars)
 
 fetch(finished_async_tests)
 
