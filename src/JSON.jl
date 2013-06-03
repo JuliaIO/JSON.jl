@@ -111,35 +111,4 @@ function parse(io::IO)
     JSON.parse(takebuf_string(obj))
 end
 
-function parse(io::AsyncStream)
-    open_bracket, close_bracket = determine_bracket_type(io)
-    num_brackets_needed = 1
-
-    obj = string(open_bracket)
-
-    # read chunks at a time until we get a full object
-    while true
-        curr = readavailable(io)
-        nb = length(curr)
-
-        i = start(curr)
-        while num_brackets_needed > 0 && !done(curr, i)
-            c, i = next(curr, i)
-
-            if c == open_bracket
-                num_brackets_needed += 1
-            elseif c == close_bracket
-                num_brackets_needed -= 1
-            end
-        end
-
-        obj = RopeString(obj, curr[1:i-1])
-
-        if num_brackets_needed < 1
-            write(io.buffer, curr[i:end])
-            return parse(utf8(obj))
-        end
-    end
-end
-
 end
