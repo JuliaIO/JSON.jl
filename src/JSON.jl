@@ -94,10 +94,12 @@ function parse(io::IO)
     open_bracket, close_bracket = determine_bracket_type(io)
     num_brackets_needed = 1
 
-    obj = [open_bracket]
+    obj = IOBuffer()
+    write(obj, open_bracket)
+
     while num_brackets_needed > 0
         c = read(io, Char)
-        push!(obj, c)
+        write(obj, c)
 
         if c == open_bracket
             num_brackets_needed += 1
@@ -106,7 +108,7 @@ function parse(io::IO)
         end
     end
 
-    JSON.parse(join(obj))
+    JSON.parse(takebuf_string(obj))
 end
 
 function parse(io::AsyncStream)
