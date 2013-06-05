@@ -152,3 +152,8 @@ fetch(finished_async_tests)
 # Printing an empty array or Dict shouldn't cause a BoundsError
 @assert JSON.to_json(ASCIIString[]) == "[]"
 @assert JSON.to_json(Dict()) == "{}"
+
+#test for issue 26
+obj = JSON.parse("{\"a\":2e10}")
+@assert(obj["a"] == 2e10)
+
