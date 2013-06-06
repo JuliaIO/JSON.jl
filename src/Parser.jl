@@ -410,10 +410,10 @@ module Parser
     if str[p] == '0'
       p += 1
       if str[p] == '.'
-        is_decimal = true
+        is_float = true
         p += 1
       else
-        is_decimal = false
+        is_float = false
       end
     elseif str[p] > '0' && str[p] <= '9'
       p += 1
@@ -423,9 +423,9 @@ module Parser
       end
       if str[p] == '.'
         p += 1
-        is_decimal = true
+        is_float = true
       else
-        is_decimal = false
+        is_float = false
       end
     else
       _error(
@@ -433,7 +433,7 @@ module Parser
         str, p, e
       )
     end
-    if is_decimal
+    if is_float
       # Match digits after decimal
       while str[p] >= '0' && str[p] <= '9'
         p += 1
@@ -441,8 +441,9 @@ module Parser
     else
       # Not decimal
     end
-    if str[p] == 'E' || str[p] == 'e'
+    if str[p] == 'E' || str[p] == 'e' || str[p] == 'f'
       p += 1
+      is_float = true
       # Exponent sign
       if str[p] == '-' || str[p] == '+'
         p += 1
@@ -454,7 +455,7 @@ module Parser
     end
     
     vs = str[s:p - 1]
-    if is_decimal
+    if is_float
       v = parsefloat(vs)
     else
       v = parseint(vs)
