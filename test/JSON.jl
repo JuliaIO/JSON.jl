@@ -70,6 +70,7 @@ finished_async_tests = RemoteRef()
     validate_unicode(s)               # unicode
     @assert JSON.parse(s) != nothing  # issue5
     @assert JSON.parse(s) != nothing  # dollars
+    @assert JSON.parse(s) != nothing  # brackets
 
     put(finished_async_tests, nothing)
 end
@@ -141,6 +142,12 @@ write(w, issue5)
 dollars = ["all of the \$s", "µniçø∂\$"]
 json_dollars = JSON.to_json(dollars)
 @assert JSON.parse(json_dollars) != nothing
+write(w, json_dollars)
+
+# unmatched brackets
+brackets = {"foo"=>"ba}r", "be}e]p"=>"boo{p"}
+json_brackets = JSON.to_json(brackets)
+@assert JSON.parse(json_brackets) != nothing
 write(w, json_dollars)
 
 fetch(finished_async_tests)
