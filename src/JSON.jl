@@ -90,6 +90,32 @@ function determine_bracket_type(io::IO)
     return (open_bracket, close_bracket)
 end
 
+
+###
+# Consume a string (even if it is invalid), with ack to Douglas Crockford.
+# On entry we must already have consumed the opening quotation double-quotation mark
+# Add the characters of the string to obj
+function consumeString(io::IO, obj::IOBuffer)
+    c = '"'
+
+    # When parsing for string values, we must look for " and \ characters.
+    while (c = read(io, Char)) != '\0'
+      if c == '"'
+        write(obj, c)
+        return
+      end
+      if c == '\\'
+        write(obj, c)
+        c = read(io, Char)
+        if c == '\0'
+       error("EOF while attempting to read a string")
+        end
+      end
+      write(obj, c)
+    end
+    error("EOF while attempting to read a string")
+end
+
 function parse(io::IO)
     open_bracket, close_bracket = determine_bracket_type(io)
     num_brackets_needed = 1
@@ -105,6 +131,8 @@ function parse(io::IO)
             num_brackets_needed += 1
         elseif c == close_bracket
             num_brackets_needed -= 1
+        elseif c == '"'
+            consumeString(io, obj)
         end
     end
 
