@@ -13,19 +13,19 @@ module Parser
   
   type Trace
     name::String
-    depth::Int64
+    depth::Int
     start::Float64
     stop::Float64
     data::Union(String, Nothing)
     
-    Trace(name::String, depth::Int64, start::Float64) =
+    Trace(name::String, depth::Int, start::Float64) =
       new(name, depth, start, 0.0, nothing)
   end
   
   type Tracer
     do_trace::Bool
     stack::Vector{Trace}
-    current_depth::Int64
+    current_depth::Int
     
     Tracer(trace) = new(trace, Trace[], 0)
   end
@@ -44,7 +44,7 @@ module Parser
     return endof(tracer.stack) # ti (trace index)
   end
   
-  function trace_out(tracer::Tracer, ti::Int64, data::Union(String, Nothing))
+  function trace_out(tracer::Tracer, ti::Int, data::Union(String, Nothing))
     if !tracer.do_trace; return; end
     # Get the tracer at the index ti and update its values.
     _trace = tracer.stack[ti]
@@ -80,13 +80,13 @@ module Parser
   
   # UTILITIES
   
-  function _search(haystack::String, needle::Union(String, Regex, Char), _start::Int64)
+  function _search(haystack::String, needle::Union(String, Regex, Char), _start::Int)
     range = search(haystack, needle, _start)
     return (first(range), last(range))
   end
   
   # Eat up spaces starting at s.
-  function chomp_space(str::String, s::Int64, e::Int64)
+  function chomp_space(str::String, s::Int, e::Int)
     if !(s < e)
       return s
     end
@@ -99,7 +99,7 @@ module Parser
   end
   
   # Used for line counts
-  function _count_before(haystack::String, needle::Char, _end::Int64)
+  function _count_before(haystack::String, needle::Char, _end::Int)
     count = 0
     i = 1
     while i < _end
@@ -112,7 +112,7 @@ module Parser
   end
   
   # Prints an error message with an indicator to the source
-  function _error(message::String, str::String, s::Int64, e::Int64)
+  function _error(message::String, str::String, s::Int, e::Int)
     lines = _count_before(str, '\n', s)
     # Replace all special multi-line/multi-space characters with a space.
     strnl = replace(str, r"[\b\f\n\r\t\s]", " ")
@@ -133,7 +133,7 @@ module Parser
   
   # PARSING
   
-  function parse_array(str::String, s::Int64, e::Int64, tracer::Tracer)
+  function parse_array(str::String, s::Int, e::Int, tracer::Tracer)
     _ti = trace_in(tracer, "array")
     s += 1 # Skip over the '['
     _array = TYPES[]
@@ -168,7 +168,7 @@ module Parser
     return (_array, s, e)
   end
   
-  function parse_object(str::String, s::Int64, e::Int64, tracer::Tracer)
+  function parse_object(str::String, s::Int, e::Int, tracer::Tracer)
     _ti = trace_in(tracer, "object")
     s += 1 # Skip over opening '{'
     obj = Dict{KEY_TYPES,TYPES}()
@@ -223,7 +223,7 @@ module Parser
   const _t  = uint8('\t')
   # TODO: Try to find ways to improve the performance of this (currently one
   #       of the slowest parsing methods).
-  function parse_string(str::String, s::Int64, e::Int64, tracer::Tracer)
+  function parse_string(str::String, s::Int, e::Int, tracer::Tracer)
     _ti = trace_in(tracer, "string")
     if str[s] != '"'
       _error("Missing opening string char", str, s, e)
@@ -290,7 +290,7 @@ module Parser
   # new parse_string (above): 0.313, 0.312, 0.310 ms
   # parse_string_old (below): 0.693, 0.687, 0.692 ms
   
-  function parse_string_old(str::String, s::Int64, e::Int64, tracer::Tracer)
+  function parse_string_old(str::String, s::Int, e::Int, tracer::Tracer)
     _ti = trace_in(tracer, "string")
     if str[s] != '"'
       _error("Missing opening string char", str, s, e)
@@ -353,7 +353,7 @@ module Parser
     return (join(parts, ""), te + 1, e)
   end
   
-  function parse_simple(str::String, s::Int64, e::Int64, tracer::Tracer)
+  function parse_simple(str::String, s::Int, e::Int, tracer::Tracer)
     _ti = trace_in(tracer, "simple")
     c = str[s]
     if c == 't' && str[s + 3] == 'e'
@@ -372,7 +372,7 @@ module Parser
     return ret
   end
   
-  function parse_value(str::String, s::Int64, e::Int64, tracer::Tracer)
+  function parse_value(str::String, s::Int, e::Int, tracer::Tracer)
     #_ti = trace_in(tracer, "value")
     s = chomp_space(str, s, e)
     # Nothing left
@@ -398,7 +398,7 @@ module Parser
     return ret
   end
   
-  function parse_number(str::String, s::Int64, e::Int64, tracer::Tracer)
+  function parse_number(str::String, s::Int, e::Int, tracer::Tracer)
     _ti = trace_in(tracer, "number")
     
     p = s
@@ -467,8 +467,8 @@ module Parser
   end
   
   function parse(str::String)
-    pos::Int64 = 1
-    len::Int64 = endof(str)
+    pos::Int = 1
+    len::Int = endof(str)
     # Don't actually trace
     tracer = start_trace(false)
     
@@ -479,8 +479,8 @@ module Parser
   end
   
   function parse(str::String, trace::Bool)
-    pos::Int64 = 1
-    len::Int64 = endof(str)
+    pos::Int = 1
+    len::Int = endof(str)
     tracer = start_trace(trace)
     
     if len < 1; return nothing; end
