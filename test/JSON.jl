@@ -164,3 +164,5 @@ fetch(finished_async_tests)
 obj = JSON.parse("{\"a\":2e10}")
 @assert(obj["a"] == 2e10)
 
+#Multidimensional arrays
+@assert JSON.to_json([0 1; 1 0]) == "[[0,2],[1,0]]"
