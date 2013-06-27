@@ -165,4 +165,4 @@ obj = JSON.parse("{\"a\":2e10}")
 @assert(obj["a"] == 2e10)
 
 #Multidimensional arrays
-@assert JSON.to_json([0 1; 1 0]) == "[[0,2],[1,0]]"
+@assert JSON.to_json([0 1; 2 0]) == "[[0,2],[1,0]]"
