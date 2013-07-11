@@ -24,6 +24,7 @@ print_to_json(io::IO, n::Nothing)
 print_to_json(io::IO, b::Bool)
 print_to_json(io::IO, a::Associative)
 print_to_json(io::IO, v::AbstractVector)
+print_to_json{T}(io::IO, v::Array{T, 2})
 
 Writes a compact (no extra whitespace or identation) JSON representation
 to the supplied IO

@@ -49,6 +49,14 @@ function print_to_json(io::IO, a::AbstractVector)
     print(io, "]")
 end
 
+function print_to_json{T}(io::IO, a::Array{T, 2})
+    b = zeros(Any, size(a, 2))
+    for j = 1:length(b)
+        b[j] = a[:,j]
+    end
+    print_to_json(io, b)
+end
+
 function print_to_json(io::IO, a)
     print(io, "{")
 
