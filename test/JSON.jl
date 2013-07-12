@@ -164,3 +164,7 @@ fetch(finished_async_tests)
 obj = JSON.parse("{\"a\":2e10}")
 @assert(obj["a"] == 2e10)
 
+#test for issue 21
+a=JSON.parse(test21)
+@assert isa(a, Array{Any})
+@assert length(a) == 2

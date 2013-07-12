@@ -91,7 +91,7 @@ module Parser
       return s
     end
     c = str[s]
-    while (c == ' ' || c == '\t' || c == '\n') && s < e
+    while (c == ' ' || c == '\t' || c == '\n' || c=='\r') && s < e
       s += 1
       c = str[s]
     end
