@@ -65,6 +65,14 @@ function print(io::IO, a)
     Base.print(io, "}")
 end
 
+function print{T}(io::IO, a::Array{T, 2})
+    b = zeros(Any, size(a, 2))
+    for j = 1:length(b)
+        b[j] = a[:,j]
+    end
+    JSON.print(io, b)
+end
+
 # Default to printing to STDOUT
 print{T}(a::T) = JSON.print(OUTPUT_STREAM, a)
 

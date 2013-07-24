@@ -168,3 +168,5 @@ obj = JSON.parse("{\"a\":2e10}")
 a=JSON.parse(test21)
 @assert isa(a, Array{Any})
 @assert length(a) == 2
+#Multidimensional arrays
+@assert json([0 1; 2 0]) == "[[0,2],[1,0]]"
