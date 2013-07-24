@@ -1,4 +1,4 @@
-require("JSON")
+using JSON
 
 require("JSON/test/json_samples")
 
@@ -140,13 +140,13 @@ write(w, issue5)
 
 # $ escaping issue
 dollars = ["all of the \$s", "µniçø∂\$"]
-json_dollars = JSON.to_json(dollars)
+json_dollars = json(dollars)
 @assert JSON.parse(json_dollars) != nothing
 write(w, json_dollars)
 
 # unmatched brackets
 brackets = {"foo"=>"ba}r", "be}e]p"=>"boo{p"}
-json_brackets = JSON.to_json(brackets)
+json_brackets = json(brackets)
 @assert JSON.parse(json_brackets) != nothing
 write(w, json_dollars)
 
@@ -157,8 +157,8 @@ fetch(finished_async_tests)
 
 
 # Printing an empty array or Dict shouldn't cause a BoundsError
-@assert JSON.to_json(ASCIIString[]) == "[]"
-@assert JSON.to_json(Dict()) == "{}"
+@assert json(ASCIIString[]) == "[]"
+@assert json(Dict()) == "{}"
 
 #test for issue 26
 obj = JSON.parse("{\"a\":2e10}")

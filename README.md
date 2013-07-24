@@ -10,34 +10,34 @@ Pkg.add("JSON")
 ##Usage
 
 ```julia
-require("JSON")
+using JSON
 JSON.parse(s)
-JSON.to_json(a)
+json(a)
 ```
 
 ##The API
 
 ```julia
-print_to_json(io::IO, s::String)
-print_to_json(io::IO, s::Union(Integer, FloatingPoint))
-print_to_json(io::IO, n::Nothing)
-print_to_json(io::IO, b::Bool)
-print_to_json(io::IO, a::Associative)
-print_to_json(io::IO, v::AbstractVector)
+JSON.print(io::IO, s::String)
+JSON.print(io::IO, s::Union(Integer, FloatingPoint))
+JSON.print(io::IO, n::Nothing)
+JSON.print(io::IO, b::Bool)
+JSON.print(io::IO, a::Associative)
+JSON.print(io::IO, v::AbstractVector)
 
 Writes a compact (no extra whitespace or identation) JSON representation
 to the supplied IO
 ```
 
 ```julia
-to_json(a::Any)
+json(a::Any)
 
 Returns a compact JSON representation as a String
 ```
 
 ```julia
-parse(s::String)
-parse(io::IO)
+JSON.parse(s::String)
+JSON.parse(io::IO)
 
 Parses a JSON String into a nested Array or Dict
 ```
