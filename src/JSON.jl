@@ -74,7 +74,7 @@ function print{T}(io::IO, a::Array{T, 2})
 end
 
 # Default to printing to STDOUT
-print{T}(a::T) = JSON.print(OUTPUT_STREAM, a)
+print{T}(a::T) = JSON.print(STDOUT, a)
 
 json(a) = sprint(JSON.print, a)
 
