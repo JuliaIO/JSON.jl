@@ -35,7 +35,7 @@ function print(io::IO, a::Associative)
     Base.print(io, "}") 
 end
 
-function print(io::IO, a::AbstractVector)
+function print(io::IO, a::Union(AbstractVector,Tuple))
     Base.print(io, "[")
     if length(a) > 0
         for x in a[1:end-1]
