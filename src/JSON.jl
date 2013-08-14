@@ -10,7 +10,7 @@ end
 
 function print(io::IO, s::String)
     Base.print(io, '"')
-    print_escaped(io, s, "\"")
+    Base.print_escaped(io, s, "\"")
     Base.print(io, '"')
 end
 
