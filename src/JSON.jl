@@ -8,9 +8,25 @@ function parse(strng::String)
   Parser.parse(strng)
 end
 
+function print_escaped(io, s::String)
+    i = start(s)
+    while !done(s,i)
+        c, j = next(s,i)
+        c == '\\'       ? Base.print(io, "\\\\") :
+        c == '"'        ? Base.print(io, "\\\"") :
+        8 <= c <= 10    ? Base.print(io, '\\', "btn"[c-7]) :
+        c == '\f'       ? Base.print(io, "\\f") :
+        c == '\r'       ? Base.print(io, "\\r") :
+        isprint(c)      ? Base.print(io, c) :
+        c <= '\x7f'     ? Base.print(io, "\\u", hex(c, 4)) :
+                          Base.print(io, c) #JSON is UTF8 encoded
+        i = j
+    end
+end
+
 function print(io::IO, s::String)
     Base.print(io, '"')
-    Base.print_escaped(io, s, "\"")
+    JSON.print_escaped(io, s)
     Base.print(io, '"')
 end
 
@@ -29,7 +45,8 @@ function print(io::IO, a::Associative)
         else
             Base.print(io, ",")
         end
-        Base.print(io, "\"$key\":")
+        JSON.print(io, string(key))
+        Base.print(io, ':')
         JSON.print(io, value)
     end
     Base.print(io, "}") 

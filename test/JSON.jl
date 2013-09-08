@@ -75,8 +75,7 @@ finished_async_tests = RemoteRef()
     put(finished_async_tests, nothing)
 end
 
-w = TcpSocket()
-connect(w, "localhost", 7777)
+w = connect("localhost", 7777)
 
 @assert JSON.parse(a) != nothing
 write(w, a)
@@ -151,6 +150,12 @@ json_brackets = json(brackets)
 write(w, json_dollars)
 
 fetch(finished_async_tests)
+
+zeros = {"\0"=>"\0"}
+json_zeros = json(zeros)
+@assert contains(json_zeros,"\\u0000")
+@assert !contains(json_zeros,"\\0")
+@assert JSON.parse(json_zeros) == zeros
 
 #Uncomment while doing timing tests
 #@time for i=1:100 ; JSON.parse(d) ; end
