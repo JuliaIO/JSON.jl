@@ -92,6 +92,8 @@ function determine_bracket_type(io::IO)
         elseif c == '['
             open_bracket = '['
             close_bracket = ']'
+        elseif c == '\0'
+            throw(EOFError())
         end
     end
     open_bracket, close_bracket
@@ -119,6 +121,7 @@ function consumeString(io::IO, obj::IOBuffer)
         end
         write(obj, c)
     end
+    throw(EOFError())
 end
 
 function parse(io::IO)
