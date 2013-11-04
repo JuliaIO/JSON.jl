@@ -4,9 +4,7 @@ export json # returns a compact JSON representation as a String
 
 include("Parser.jl")
 
-function parse(strng::String)
-  Parser.parse(strng)
-end
+parse(s::String)=Parser.parse(s)
 
 function print_escaped(io, s::String)
     i = start(s)
@@ -30,21 +28,11 @@ function print(io::IO, s::String)
     Base.print(io, '"')
 end
 
-print(io::IO, s::Union(Integer, FloatingPoint)) = Base.print(io, s)
-
-print(io::IO, n::Nothing) = Base.print(io, "null")
-
-print(io::IO, b::Bool) = Base.print(io, b ? "true" : "false")
-
 function print(io::IO, a::Associative)
     Base.print(io, "{")
     first = true
     for (key, value) in a
-        if first 
-            first = false
-        else
-            Base.print(io, ",")
-        end
+        first ? (first = false) : Base.print(io, ",")
         JSON.print(io, string(key))
         Base.print(io, ':')
         JSON.print(io, value)
@@ -78,7 +66,6 @@ function print(io::IO, a)
             JSON.print(io, a.(name))
         end
     end
-
     Base.print(io, "}")
 end
 
@@ -90,16 +77,14 @@ function print{T}(io::IO, a::Array{T, 2})
     JSON.print(io, b)
 end
 
-# Default to printing to STDOUT
-print{T}(a::T) = JSON.print(STDOUT, a)
+print(a) = print(STDOUT, a)
 
 json(a) = sprint(JSON.print, a)
 
 function determine_bracket_type(io::IO)
-    open_bracket = nothing
-    close_bracket = nothing
-
+    open_bracket = close_bracket = nothing
     while open_bracket == nothing
+        eof(io) && throw(EOFError())
         c = read(io, Char)
         if c == '{'
             open_bracket = '{'
@@ -109,10 +94,8 @@ function determine_bracket_type(io::IO)
             close_bracket = ']'
         end
     end
-
-    return (open_bracket, close_bracket)
+    open_bracket, close_bracket
 end
-
 
 ###
 # Consume a string (even if it is invalid), with ack to Douglas Crockford.
@@ -122,31 +105,36 @@ function consumeString(io::IO, obj::IOBuffer)
     c = '"'
 
     # When parsing for string values, we must look for " and \ characters.
-    while (c = read(io, Char)) != '\0'
-      if c == '"'
-        write(obj, c)
-        return
-      end
-      if c == '\\'
-        write(obj, c)
+    while true
+        eof(io) && throw(EOFError())
         c = read(io, Char)
-        if c == '\0'
-       error("EOF while attempting to read a string")
+        if c == '"'
+            write(obj, c)
+            return
         end
-      end
-      write(obj, c)
+        if c == '\\'
+            write(obj, c)
+            eof(io) && throw(EOFError())
+            c = read(io, Char)
+        end
+        write(obj, c)
     end
-    error("EOF while attempting to read a string")
 end
 
 function parse(io::IO)
-    open_bracket, close_bracket = determine_bracket_type(io)
+    open_bracket = close_bracket = nothing
+    try
+        open_bracket, close_bracket = determine_bracket_type(io)
+    catch exception
+        isa(exception, EOFError) && return
+    end
     num_brackets_needed = 1
 
     obj = IOBuffer()
     write(obj, open_bracket)
 
     while num_brackets_needed > 0
+        eof(io) && throw(EOFError())
         c = read(io, Char)
         write(obj, c)
 
@@ -158,7 +146,6 @@ function parse(io::IO)
             consumeString(io, obj)
         end
     end
-
     JSON.parse(takebuf_string(obj))
 end
 
