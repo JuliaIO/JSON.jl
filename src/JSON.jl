@@ -107,9 +107,10 @@ function determine_bracket_type(io::IO)
         elseif c == '['
             open_bracket = '['
             close_bracket = ']'
+        elseif c == '\0'
+            throw(EOFError())
         end
     end
-
     return (open_bracket, close_bracket)
 end
 
@@ -131,12 +132,12 @@ function consumeString(io::IO, obj::IOBuffer)
         write(obj, c)
         c = read(io, Char)
         if c == '\0'
-       error("EOF while attempting to read a string")
+            throw(EOFError())
         end
       end
       write(obj, c)
     end
-    error("EOF while attempting to read a string")
+    throw(EOFError())
 end
 
 function parse(io::IO)
