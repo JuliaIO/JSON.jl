@@ -8,70 +8,6 @@ const KEY_TYPES = Union(String)
 
 export parse
 
-# TRACING
-
-type Trace
-    name::String
-    depth::Int
-    start::Float64
-    stop::Float64
-    data::Union(String, Nothing)
-  
-    Trace(name::String, depth::Int, start::Float64) = new(name, depth, start, 0.0, nothing)
-end
-
-type Tracer
-    do_trace::Bool
-    stack::Vector{Trace}
-    current_depth::Int
-
-    Tracer(trace) = new(trace, Trace[], 0)
-end
-
-start_trace(trace::Bool)=Tracer(trace)
-
-function trace_in(tracer::Tracer, name::String)
-    tracer.do_trace || return
-    # Create and add trace
-    _trace = Trace(name, tracer.current_depth, time())
-    push!(tracer.stack, _trace)
-    tracer.current_depth += 1 # Increase depth
-    # Return the position (tail index) of the trace
-    return endof(tracer.stack) # ti (trace index)
-end
-
-function trace_out(tracer::Tracer, ti::Int, data::Union(String, Nothing)=nothing)
-    tracer.do_trace || return
-    # Get the tracer at the index ti and update its values.
-    _trace = tracer.stack[ti]
-    _trace.stop = time() 
-    _trace.data = data
-    return tracer.current_depth - 1 # Decrease depth
-end
-
-# Called when trace_in returns ti as nothing.
-trace_out(tracer::Tracer, ti::Nothing, data="") = @thunk nothing
-
-# Format a float as 1.234 (using by print_trace).
-function format(e::Float64)
-    s = int(floor(e))
-    msec = int((e - floor(e)) * 1000)
-    string(s) * "." * lpad(string(msec), 3, "0")
-end
-
-function print_trace(tracer::Tracer)
-    for trace in tracer.stack
-        print_trace(trace)
-    end
-end
-
-print_trace(trace::Trace) = println(
-    ("|   " ^ trace.depth) *
-    trace.name * ": " *
-    format((trace.stop - trace.start) * 1000) * "ms" *
-    ((trace.data != nothing) ? " (" * repr(trace.data) * ")" : "")
-)
-
 # UTILITIES
 
 function _search(haystack::String, needle::Union(String, Regex, Char), _start::Int)
@@ -118,8 +54,7 @@ end
 
 # PARSING
 
-function parse_array(str::String, s::Int, e::Int, tracer::Tracer)
-    _ti = trace_in(tracer, "array")
+function parse_array(str::String, s::Int, e::Int)
     s += 1 # Skip over the '['
     _array = TYPES[]
     s = chomp_space(str, s, e)
@@ -140,12 +75,10 @@ function parse_array(str::String, s::Int, e::Int, tracer::Tracer)
             _error("Unexpected char: " * string(c), str, s, e)
         end
     end
-    trace_out(tracer, _ti)
     return _array, s, e
 end
 
-function parse_object(str::String, s::Int, e::Int, tracer::Tracer)
-    _ti = trace_in(tracer, "object")
+function parse_object(str::String, s::Int, e::Int)
     s += 1 # Skip over opening '{'
     obj = Dict{KEY_TYPES,TYPES}()
     s = chomp_space(str, s, e)
@@ -171,14 +104,12 @@ function parse_object(str::String, s::Int, e::Int, tracer::Tracer)
             _error("Unexpected char: " * string(c), str, s, e)
         end
     end
-    trace_out(tracer, _ti)
     return obj, s, e
 end
 
 # TODO: Try to find ways to improve the performance of this (currently one
 #       of the slowest parsing methods).
-function parse_string(str::String, s::Int, e::Int, tracer::Tracer)
-    _ti = trace_in(tracer, "string")
+function parse_string(str::String, s::Int, e::Int)
     str[s]=='"' || _error("Missing opening string char", str, s, e)
     s = nextind(str, s) # Skip over opening '"'
     b = IOBuffer()
@@ -216,12 +147,10 @@ function parse_string(str::String, s::Int, e::Int, tracer::Tracer)
     
     found_end || _error("Unterminated string", str, s, e)
     r = takebuf_string(b)
-    trace_out(tracer, _ti)
     r, s, e
 end
 
-function parse_simple(str::String, s::Int, e::Int, tracer::Tracer)
-    _ti = trace_in(tracer, "simple")
+function parse_simple(str::String, s::Int, e::Int)
     c = str[s]
     if c == 't' && str[s + 3] == 'e'     # Looks like "true"
         ret = (true, s + 4, e)
@@ -232,35 +161,30 @@ function parse_simple(str::String, s::Int, e::Int, tracer::Tracer)
     else
         _error("Unknown simple: " * string(c), str, s, e)
     end
-    trace_out(tracer, _ti)
     ret
 end
 
-function parse_value(str::String, s::Int, e::Int, tracer::Tracer)
-    _ti = trace_in(tracer, "value")
+function parse_value(str::String, s::Int, e::Int)
     s = chomp_space(str, s, e)
     s==e && return nothing, s, e # Nothing left
     
     ch = str[s]
-    if ch == '"' ret = parse_string(str, s, e, tracer)
+    if ch == '"' ret = parse_string(str, s, e)
     elseif ch == '{'
-        ret = parse_object(str, s, e, tracer)
+        ret = parse_object(str, s, e)
     elseif (ch >= '0' && ch <= '9') || ch == '-'
-        ret = parse_number(str, s, e, tracer)
+        ret = parse_number(str, s, e)
     elseif ch == '['
-        ret = parse_array(str, s, e, tracer)
+        ret = parse_array(str, s, e)
     elseif ch == 'f' || ch == 't' || ch == 'n'
-        ret = parse_simple(str, s, e, tracer)
+        ret = parse_simple(str, s, e)
     else
         _error("Unknown value", str, s, e)
     end
-    trace_out(tracer, _ti)
     return ret
 end
 
-function parse_number(str::String, s::Int, e::Int, tracer::Tracer)
-    _ti = trace_in(tracer, "number")
-    
+function parse_number(str::String, s::Int, e::Int)
     p = s
     # Look for sign
     if str[p]=='-' 
@@ -308,20 +232,16 @@ function parse_number(str::String, s::Int, e::Int, tracer::Tracer)
     
     vs = str[s:p - 1]
     v = (is_float ? parsefloat : parseint)(vs)
-    
-    trace_out(tracer, _ti, vs)
     return v, p, e
 end
 
-function parse(str::String, trace::Bool=false)
+function parse(str::String)
     pos::Int = 1
     len::Int = endof(str)
-    tracer = start_trace(trace)
-    
     len < 1 && return
     
-    v, s, e = parse_value(str, pos, len, tracer)
-    return v, tracer
+    v, s, e = parse_value(str, pos, len)
+    return v
 end
 
 end #module Parser
