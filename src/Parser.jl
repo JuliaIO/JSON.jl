@@ -1,10 +1,7 @@
-# Recklessly faster JSON parser.
-module Parser
+module Parser #JSON
   
-# Types it may encounter
-const TYPES = Any # Union(Dict, Array, String, Number, Bool, Nothing)
-# Types it may encounter as object keys
-const KEY_TYPES = Union(String)
+const TYPES = Any # Union(Dict, Array, String, Number, Bool, Nothing) # Types it may encounter
+const KEY_TYPES = Union(String) # Types it may encounter as object keys
 
 export parse
 
@@ -17,13 +14,12 @@ end
 
 # Eat up spaces starting at s.
 function chomp_space(str::String, s::Int, e::Int)
-    s<e || return s
     c = str[s]
-    while (c == ' ' || c == '\t' || c == '\n' || c=='\r') && s < e
+    while (c == ' ' || c == '\t' || c == '\n' || c=='\r') && s<e
         s += 1
         c = str[s]
     end
-    return s
+    s
 end
 
 # Used for line counts
@@ -44,8 +40,7 @@ function _error(message::String, str::String, s::Int, e::Int)
     strnl = replace(str, r"[\b\f\n\r\t\s]", " ")
     li = (s > 20) ? s - 9 : 1 # Left index
     ri = min(e, s + 20)       # Right index
-    error(
-      message *
+    error(message *
       "\nLine: " * string(lines) *
       "\nAround: ..." * strnl[li:ri] * "..." *
       "\n           " * (" " ^ (s - li)) * "^\n"
@@ -172,7 +167,7 @@ function parse_value(str::String, s::Int, e::Int)
     if ch == '"' ret = parse_string(str, s, e)
     elseif ch == '{'
         ret = parse_object(str, s, e)
-    elseif (ch >= '0' && ch <= '9') || ch == '-'
+    elseif (ch >= '0' && ch <= '9') || ch=='-' || ch=='+'
         ret = parse_number(str, s, e)
     elseif ch == '['
         ret = parse_array(str, s, e)
@@ -186,12 +181,10 @@ end
 
 function parse_number(str::String, s::Int, e::Int)
     p = s
-    # Look for sign
-    if str[p]=='-' 
+    if str[p]=='-' || str[p]=='+' # Look for sign
         p += 1
     end
-    # Look for number
-    if str[p] == '0'
+    if str[p] == '0' # Look for number
         p += 1
         if str[p] == '.'
             is_float = true
@@ -219,9 +212,9 @@ function parse_number(str::String, s::Int, e::Int)
             p += 1
         end
     end
-    if str[p] == 'E' || str[p] == 'e' || str[p] == 'f'
-        p += 1
+    if str[p] == 'E' || str[p] == 'e' || str[p] == 'f' || str[p] == 'F'
         is_float = true
+        p += 1
         if str[p] == '-' || str[p] == '+' # Exponent sign
             p += 1
         end
@@ -230,7 +223,7 @@ function parse_number(str::String, s::Int, e::Int)
         end
     end
     
-    vs = str[s:p - 1]
+    vs = str[s:p-1]
     v = (is_float ? parsefloat : parseint)(vs)
     return v, p, e
 end
