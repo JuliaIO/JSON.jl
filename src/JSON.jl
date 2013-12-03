@@ -28,6 +28,8 @@ function print(io::IO, s::String)
     Base.print(io, '"')
 end
 
+print(io::IO, s::Union(Integer, FloatingPoint)) = Base.print(io, s)
+
 function print(io::IO, a::Associative)
     Base.print(io, "{")
     first = true
