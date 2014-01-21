@@ -39,7 +39,7 @@ function print(io::IO, a::Associative)
         Base.print(io, ':')
         JSON.print(io, value)
     end
-    Base.print(io, "}") 
+    Base.print(io, "}")
 end
 
 function print(io::IO, a::Union(AbstractVector,Tuple))
@@ -71,12 +71,23 @@ function print(io::IO, a)
     Base.print(io, "}")
 end
 
-function print{T}(io::IO, a::Array{T, 2})
-    b = zeros(Any, size(a, 2))
-    for j = 1:length(b)
-        b[j] = a[:,j]
+function print{T, N}(io::IO, a::AbstractArray{T, N})
+    Base.print(io, "[")
+
+    lengthN = size(a, N)
+    if lengthN > 0
+        newdims = ntuple(N - 1, i -> 1:size(a, i))
+        print(io, slice(a, newdims..., 1))
+
+        for j in 2:lengthN
+            Base.print(io, ",")
+
+            newdims = ntuple(N - 1, i -> 1:size(a, i))
+            print(io, slice(a, newdims..., j))
+        end
     end
-    JSON.print(io, b)
+
+    Base.print(io, "]")
 end
 
 print(a) = print(STDOUT, a)
