@@ -79,6 +79,8 @@ function print(io::IO, a)
     Base.print(io, "}")
 end
 
+# Note: Arrays are printed in COLUMN MAJOR format.
+# i.e. json([1 2 3; 4 5 6]) == "[[1,4],[2,5],[3,6]]"
 function print{T, N}(io::IO, a::AbstractArray{T, N})
     Base.print(io, "[")
 
