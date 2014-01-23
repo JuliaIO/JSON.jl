@@ -1,4 +1,4 @@
-#JSON parsing and printing for Julia. 
+#JSON parsing and printing for Julia.
 [![Build Status](https://travis-ci.org/JuliaLang/JSON.jl.png)](https://travis-ci.org/JuliaLang/JSON.jl)
 
 ##Installation
@@ -24,7 +24,7 @@ JSON.print(io::IO, n::Nothing)
 JSON.print(io::IO, b::Bool)
 JSON.print(io::IO, a::Associative)
 JSON.print(io::IO, v::AbstractVector)
-JSON.print{T}(io::IO, v::Array{T, 2})
+JSON.print{T, N}(io::IO, v::Array{T, N})
 
 Writes a compact (no extra whitespace or identation) JSON representation
 to the supplied IO
