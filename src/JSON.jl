@@ -39,7 +39,7 @@ function print(io::IO, a::Associative)
         Base.print(io, ':')
         JSON.print(io, value)
     end
-    Base.print(io, "}") 
+    Base.print(io, "}")
 end
 
 function print(io::IO, a::Union(AbstractVector,Tuple))
@@ -69,6 +69,10 @@ function print(io::IO, a)
         end
     end
     Base.print(io, "}")
+end
+
+function print(io::IO, f::Function)
+    Base.print(io, "\"function at ", f.fptr, "\"")
 end
 
 function print{T}(io::IO, a::Array{T, 2})
