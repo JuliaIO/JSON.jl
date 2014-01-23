@@ -49,7 +49,15 @@ function print(io::IO, a::Union(AbstractVector,Tuple))
             JSON.print(io, x)
             Base.print(io, ",")
         end
-        JSON.print(io, a[end])
+
+        try
+            JSON.print(io, a[end])
+        catch
+            # Potentially we got here by accessing
+            # something through a 0 dimensional
+            # part of an array. Probably expected
+            # behavior is to not print and move on
+        end
     end
     Base.print(io, "]")
 end
@@ -75,12 +83,25 @@ function print(io::IO, f::Function)
     Base.print(io, "\"function at ", f.fptr, "\"")
 end
 
-function print{T}(io::IO, a::Array{T, 2})
-    b = zeros(Any, size(a, 2))
-    for j = 1:length(b)
-        b[j] = a[:,j]
+# Note: Arrays are printed in COLUMN MAJOR format.
+# i.e. json([1 2 3; 4 5 6]) == "[[1,4],[2,5],[3,6]]"
+function print{T, N}(io::IO, a::AbstractArray{T, N})
+    Base.print(io, "[")
+
+    lengthN = size(a, N)
+    if lengthN >= 0
+        newdims = ntuple(N - 1, i -> 1:size(a, i))
+        print(io, slice(a, newdims..., 1))
+
+        for j in 2:lengthN
+            Base.print(io, ",")
+
+            newdims = ntuple(N - 1, i -> 1:size(a, i))
+            print(io, slice(a, newdims..., j))
+        end
     end
-    JSON.print(io, b)
+
+    Base.print(io, "]")
 end
 
 print(a) = print(STDOUT, a)
