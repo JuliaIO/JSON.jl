@@ -13,6 +13,6 @@ before_install:
     - sudo apt-get update -qq -y
     - sudo apt-get install libpcre3-dev julia -y
 script:
-    - julia -e 'Pkg.init(); run(`ln -s $(pwd()) $(Pkg.dir())/JSON`); Pkg.resolve()'
+    - julia -e 'Pkg.init(); run(`ln -s $(pwd()) $(Pkg.dir())/JSON`); Pkg.pin("JSON"); Pkg.resolve()'
     - julia -e 'using JSON; @assert isdefined(:JSON); @assert typeof(JSON) === Module'
     - julia test/JSON.jl
