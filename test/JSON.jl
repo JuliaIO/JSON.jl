@@ -175,3 +175,14 @@ a=JSON.parse(test21)
 @assert length(a) == 2
 #Multidimensional arrays
 @assert json([0 1; 2 0]) == "[[0,2],[1,0]]"
+
+
+# ::Nothing values should be encoded as null
+testDict = ["a" => nothing]
+nothingJson = JSON.json(testDict)
+nothingDict = JSON.parse(nothingJson)
+@assert testDict == nothingDict
+
+
+
+
