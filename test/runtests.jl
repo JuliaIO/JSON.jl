@@ -2,6 +2,12 @@ using JSON
 
 require("JSON/test/json_samples")
 
+# compatibility for julia version 0.2
+if !isdefined(:put!)
+        const put! = put
+        const take! = take
+end
+
 # Test definitions -------
 validate_c(c) = begin
                     j = JSON.parse(c);
@@ -20,7 +26,7 @@ validate_e(e) = begin
                     typeof(j["menu"]) == Dict{String, Any}
                     @assert length(j["menu"]) == 2
                     @assert j["menu"]["header"] == "SVG\tViewerα"
-                    @assert isa(j["menu"]["items"], Array) 
+                    @assert isa(j["menu"]["items"], Array)
                     @assert length(j["menu"]["items"]) == 22
                     @assert j["menu"]["items"][3] == nothing
                     @assert j["menu"]["items"][2]["id"] == "OpenNew"
