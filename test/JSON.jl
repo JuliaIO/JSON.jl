@@ -72,7 +72,7 @@ finished_async_tests = RemoteRef()
     @assert JSON.parse(s) != nothing  # dollars
     @assert JSON.parse(s) != nothing  # brackets
 
-    put(finished_async_tests, nothing)
+    put!(finished_async_tests, nothing)
 end
 
 w = connect("localhost", 7777)
