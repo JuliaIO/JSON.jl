@@ -87,6 +87,10 @@ function print(io::IO, f::Function)
     Base.print(io, "\"function at ", f.fptr, "\"")
 end
 
+function print(io::IO, d::DataType)
+    Base.print(io, d)
+end
+
 # Note: Arrays are printed in COLUMN MAJOR format.
 # i.e. json([1 2 3; 4 5 6]) == "[[1,4],[2,5],[3,6]]"
 function print{T, N}(io::IO, a::AbstractArray{T, N})
