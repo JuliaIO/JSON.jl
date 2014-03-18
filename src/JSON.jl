@@ -28,7 +28,13 @@ function print(io::IO, s::String)
     Base.print(io, '"')
 end
 
-print(io::IO, s::Union(Integer, FloatingPoint)) = Base.print(io, s)
+function print(io::IO, s::Union(Integer, FloatingPoint))
+    if isnan(s)
+        Base.print(io, "null")
+    else
+        Base.print(io, s)
+    end
+end
 
 function print(io::IO, n::Nothing)
         Base.print(io, "null")
