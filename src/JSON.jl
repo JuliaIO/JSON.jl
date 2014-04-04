@@ -29,7 +29,7 @@ function print(io::IO, s::String)
 end
 
 function print(io::IO, s::Union(Integer, FloatingPoint))
-    if isnan(s)
+    if isnan(s) || isinf(s)
         Base.print(io, "null")
     else
         Base.print(io, s)
