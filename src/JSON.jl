@@ -4,7 +4,7 @@ export json # returns a compact JSON representation as a String
 
 include("Parser.jl")
 
-parse(s::String)=Parser.parse(s)
+import .Parser.parse
 
 function print_escaped(io, s::String)
     i = start(s)
@@ -165,7 +165,7 @@ function consumeString(io::IO, obj::IOBuffer)
     throw(EOFError())
 end
 
-function parse(io::IO)
+function parse(io::IO; ordered::Bool=false)
     open_bracket = close_bracket = nothing
     try
         open_bracket, close_bracket = determine_bracket_type(io)
@@ -190,7 +190,7 @@ function parse(io::IO)
             consumeString(io, obj)
         end
     end
-    JSON.parse(takebuf_string(obj))
+    JSON.parse(takebuf_string(obj), ordered=ordered)
 end
 
 end
