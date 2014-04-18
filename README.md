@@ -37,8 +37,15 @@ Returns a compact JSON representation as a String
 ```
 
 ```julia
-JSON.parse(s::String)
-JSON.parse(io::IO)
+JSON.parse(s::String; ordered=false)
+JSON.parse(io::IO; ordered=false)
 
-Parses a JSON String into a nested Array or Dict
+Parses a JSON String or IO stream into a nested Array or Dict.
+
+If `ordered=true` is specified, JSON objects are parsed into
+`OrderedDicts`, which maintains the insertion order of the items in
+the object. (*)
+
+(*) Requires the `DataStructures.jl` package to be installed.
+
 ```
