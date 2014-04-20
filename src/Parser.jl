@@ -136,10 +136,23 @@ function parse_string(str::String, s::Int, e::Int)
             c = str[s]
             if c == 'u' # Unicode escape
                 u = unescape_string(str[s - 1:s + 4]) # Get the string
-                d = bytestring(u).data # Get the uint8s for the string
-                write(b, bytestring(u))
+                c = u[1]
+                if Base.utf16_is_surrogate(uint16(c))
+                    if str[s+5] != '\\' || str[s+6] != 'u'
+                        _error("Unmatched UTF16 surrogate", str, s, e)
+                    end
+                    u2 = unescape_string(str[s + 5:s + 10])
+                    c = Base.utf16_get_supplementary(uint16(c),uint16(u2[1]))
+                    # Skip the additional 6 characters
+                    for _ = 1:6
+                        s = nextind(str, s)
+                    end
+                end
+                write(b, c)
                 # Skip over those next four characters
-                [s = nextind(str, s) for _ = 1:4]
+                for _ = 1:4
+                    s = nextind(str, s)
+                end
             elseif c == '"'  write(b, '"' )
             elseif c == '\\' write(b, '\\')
             elseif c == '/'  write(b, '/' )
