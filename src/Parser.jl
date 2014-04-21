@@ -18,25 +18,43 @@ const KEY_TYPES = Union(String) # Types it may encounter as object keys
 
 export parse
 
+type ParserState{T <: String}
+    str::T
+    s::Int
+    e::Int
+    tmp64::Array{Float64,1}
+end
+ParserState(str::String,s::Int,e::Int) = ParserState(str, s, e, Array(Float64,1))
+
+charat{T <: String}(ps::ParserState{T}) = ps.str[ps.s]
+incr(ps::ParserState) = (ps.s += 1)
+hasmore(ps::ParserState) = (ps.s < ps.e)
+
+
 # UTILITIES
 
-function _search(haystack::String, needle::Union(String, Regex, Char), _start::Int)
-    range = search(haystack, needle, _start)
-    first(range), last(range)
+# Eat up spaces starting at s.
+function chomp_space{T<:String}(ps::ParserState{T})
+    c = charat(ps)
+    while isspace(c) && hasmore(ps)
+        incr(ps)
+        c = charat(ps)
+    end
 end
 
-# Eat up spaces starting at s.
-function chomp_space(str::String, s::Int, e::Int)
-    c = str[s]
-    while (c == ' ' || c == '\t' || c == '\n' || c=='\r') && s<e
-        s += 1
-        c = str[s]
+# Run past the separator in a name : value pair
+function skip_separator{T<:String}(ps::ParserState{T})
+    while (charat(ps) != ':') && hasmore(ps)
+        incr(ps)
     end
-    s
+    (charat(ps) != ':') && error("Separator not found ", ps)
+    incr(ps)
+    nothing
 end
+
 
 # Used for line counts
-function _count_before(haystack::String, needle::Char, _end::Int)
+function _count_before{T<:String}(haystack::T, needle::Char, _end::Int)
     count = 0
     i = 1
     while i < _end
@@ -47,85 +65,86 @@ function _count_before(haystack::String, needle::Char, _end::Int)
 end
 
 # Prints an error message with an indicator to the source
-function _error(message::String, str::String, s::Int, e::Int)
-    lines = _count_before(str, '\n', s)
+function _error(message::String, ps::ParserState)
+    lines = _count_before(ps.str, '\n', ps.s)
     # Replace all special multi-line/multi-space characters with a space.
-    strnl = replace(str, r"[\b\f\n\r\t\s]", " ")
-    li = (s > 20) ? s - 9 : 1 # Left index
-    ri = min(e, s + 20)       # Right index
+    strnl = replace(ps.str, r"[\b\f\n\r\t\s]", " ")
+    li = (ps.s > 20) ? ps.s - 9 : 1 # Left index
+    ri = min(ps.e, ps.s + 20)       # Right index
     error(message *
       "\nLine: " * string(lines) *
       "\nAround: ..." * strnl[li:ri] * "..." *
-      "\n           " * (" " ^ (s - li)) * "^\n"
+      "\n           " * (" " ^ (ps.s - li)) * "^\n"
     )
 end
 
 # PARSING
 
-function parse_array(str::String, s::Int, e::Int, ordered::Bool)
-    s += 1 # Skip over the '['
+function parse_array{T<:String}(ps::ParserState{T}, ordered::Bool)
+    incr(ps) # Skip over the '['
     _array = TYPES[]
-    s = chomp_space(str, s, e)
-    str[s]==']' && return _array, s+1, e # Check for empty array
+    chomp_space(ps)
+    charat(ps)==']' && (incr(ps); return _array) # Check for empty array
     while true # Extract values from array
-        v, s, e = parse_value(str, s, e, ordered) # Extract value
+        v = parse_value(ps, ordered) # Extract value
         push!(_array, v)
         # Eat up trailing whitespace
-        s = chomp_space(str, s, e)
-        c = str[s]
+        chomp_space(ps)
+        c = charat(ps)
         if c == ','
-            s += 1
+            incr(ps)
             continue
         elseif c == ']'
-            s += 1
+            incr(ps)
             break
         else
-            _error("Unexpected char: " * string(c), str, s, e)
+            _error("Unexpected char: " * string(c), ps)
         end
     end
-    return _array, s, e
+    return _array
 end
 
-function parse_object(str::String, s::Int, e::Int, ordered::Bool)
+function parse_object{T<:String}(ps::ParserState{T}, ordered::Bool)
     if ordered
-        parse_object(str, s, e, ordered, OrderedDict(KEY_TYPES,TYPES))
+        parse_object(ps, ordered, OrderedDict(KEY_TYPES,TYPES))
     else
-        parse_object(str, s, e, ordered, Dict{KEY_TYPES,TYPES}())
+        parse_object(ps, ordered, Dict{KEY_TYPES,TYPES}())
     end
 end
 
-function parse_object(str::String, s::Int, e::Int, ordered::Bool, obj)
-    s += 1 # Skip over opening '{'
-    s = chomp_space(str, s, e)
-    str[s]=='}' && return obj, s+1, e # Check for empty object
+function parse_object{T<:String}(ps::ParserState{T}, ordered::Bool, obj)
+    incr(ps) # Skip over opening '{'
+    chomp_space(ps)
+    charat(ps)=='}' && (incr(ps); return obj) # Check for empty object
     while true
-        s = chomp_space(str, s, e)
-        _key, s, e = parse_string(str, s, e)           # Key
-        ss, se = _search(str, ':', s)                  # Separator
-        # TODO: Error handling if it doesn't find the separator
-        ss < 1 && _error( "Separator not found ", str, s, e)
-        s = se + 1                                     # Skip over separator
-        _value, s, e = parse_value(str, s, e, ordered) # Value
+        chomp_space(ps)
+        _key = parse_string(ps)           # Key
+        skip_separator(ps)
+        _value = parse_value(ps, ordered) # Value
         obj[_key] = _value                             # Building object
-        s = chomp_space(str, s, e)
-        c = str[s] # Find the next pair or end of object
+        chomp_space(ps)
+        c = charat(ps) # Find the next pair or end of object
         if c == ','
-            s += 1
+            incr(ps)
             continue
         elseif c == '}'
-            s += 1
+            incr(ps)
             break
         else
-            _error("Unexpected char: " * string(c), str, s, e)
+            _error("Unexpected char: " * string(c), ps)
         end
     end
-    return obj, s, e
+    return obj
 end
 
 # TODO: Try to find ways to improve the performance of this (currently one
 #       of the slowest parsing methods).
-function parse_string(str::String, s::Int, e::Int)
-    str[s]=='"' || _error("Missing opening string char", str, s, e)
+function parse_string{T<:String}(ps::ParserState{T})
+    str = ps.str
+    s = ps.s
+    e = ps.e
+
+    str[s]=='"' || _error("Missing opening string char", ps)
     s = nextind(str, s) # Skip over opening '"'
     b = IOBuffer()
     found_end = false
@@ -139,7 +158,7 @@ function parse_string(str::String, s::Int, e::Int)
                 c = u[1]
                 if Base.utf16_is_surrogate(uint16(c))
                     if str[s+5] != '\\' || str[s+6] != 'u'
-                        _error("Unmatched UTF16 surrogate", str, s, e)
+                        _error("Unmatched UTF16 surrogate", ps)
                     end
                     u2 = unescape_string(str[s + 5:s + 10])
                     c = Base.utf16_get_supplementary(uint16(c),uint16(u2[1]))
@@ -161,7 +180,7 @@ function parse_string(str::String, s::Int, e::Int)
             elseif c == 'n'  write(b, '\n')
             elseif c == 'r'  write(b, '\r')
             elseif c == 't'  write(b, '\t')
-            else _error("Unrecognized escaped character: " * string(c), str, s, e)
+            else _error("Unrecognized escaped character: " * string(c), ps)
             end
         elseif c == '"'
             found_end = true
@@ -172,91 +191,115 @@ function parse_string(str::String, s::Int, e::Int)
         end
         s = nextind(str, s)
     end
-    found_end || _error("Unterminated string", str, s, e)
-    r = takebuf_string(b)
-    r, s, e
+    ps.s = s
+    found_end || _error("Unterminated string", ps)
+    takebuf_string(b)
 end
 
-function parse_simple(str::String, s::Int, e::Int)
-    c = str[s]
-    if c == 't' && str[s + 3] == 'e'     # Looks like "true"
-        ret = (true, s + 4, e)
-    elseif c == 'f' && str[s + 4] == 'e' # Looks like "false"
-        ret = (false, s + 5, e)
-    elseif c == 'n' && str[s + 3] == 'l' # Looks like "null"
-        ret = (nothing, s + 4, e)
+function parse_simple{T<:String}(ps::ParserState{T})
+    c = charat(ps)
+    if c == 't' && ps.str[ps.s + 3] == 'e'     # Looks like "true"
+        ps.s += 4
+        ret = true
+    elseif c == 'f' && ps.str[ps.s + 4] == 'e' # Looks like "false"
+        ps.s += 5
+        ret = false
+    elseif c == 'n' && ps.str[ps.s + 3] == 'l' # Looks like "null"
+        ps.s += 4
+        ret = nothing
     else
-        _error("Unknown simple: " * string(c), str, s, e)
+        _error("Unknown simple: " * string(c), ps)
     end
     ret
 end
 
-function parse_value(str::String, s::Int, e::Int, ordered::Bool)
-    s = chomp_space(str, s, e)
-    s==e && return nothing, s, e # Nothing left
+function parse_value{T<:String}(ps::ParserState{T}, ordered::Bool)
+    chomp_space(ps)
+    (ps.s > ps.e) && return nothing # Nothing left
 
-    ch = str[s]
-    if ch == '"' ret = parse_string(str, s, e)
+    ch = charat(ps)
+    if ch == '"' ret = parse_string(ps)
     elseif ch == '{'
-        ret = parse_object(str, s, e, ordered)
+        ret = parse_object(ps, ordered)
     elseif (ch >= '0' && ch <= '9') || ch=='-' || ch=='+'
-        ret = parse_number(str, s, e)
+        ret = parse_number(ps)
     elseif ch == '['
-        ret = parse_array(str, s, e, ordered)
+        ret = parse_array(ps, ordered)
     elseif ch == 'f' || ch == 't' || ch == 'n'
-        ret = parse_simple(str, s, e)
+        ret = parse_simple(ps)
     else
-        _error("Unknown value", str, s, e)
+        _error("Unknown value", ps)
     end
     return ret
 end
 
-function parse_number(str::String, s::Int, e::Int)
-    p = s
-    if str[p]=='-' || str[p]=='+' # Look for sign
+function parse_number{T<:String}(ps::ParserState{T})
+    str = ps.str
+    p = ps.s
+    e = ps.e
+    is_float = false
+
+    c = str[p]
+    if c=='-' || c=='+' # Look for sign
         p += 1
+        (p <= e) ? (c = str[p]) : _error("Unrecognized number", ps)  # Something must follow a sign
     end
-    if str[p] == '0' # Look for number
+
+    if c == '0' # If number begins with 0, it must be int(0) or a floating point
         p += 1
-        if str[p] == '.'
+        if p <= e
+            if str[p] == '.'
+                is_float = true
+                p += 1
+            end
+        end
+    elseif '0' < c <= '9' # Match more digits
+        while '0' <= c <= '9'
+            p += 1
+            (p <= e) ? (c = str[p]) : break
+        end
+        if (p <= e) && (c == '.')
             is_float = true
             p += 1
-        else
-            is_float = false
-        end
-    elseif str[p] > '0' && str[p] <= '9'
-        p += 1
-        # Match more digits
-        while str[p] >= '0' && str[p] <= '9'
-            p += 1
-        end
-        if str[p] == '.'
-            p += 1
-            is_float = true
-        else
-            is_float = false
         end
     else
-        _error("Unrecognized number", str, p, e)
+        _error("Unrecognized number", ps)
     end
-    if is_float # Match digits after decimal
-        while str[p] >= '0' && str[p] <= '9'
+
+    if p <= e
+        c = str[p]
+
+        if is_float # Match digits after decimal
+            while '0' <= c <= '9'
+                p += 1
+                (p <= e) ? (c = str[p]) : break
+            end
+        end
+
+        if c == 'E' || c == 'e' || c == 'f' || c == 'F'
+            is_float = true
             p += 1
+            (p > e) && _error("Unrecognized number", ps)
+            c = str[p]
+            if c == '-' || c == '+' # Exponent sign
+                p += 1
+                (p > e) && _error("Unrecognized number", ps)
+                c = str[p]
+            end
+            while '0' <= c <= '9' # Exponent digits
+                p += 1
+                (p <= e) ? (c = str[p]) : break
+            end
         end
     end
-    if str[p] == 'E' || str[p] == 'e' || str[p] == 'f' || str[p] == 'F'
-        is_float = true
-        p += 1
-        if str[p] == '-' || str[p] == '+' # Exponent sign
-            p += 1
-        end
-        while str[p] >= '0' && str[p] <= '9' # Exponent digits
-            p += 1
-        end
+
+    vs = SubString(ps.str, ps.s, p-1)
+    ps.s = p
+    if is_float
+        float64_isvalid(vs, ps.tmp64) ? (return ps.tmp64[1]) : error("Invalid floating point number", ps)
+    else
+        return parseint(vs)
     end
-    vs = str[s:p-1]
-    v = (is_float ? parsefloat : parseint)(vs)
-    return v, p, e
 end
 
 function parse(str::String; ordered::Bool=false)
@@ -264,8 +307,7 @@ function parse(str::String; ordered::Bool=false)
     len::Int = endof(str)
     len < 1 && return
 
-    v, s, e = parse_value(str, pos, len, ordered)
-    return v
+    parse_value(ParserState(str, pos, len), ordered)
 end
 
 end #module Parser

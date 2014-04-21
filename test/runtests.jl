@@ -193,3 +193,12 @@ nothingDict = JSON.parse(nothingJson)
 # test for issue #57
 obj = JSON.parse("{\"\U0001d712\":\"\\ud835\\udf12\"}")
 @assert(obj["𝜒"] == "𝜒")
+
+# test for single values
+@assert JSON.parse("true") == true
+@assert JSON.parse("null") == nothing
+@assert JSON.parse("\"hello\"") == "hello"
+@assert JSON.parse("\"a\"") == "a"
+@assert JSON.parse("1") == 1
+@assert JSON.parse("1.5") == 1.5
+
