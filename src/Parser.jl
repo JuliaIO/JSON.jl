@@ -122,6 +122,14 @@ function parse_object(str::String, s::Int, e::Int, ordered::Bool, obj)
     return obj, s, e
 end
 
+if VERSION <= v"0.3-"
+    utf16_is_surrogate(c::Uint16) = (c & 0xf800) == 0xd800
+    utf16_get_supplementary(lead::Uint16, trail::Uint16) = char((lead-0xd7f7)<<10 + trail)
+else
+    const utf16_is_surrogate = Base.utf16_is_surrogate
+    const utf16_get_supplementary = Base.utf16_get_supplementary
+end
+
 # TODO: Try to find ways to improve the performance of this (currently one
 #       of the slowest parsing methods).
 function parse_string(str::String, s::Int, e::Int)
@@ -137,12 +145,12 @@ function parse_string(str::String, s::Int, e::Int)
             if c == 'u' # Unicode escape
                 u = unescape_string(str[s - 1:s + 4]) # Get the string
                 c = u[1]
-                if Base.utf16_is_surrogate(uint16(c))
+                if utf16_is_surrogate(uint16(c))
                     if str[s+5] != '\\' || str[s+6] != 'u'
                         _error("Unmatched UTF16 surrogate", str, s, e)
                     end
                     u2 = unescape_string(str[s + 5:s + 10])
-                    c = Base.utf16_get_supplementary(uint16(c),uint16(u2[1]))
+                    c = utf16_get_supplementary(uint16(c),uint16(u2[1]))
                     # Skip the additional 6 characters
                     for _ = 1:6
                         s = nextind(str, s)
