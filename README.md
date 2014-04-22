@@ -39,6 +39,7 @@ Returns a compact JSON representation as a String
 ```julia
 JSON.parse(s::String; ordered=false)
 JSON.parse(io::IO; ordered=false)
+JSON.parsefile(filename::String; ordered=false, use_mmap=true)
 
 Parses a JSON String or IO stream into a nested Array or Dict.
 

@@ -202,3 +202,10 @@ obj = JSON.parse("{\"\U0001d712\":\"\\ud835\\udf12\"}")
 @assert JSON.parse("1") == 1
 @assert JSON.parse("1.5") == 1.5
 
+# test parsefile
+tmppath, io = mktemp()
+write(io, facebook)
+close(io)
+@assert haskey(JSON.parsefile(tmppath), "data")
+rm(tmppath)
+

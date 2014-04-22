@@ -193,4 +193,13 @@ function parse(io::IO; ordered::Bool=false)
     JSON.parse(takebuf_string(obj), ordered=ordered)
 end
 
+function parsefile(filename::String; ordered::Bool=false, use_mmap=true)
+    sz = filesize(filename)
+    open(filename) do io
+        s = use_mmap ? UTF8String(mmap_array(Uint8, (sz,), io)) : readall(io)
+        JSON.parse(s, ordered=ordered)
+    end
 end
+
+end # module
+
