@@ -11,8 +11,22 @@ Pkg.add("JSON")
 
 ```julia
 using JSON
-JSON.parse(s)
-json(a)
+
+# parse json
+JSON.parse("{\"a\":1}")
+["a"=>1]
+JSON.parse("{\"a\":[1,2]}")
+["a"=>{1,2}]
+
+JSON.parse("{\"a\"")
+ERROR: Separator not found
+
+
+# Dict to Json
+json({"a"=>1})
+"{\"a\":1}"
+json({"a"=>[1,2]})
+
 ```
 
 ##The API
