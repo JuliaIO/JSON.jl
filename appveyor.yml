@@ -1,7 +1,7 @@
 environment:
   matrix:
   - JULIAVERSION: "x86/0.3/julia-0.3.0-prerelease-win32.exe"
-# Add more lines here to test multiple Julia versions
+  - JULIAVERSION: "x64/0.3/julia-0.3.0-prerelease-win64.exe"
 
 install:
 # Download most recent Julia Windows binary
