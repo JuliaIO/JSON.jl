@@ -207,5 +207,6 @@ tmppath, io = mktemp()
 write(io, facebook)
 close(io)
 @assert haskey(JSON.parsefile(tmppath), "data")
+gc()
 rm(tmppath)
 
