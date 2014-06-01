@@ -40,12 +40,16 @@ function print(io::IO, n::Nothing)
         Base.print(io, "null")
     end
 
+function print(io::IO, s::Symbol)
+    JSON.print(io,string(s))
+end
+
 function print(io::IO, a::Associative)
     Base.print(io, "{")
     first = true
     for (key, value) in a
         first ? (first = false) : Base.print(io, ",")
-        JSON.print(io, string(key))
+        JSON.print(io, key)
         Base.print(io, ':')
         JSON.print(io, value)
     end
