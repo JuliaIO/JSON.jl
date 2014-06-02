@@ -49,7 +49,7 @@ function print(io::IO, a::Associative)
     first = true
     for (key, value) in a
         first ? (first = false) : Base.print(io, ",")
-        JSON.print(io, key)
+        JSON.print(io, string(key))
         Base.print(io, ':')
         JSON.print(io, value)
     end
