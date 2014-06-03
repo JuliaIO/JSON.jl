@@ -6,19 +6,18 @@ include("Parser.jl")
 
 import .Parser.parse
 
+const unescaped = Bool[isprint(c) && !(c in ['\\','"']) for c in '\x00':'\x7F']
+
 function print_escaped(io, s::String)
-    i = start(s)
-    while !done(s,i)
-        c, j = next(s,i)
-        c == '\\'       ? Base.print(io, "\\\\") :
-        c == '"'        ? Base.print(io, "\\\"") :
-        8 <= c <= 10    ? Base.print(io, '\\', "btn"[c-7]) :
-        c == '\f'       ? Base.print(io, "\\f") :
-        c == '\r'       ? Base.print(io, "\\r") :
-        isprint(c)      ? Base.print(io, c) :
-        c <= '\x7f'     ? Base.print(io, "\\u", hex(c, 4)) :
-                          Base.print(io, c) #JSON is UTF8 encoded
-        i = j
+    for c in s
+        c <= '\x7f' ? (unescaped[c+1]  ? Base.print(io, c) :
+                       c == '\\'       ? Base.print(io, "\\\\") :
+                       c == '"'        ? Base.print(io, "\\\"") :
+                       8 <= c <= 10    ? Base.print(io, '\\', "btn"[c-7]) :
+                       c == '\f'       ? Base.print(io, "\\f") :
+                       c == '\r'       ? Base.print(io, "\\r") :
+                                         Base.print(io, "\\u", hex(c, 4))) :
+                      Base.print(io, c) #JSON is UTF8 encoded
     end
 end
 
@@ -54,20 +53,14 @@ end
 
 function print(io::IO, a::Union(AbstractVector,Tuple))
     Base.print(io, "[")
-    if length(a) > 0
-        for x in a[1:end-1]
-            JSON.print(io, x)
-            Base.print(io, ",")
-        end
 
-        try
-            JSON.print(io, a[end])
-        catch
-            # Potentially we got here by accessing
-            # something through a 0 dimensional
-            # part of an array. Probably expected
-            # behavior is to not print and move on
-        end
+    i = start(a)
+    !done(a,i) && ((x, i) = next(a, i); JSON.print(io, x))
+
+    while !done(a,i)
+        (x, i) = next(a, i)
+        Base.print(io, ",")
+        JSON.print(io, x)
     end
     Base.print(io, "]")
 end
