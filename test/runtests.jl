@@ -211,3 +211,18 @@ close(io)
 @windows_only @assert haskey(JSON.parsefile(tmppath; use_mmap=false), "data")
 rm(tmppath)
 
+# check indented json has same final value as non indented
+
+fb = JSON.parse(facebook)
+fbjson1 = json(fb, 2)
+fbjson2 = json(fb)
+@assert JSON.parse(fbjson1) == JSON.parse(fbjson2)
+
+ev = JSON.parse(e)
+ejson1 = json(ev, 2)
+ejson2 = json(ev)
+@assert JSON.parse(ejson1) == JSON.parse(ejson2)
+
+# test symbols are treated as strings
+symtest =[:symbolarray => [:apple, :pear], :symbolsingleton => :hello]
+@assert JSON.json(symtest) == "{\"symbolarray\":[\"apple\",\"pear\"],\"symbolsingleton\":\"hello\"}"
