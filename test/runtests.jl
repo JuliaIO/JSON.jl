@@ -225,4 +225,6 @@ ejson2 = json(ev)
 
 # test symbols are treated as strings
 symtest =[:symbolarray => [:apple, :pear], :symbolsingleton => :hello]
-@assert JSON.json(symtest) == "{\"symbolarray\":[\"apple\",\"pear\"],\"symbolsingleton\":\"hello\"}"
+@assert (JSON.json(symtest) == "{\"symbolarray\":[\"apple\",\"pear\"],\"symbolsingleton\":\"hello\"}"
+         || JSON.json(symtest) == "{\"symbolsingleton\":\"hello\",\"symbolarray\":[\"apple\",\"pear\"]}")
+
