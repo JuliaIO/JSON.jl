@@ -8,7 +8,7 @@ import .Parser.parse
 
 const INDENT=true
 const NOINDENT=false
-const unescaped = Bool[isprint(c) && !(c in ['\\','"']) for c in '\x00':'\x7F']
+const unescaped = Bool[isprint(c) && !iscntrl(c) && !(c in ['\\','"']) for c in '\x00':'\x7F']
 
 type State{I}
     indentstep::Int
