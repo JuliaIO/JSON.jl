@@ -159,6 +159,30 @@ function _print(io::IO, state::State, d::DataType)
     Base.print(io, "\"", d, "\"")
 end
 
+function _print(io::IO, state::State, m::Module)
+    module_sym = symbol(string(m))
+    module_members = names(m)
+    filter!(m -> m != module_sym, module_members)
+
+    start_object(io, state, true)
+
+    if !isempty(module_members)
+        member = first(module_members)
+        Base.print(io, prefix(state), "\"", member, "\"", colon(state))
+        JSON._print(io, state, m.(member))
+
+        for member in module_members[2:end]
+            Base.print(io, ",")
+            printsp(io, state)
+
+            Base.print(io, "\"", member, "\"", colon(state))
+            JSON._print(io, state, m.(member))
+        end
+    end
+
+    end_object(io, state, true)
+end
+
 # Note: Arrays are printed in COLUMN MAJOR format.
 # i.e. json([1 2 3; 4 5 6]) == "[[1,4],[2,5],[3,6]]"
 function _print{T, N}(io::IO, state::State, a::AbstractArray{T, N})
