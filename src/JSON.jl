@@ -159,8 +159,8 @@ function _print(io::IO, state::State, d::DataType)
     Base.print(io, "\"", d, "\"")
 end
 
-function _print(::IO, ::State, ::Module)
-    throw(ArgumentError("cannot serialize type Module as JSON"))
+function _print(::IO, ::State, m::Module)
+    throw(ArgumentError("cannot serialize Module $m as JSON"))
 end
 
 # Note: Arrays are printed in COLUMN MAJOR format.
