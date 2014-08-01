@@ -159,6 +159,10 @@ function _print(io::IO, state::State, d::DataType)
     Base.print(io, "\"", d, "\"")
 end
 
+function _print(::IO, ::State, m::Module)
+    throw(ArgumentError("cannot serialize Module $m as JSON"))
+end
+
 # Note: Arrays are printed in COLUMN MAJOR format.
 # i.e. json([1 2 3; 4 5 6]) == "[[1,4],[2,5],[3,6]]"
 function _print{T, N}(io::IO, state::State, a::AbstractArray{T, N})
