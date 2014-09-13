@@ -1,6 +1,7 @@
 using JSON
+using Base.Test
 
-require("JSON/test/json_samples")
+include(joinpath(dirname(@__FILE__),"json_samples.jl"))
 
 # compatibility for julia version 0.2
 if !isdefined(:put!)
@@ -11,39 +12,39 @@ end
 # Test definitions -------
 validate_c(c) = begin
                     j = JSON.parse(c);
-                    @assert j != nothing
-                    @assert typeof(j["widget"]["image"]["hOffset"]) == Int
-                    @assert j["widget"]["image"]["hOffset"] == 250
-                    @assert typeof(j["widget"]["text"]["size"]) == Float64
-                    @assert j["widget"]["text"]["size"] == 36.5
+                    @test j != nothing
+                    @test typeof(j["widget"]["image"]["hOffset"]) == Int
+                    @test j["widget"]["image"]["hOffset"] == 250
+                    @test typeof(j["widget"]["text"]["size"]) == Float64
+                    @test j["widget"]["text"]["size"] == 36.5
                 end
 
 validate_e(e) = begin
                     j=JSON.parse(e)
-                    @assert j != nothing
-                    typeof(j) == Dict{String, Any}
-                    @assert length(j) == 1
-                    typeof(j["menu"]) == Dict{String, Any}
-                    @assert length(j["menu"]) == 2
-                    @assert j["menu"]["header"] == "SVG\tViewerα"
-                    @assert isa(j["menu"]["items"], Array)
-                    @assert length(j["menu"]["items"]) == 22
-                    @assert j["menu"]["items"][3] == nothing
-                    @assert j["menu"]["items"][2]["id"] == "OpenNew"
-                    @assert j["menu"]["items"][2]["label"] == "Open New"
+                    @test j != nothing
+                    @test typeof(j) == Dict{String, Any}
+                    @test length(j) == 1
+                    @test typeof(j["menu"]) == Dict{String, Any}
+                    @test length(j["menu"]) == 2
+                    @test j["menu"]["header"] == "SVG\tViewerα"
+                    @test isa(j["menu"]["items"], Array)
+                    @test length(j["menu"]["items"]) == 22
+                    @test j["menu"]["items"][3] == nothing
+                    @test j["menu"]["items"][2]["id"] == "OpenNew"
+                    @test j["menu"]["items"][2]["label"] == "Open New"
                 end
 
 validate_flickr(flickr) = begin
                               k = JSON.parse(flickr)
-                              @assert k != nothing
-                              @assert k["totalItems"] == 222
-                              @assert k["items"][1]["description"][12] == '\"'
+                              @test k != nothing
+                              @test k["totalItems"] == 222
+                              @test k["items"][1]["description"][12] == '\"'
                           end
 
 validate_unicode(unicode) = begin
                                 u = JSON.parse(unicode)
-                                @assert u != nothing
-                                @assert u["অলিম্পিকস"]["রেকর্ড"][2]["Marathon"] == "জনি হেইস"
+                                @test u != nothing
+                                @test u["অলিম্পিকস"]["রেকর্ড"][2]["Marathon"] == "জনি হেইস"
                             end
 # -------
 
@@ -56,82 +57,82 @@ finished_async_tests = RemoteRef()
     s.line_buffered = false
     start_reading(s)
 
-    @assert JSON.parse(s) != nothing  # a
-    @assert JSON.parse(s) != nothing  # b
+    @test JSON.parse(s) != nothing  # a
+    @test JSON.parse(s) != nothing  # b
     validate_c(s)                     # c
-    @assert JSON.parse(s) != nothing  # d
+    @test JSON.parse(s) != nothing  # d
     validate_e(s)                     # e
-    @assert JSON.parse(s) != nothing  # gmaps
-    @assert JSON.parse(s) != nothing  # colors1
-    @assert JSON.parse(s) != nothing  # colors2
-    @assert JSON.parse(s) != nothing  # colors3
-    @assert JSON.parse(s) != nothing  # twitter
-    @assert JSON.parse(s) != nothing  # facebook
+    @test JSON.parse(s) != nothing  # gmaps
+    @test JSON.parse(s) != nothing  # colors1
+    @test JSON.parse(s) != nothing  # colors2
+    @test JSON.parse(s) != nothing  # colors3
+    @test JSON.parse(s) != nothing  # twitter
+    @test JSON.parse(s) != nothing  # facebook
     validate_flickr(s)                # flickr
-    @assert JSON.parse(s) != nothing  # youtube
-    @assert JSON.parse(s) != nothing  # iphone
-    @assert JSON.parse(s) != nothing  # customer
-    @assert JSON.parse(s) != nothing  # product
-    @assert JSON.parse(s) != nothing  # interop
+    @test JSON.parse(s) != nothing  # youtube
+    @test JSON.parse(s) != nothing  # iphone
+    @test JSON.parse(s) != nothing  # customer
+    @test JSON.parse(s) != nothing  # product
+    @test JSON.parse(s) != nothing  # interop
     validate_unicode(s)               # unicode
-    @assert JSON.parse(s) != nothing  # issue5
-    @assert JSON.parse(s) != nothing  # dollars
-    @assert JSON.parse(s) != nothing  # brackets
+    @test JSON.parse(s) != nothing  # issue5
+    @test JSON.parse(s) != nothing  # dollars
+    @test JSON.parse(s) != nothing  # brackets
 
     put!(finished_async_tests, nothing)
 end
 
 w = connect("localhost", 7777)
 
-@assert JSON.parse(a) != nothing
+@test JSON.parse(a) != nothing
 write(w, a)
 
-@assert JSON.parse(b) != nothing
+@test JSON.parse(b) != nothing
 write(w, b)
 
 validate_c(c)
 write(w, c)
 
-@assert JSON.parse(d) != nothing
+@test JSON.parse(d) != nothing
 write(w, d)
 
 validate_e(e)
 write(w, e)
 
-@assert JSON.parse(gmaps) != nothing
+@test JSON.parse(gmaps) != nothing
 write(w, gmaps)
 
-@assert JSON.parse(colors1) != nothing
+@test JSON.parse(colors1) != nothing
 write(w, colors1)
 
-@assert JSON.parse(colors2) != nothing
+@test JSON.parse(colors2) != nothing
 write(w, colors2)
 
-@assert JSON.parse(colors3) != nothing
+@test JSON.parse(colors3) != nothing
 write(w, colors3)
 
-@assert JSON.parse(twitter) != nothing
+@test JSON.parse(twitter) != nothing
 write(w, twitter)
 
-@assert JSON.parse(facebook) != nothing
+@test JSON.parse(facebook) != nothing
 write(w, facebook)
 
 validate_flickr(flickr)
 write(w, flickr)
 
-@assert JSON.parse(youtube) != nothing
+@test JSON.parse(youtube) != nothing
 write(w, youtube)
 
-@assert JSON.parse(iphone) != nothing
+@test JSON.parse(iphone) != nothing
 write(w, iphone)
 
-@assert JSON.parse(customer) != nothing
+@test JSON.parse(customer) != nothing
 write(w, customer)
 
-@assert JSON.parse(product) != nothing
+@test JSON.parse(product) != nothing
 write(w, product)
 
-@assert JSON.parse(interop) != nothing
+@test JSON.parse(interop) != nothing
 write(w, interop)
 
 validate_unicode(unicode)
@@ -146,69 +147,69 @@ write(w, issue5)
 # $ escaping issue
 dollars = ["all of the \$s", "µniçø∂\$"]
 json_dollars = json(dollars)
-@assert JSON.parse(json_dollars) != nothing
+@test JSON.parse(json_dollars) != nothing
 write(w, json_dollars)
 
 # unmatched brackets
 brackets = {"foo"=>"ba}r", "be}e]p"=>"boo{p"}
 json_brackets = json(brackets)
-@assert JSON.parse(json_brackets) != nothing
+@test JSON.parse(json_brackets) != nothing
 write(w, json_dollars)
 
 fetch(finished_async_tests)
 
 zeros = {"\0"=>"\0"}
 json_zeros = json(zeros)
-@assert contains(json_zeros,"\\u0000")
-@assert !contains(json_zeros,"\\0")
-@assert JSON.parse(json_zeros) == zeros
+@test contains(json_zeros,"\\u0000")
+@test !contains(json_zeros,"\\0")
+@test JSON.parse(json_zeros) == zeros
 
 #Uncomment while doing timing tests
 #@time for i=1:100 ; JSON.parse(d) ; end
 
 
 # Printing an empty array or Dict shouldn't cause a BoundsError
-@assert json(ASCIIString[]) == "[]"
-@assert json(Dict()) == "{}"
+@test json(ASCIIString[]) == "[]"
+@test json(Dict()) == "{}"
 
 #test for issue 26
 obj = JSON.parse("{\"a\":2e10}")
-@assert(obj["a"] == 2e10)
+@test(obj["a"] == 2e10)
 
 #test for issue 21
 a=JSON.parse(test21)
-@assert isa(a, Array{Any})
-@assert length(a) == 2
+@test isa(a, Array{Any})
+@test length(a) == 2
 #Multidimensional arrays
-@assert json([0 1; 2 0]) == "[[0,2],[1,0]]"
+@test json([0 1; 2 0]) == "[[0,2],[1,0]]"
 
 
 # ::Nothing values should be encoded as null
 testDict = ["a" => nothing]
 nothingJson = JSON.json(testDict)
 nothingDict = JSON.parse(nothingJson)
-@assert testDict == nothingDict
+@test testDict == nothingDict
 
 
 # test for issue #57
 obj = JSON.parse("{\"\U0001d712\":\"\\ud835\\udf12\"}")
-@assert(obj["𝜒"] == "𝜒")
+@test(obj["𝜒"] == "𝜒")
 
 # test for single values
-@assert JSON.parse("true") == true
-@assert JSON.parse("null") == nothing
-@assert JSON.parse("\"hello\"") == "hello"
-@assert JSON.parse("\"a\"") == "a"
-@assert JSON.parse("1") == 1
-@assert JSON.parse("1.5") == 1.5
+@test JSON.parse("true") == true
+@test JSON.parse("null") == nothing
+@test JSON.parse("\"hello\"") == "hello"
+@test JSON.parse("\"a\"") == "a"
+@test JSON.parse("1") == 1
+@test JSON.parse("1.5") == 1.5
 
 # test parsefile
 tmppath, io = mktemp()
 write(io, facebook)
 close(io)
-@unix_only @assert haskey(JSON.parsefile(tmppath), "data")
+@unix_only @test haskey(JSON.parsefile(tmppath), "data")
 # don't use mmap on Windows, to avoid ERROR: unlink: operation not permitted (EPERM)
-@windows_only @assert haskey(JSON.parsefile(tmppath; use_mmap=false), "data")
+@windows_only @test haskey(JSON.parsefile(tmppath; use_mmap=false), "data")
 rm(tmppath)
 
 # check indented json has same final value as non indented
@@ -216,15 +217,15 @@ rm(tmppath)
 fb = JSON.parse(facebook)
 fbjson1 = json(fb, 2)
 fbjson2 = json(fb)
-@assert JSON.parse(fbjson1) == JSON.parse(fbjson2)
+@test JSON.parse(fbjson1) == JSON.parse(fbjson2)
 
 ev = JSON.parse(e)
 ejson1 = json(ev, 2)
 ejson2 = json(ev)
-@assert JSON.parse(ejson1) == JSON.parse(ejson2)
+@test JSON.parse(ejson1) == JSON.parse(ejson2)
 
 # test symbols are treated as strings
 symtest =[:symbolarray => [:apple, :pear], :symbolsingleton => :hello]
-@assert (JSON.json(symtest) == "{\"symbolarray\":[\"apple\",\"pear\"],\"symbolsingleton\":\"hello\"}"
+@test (JSON.json(symtest) == "{\"symbolarray\":[\"apple\",\"pear\"],\"symbolsingleton\":\"hello\"}"
          || JSON.json(symtest) == "{\"symbolsingleton\":\"hello\",\"symbolarray\":[\"apple\",\"pear\"]}")
 
