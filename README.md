@@ -1,5 +1,5 @@
 # JSON.jl
-## Parsing and printing JSON in pure Julia.
+### Parsing and printing JSON in pure Julia.
 
 [![Build Status](https://travis-ci.org/JuliaLang/JSON.jl.png)](https://travis-ci.org/JuliaLang/JSON.jl)
 [![Build status](https://ci.appveyor.com/api/projects/status/2sfomjwl29k6y6oy)](https://ci.appveyor.com/project/staticfloat/json-jl)
