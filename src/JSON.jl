@@ -1,5 +1,7 @@
 module JSON
 
+using Compat
+
 export json # returns a compact (or indented) JSON representation as a String
 
 include("Parser.jl")
@@ -13,7 +15,7 @@ const unescaped = Bool[isprint(c) && !iscntrl(c) && !(c in ['\\','"']) for c in 
 type State{I}
     indentstep::Int
     indentlen::Int
-    prefix::String
+    prefix::AbstractString
     otype::Array{Bool, 1}
     State(indentstep::Int) = new(indentstep, 
                                  0, 
@@ -63,7 +65,7 @@ function end_object(io::IO, state::State{NOINDENT}, is_dict::Bool)
     Base.print(io, is_dict ? "}": "]")
 end
 
-function print_escaped(io::IO, s::String)
+function print_escaped(io::IO, s::AbstractString)
     for c in s
         c <= '\x7f' ? (unescaped[int(c)+1]  ? Base.print(io, c) :
                        c == '\\'       ? Base.print(io, "\\\\") :
@@ -76,7 +78,7 @@ function print_escaped(io::IO, s::String)
     end
 end
 
-function _print(io::IO, state::State, s::String)
+function _print(io::IO, state::State, s::AbstractString)
     Base.print(io, '"')
     JSON.print_escaped(io, s)
     Base.print(io, '"')
@@ -272,7 +274,7 @@ function parse(io::IO; ordered::Bool=false)
     JSON.parse(takebuf_string(obj), ordered=ordered)
 end
 
-function parsefile(filename::String; ordered::Bool=false, use_mmap=true)
+function parsefile(filename::AbstractString; ordered::Bool=false, use_mmap=true)
     sz = filesize(filename)
     open(filename) do io
         s = use_mmap ? UTF8String(mmap_array(Uint8, (sz,), io)) : readall(io)

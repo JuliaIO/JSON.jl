@@ -1,5 +1,6 @@
 using JSON
 using Base.Test
+using Compat 
 
 include(joinpath(dirname(@__FILE__),"json_samples.jl"))
 
@@ -22,9 +23,9 @@ validate_c(c) = begin
 validate_e(e) = begin
                     j=JSON.parse(e)
                     @test j != nothing
-                    @test typeof(j) == Dict{String, Any}
+                    @test typeof(j) == Dict{AbstractString, Any}
                     @test length(j) == 1
-                    @test typeof(j["menu"]) == Dict{String, Any}
+                    @test typeof(j["menu"]) == Dict{AbstractString, Any}
                     @test length(j["menu"]) == 2
                     @test j["menu"]["header"] == "SVG\tViewerα"
                     @test isa(j["menu"]["items"], Array)
@@ -151,14 +152,14 @@ json_dollars = json(dollars)
 write(w, json_dollars)
 
 # unmatched brackets
-brackets = {"foo"=>"ba}r", "be}e]p"=>"boo{p"}
+brackets = @compat Dict("foo"=>"ba}r", "be}e]p"=>"boo{p")
 json_brackets = json(brackets)
 @test JSON.parse(json_brackets) != nothing
 write(w, json_dollars)
 
 fetch(finished_async_tests)
 
-zeros = {"\0"=>"\0"}
+zeros = @compat Dict("\0"=>"\0")
 json_zeros = json(zeros)
 @test contains(json_zeros,"\\u0000")
 @test !contains(json_zeros,"\\0")
@@ -185,7 +186,7 @@ a=JSON.parse(test21)
 
 
 # ::Nothing values should be encoded as null
-testDict = ["a" => nothing]
+testDict = @compat Dict("a" => nothing)
 nothingJson = JSON.json(testDict)
 nothingDict = JSON.parse(nothingJson)
 @test testDict == nothingDict
@@ -225,7 +226,7 @@ ejson2 = json(ev)
 @test JSON.parse(ejson1) == JSON.parse(ejson2)
 
 # test symbols are treated as strings
-symtest =[:symbolarray => [:apple, :pear], :symbolsingleton => :hello]
+symtest = @compat Dict(:symbolarray => [:apple, :pear], :symbolsingleton => :hello)
 @test (JSON.json(symtest) == "{\"symbolarray\":[\"apple\",\"pear\"],\"symbolsingleton\":\"hello\"}"
          || JSON.json(symtest) == "{\"symbolsingleton\":\"hello\",\"symbolarray\":[\"apple\",\"pear\"]}")
 
