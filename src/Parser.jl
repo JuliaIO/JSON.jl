@@ -1,5 +1,7 @@
 module Parser #JSON
 
+using Compat
+
 _HAVE_ORDERED_DICT = try
     import DataStructures
     true
@@ -13,20 +15,20 @@ else
     end
 end
 
-const TYPES = Any # Union(Dict, Array, String, Number, Bool, Nothing) # Types it may encounter
-const KEY_TYPES = Union(String) # Types it may encounter as object keys
+const TYPES = Any # Union(Dict, Array, AbstractString, Number, Bool, Nothing) # Types it may encounter
+const KEY_TYPES = Union(AbstractString) # Types it may encounter as object keys
 
 export parse
 
-type ParserState{T <: String}
+type ParserState{T<:AbstractString}
     str::T
     s::Int
     e::Int
     tmp64::Array{Float64,1}
 end
-ParserState(str::String,s::Int,e::Int) = ParserState(str, s, e, Array(Float64,1))
+ParserState(str::AbstractString,s::Int,e::Int) = ParserState(str, s, e, Array(Float64,1))
 
-charat{T <: String}(ps::ParserState{T}) = ps.str[ps.s]
+charat{T<:AbstractString}(ps::ParserState{T}) = ps.str[ps.s]
 incr(ps::ParserState) = (ps.s += 1)
 hasmore(ps::ParserState) = (ps.s < ps.e)
 
@@ -34,7 +36,7 @@ hasmore(ps::ParserState) = (ps.s < ps.e)
 # UTILITIES
 
 # Eat up spaces starting at s.
-function chomp_space{T<:String}(ps::ParserState{T})
+function chomp_space{T<:AbstractString}(ps::ParserState{T})
     c = charat(ps)
     while isspace(c) && hasmore(ps)
         incr(ps)
@@ -43,7 +45,7 @@ function chomp_space{T<:String}(ps::ParserState{T})
 end
 
 # Run past the separator in a name : value pair
-function skip_separator{T<:String}(ps::ParserState{T})
+function skip_separator{T<:AbstractString}(ps::ParserState{T})
     while (charat(ps) != ':') && hasmore(ps)
         incr(ps)
     end
@@ -54,7 +56,7 @@ end
 
 
 # Used for line counts
-function _count_before{T<:String}(haystack::T, needle::Char, _end::Int)
+function _count_before{T<:AbstractString}(haystack::T, needle::Char, _end::Int)
     count = 0
     i = 1
     while i < _end
@@ -65,7 +67,7 @@ function _count_before{T<:String}(haystack::T, needle::Char, _end::Int)
 end
 
 # Prints an error message with an indicator to the source
-function _error(message::String, ps::ParserState)
+function _error(message::AbstractString, ps::ParserState)
     lines = _count_before(ps.str, '\n', ps.s)
     # Replace all special multi-line/multi-space characters with a space.
     strnl = replace(ps.str, r"[\b\f\n\r\t\s]", " ")
@@ -80,7 +82,7 @@ end
 
 # PARSING
 
-function parse_array{T<:String}(ps::ParserState{T}, ordered::Bool)
+function parse_array{T<:AbstractString}(ps::ParserState{T}, ordered::Bool)
     incr(ps) # Skip over the '['
     _array = TYPES[]
     chomp_space(ps)
@@ -104,7 +106,7 @@ function parse_array{T<:String}(ps::ParserState{T}, ordered::Bool)
     return _array
 end
 
-function parse_object{T<:String}(ps::ParserState{T}, ordered::Bool)
+function parse_object{T<:AbstractString}(ps::ParserState{T}, ordered::Bool)
     if ordered
         parse_object(ps, ordered, OrderedDict(KEY_TYPES,TYPES))
     else
@@ -112,7 +114,7 @@ function parse_object{T<:String}(ps::ParserState{T}, ordered::Bool)
     end
 end
 
-function parse_object{T<:String}(ps::ParserState{T}, ordered::Bool, obj)
+function parse_object{T<:AbstractString}(ps::ParserState{T}, ordered::Bool, obj)
     incr(ps) # Skip over opening '{'
     chomp_space(ps)
     charat(ps)=='}' && (incr(ps); return obj) # Check for empty object
@@ -147,7 +149,7 @@ end
 
 # TODO: Try to find ways to improve the performance of this (currently one
 #       of the slowest parsing methods).
-function parse_string{T<:String}(ps::ParserState{T})
+function parse_string{T<:AbstractString}(ps::ParserState{T})
     str = ps.str
     s = ps.s
     e = ps.e
@@ -204,7 +206,7 @@ function parse_string{T<:String}(ps::ParserState{T})
     takebuf_string(b)
 end
 
-function parse_simple{T<:String}(ps::ParserState{T})
+function parse_simple{T<:AbstractString}(ps::ParserState{T})
     c = charat(ps)
     if c == 't' && ps.str[ps.s + 3] == 'e'     # Looks like "true"
         ps.s += 4
@@ -221,7 +223,7 @@ function parse_simple{T<:String}(ps::ParserState{T})
     ret
 end
 
-function parse_value{T<:String}(ps::ParserState{T}, ordered::Bool)
+function parse_value{T<:AbstractString}(ps::ParserState{T}, ordered::Bool)
     chomp_space(ps)
     (ps.s > ps.e) && return nothing # Nothing left
 
@@ -241,7 +243,7 @@ function parse_value{T<:String}(ps::ParserState{T}, ordered::Bool)
     return ret
 end
 
-function parse_number{T<:String}(ps::ParserState{T})
+function parse_number{T<:AbstractString}(ps::ParserState{T})
     str = ps.str
     p = ps.s
     e = ps.e
@@ -310,7 +312,7 @@ function parse_number{T<:String}(ps::ParserState{T})
     end
 end
 
-function parse(str::String; ordered::Bool=false)
+function parse(str::AbstractString; ordered::Bool=false)
     pos::Int = 1
     len::Int = endof(str)
     len < 1 && return
