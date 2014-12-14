@@ -2,13 +2,10 @@ module Parser #JSON
 
 using Compat
 
-_HAVE_ORDERED_DICT = try
-    import DataStructures
-    true
-end
-if _HAVE_ORDERED_DICT
+#Define ordered dictionary from DataStructures if present
+try
     import DataStructures.OrderedDict
-else
+catch
     function OrderedDict(key_types, types)
         Base.warn_once("Ordered JSON object parsing is not available.\nRun `Pkg.add(\"DataStructures.jl\")` to enable.")
         Dict{key_types, types}()
