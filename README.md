@@ -1,7 +1,7 @@
 # JSON.jl
 ### Parsing and printing JSON in pure Julia.
 
-[![Build Status](https://travis-ci.org/JuliaLang/JSON.jl.png)](https://travis-ci.org/JuliaLang/JSON.jl)
+[![Build Status](https://travis-ci.org/JuliaLang/JSON.jl.svg)](https://travis-ci.org/JuliaLang/JSON.jl)
 [![Build status](https://ci.appveyor.com/api/projects/status/2sfomjwl29k6y6oy)](https://ci.appveyor.com/project/staticfloat/json-jl)
 [![Coverage Status](https://img.shields.io/coveralls/JuliaLang/JSON.jl.svg)](https://coveralls.io/r/JuliaLang/JSON.jl)
 [![JSON](http://pkg.julialang.org/badges/JSON_release.svg)](http://pkg.julialang.org/?pkg=JSON&ver=release)
