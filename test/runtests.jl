@@ -1,14 +1,11 @@
 using JSON
 using Base.Test
-using Compat 
+using Compat
+import DataStructures
 
 include(joinpath(dirname(@__FILE__),"json_samples.jl"))
 
-# compatibility for julia version 0.2
-if !isdefined(:put!)
-        const put! = put
-        const take! = take
-end
+@test JSON.parse("{\"x\": 3}"; ordered = true) == DataStructures.OrderedDict{String,Any}(["x"],[3])
 
 # Test definitions -------
 validate_c(c) = begin
