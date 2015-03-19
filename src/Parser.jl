@@ -112,7 +112,7 @@ end
 
 function parse_object{T<:AbstractString}(ps::ParserState{T}, ordered::Bool)
     if ordered
-        parse_object(ps, ordered, OrderedDict(KEY_TYPES,TYPES))
+        parse_object(ps, ordered, OrderedDict{KEY_TYPES,TYPES}())
     else
         parse_object(ps, ordered, Dict{KEY_TYPES,TYPES}())
     end
