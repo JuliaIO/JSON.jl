@@ -312,7 +312,7 @@ function parse_number{T<:AbstractString}(ps::ParserState{T})
     if is_float
         float64_isvalid(vs, ps.tmp64) ? (return ps.tmp64[1]) : error("Invalid floating point number", ps)
     else
-        return parseint(vs)
+        return @compat parse(Int, vs)
     end
 end
 
