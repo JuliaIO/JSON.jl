@@ -20,9 +20,8 @@ type ParserState{T<:AbstractString}
     str::T
     s::Int
     e::Int
-    tmp64::Array{Float64,1}
 end
-ParserState(str::AbstractString,s::Int,e::Int) = ParserState(str, s, e, Array(Float64,1))
+ParserState(str::AbstractString,s::Int,e::Int) = ParserState(str, s, e)
 
 charat{T<:AbstractString}(ps::ParserState{T}) = ps.str[ps.s]
 incr(ps::ParserState) = (ps.s += 1)
@@ -162,12 +161,12 @@ function parse_string{T<:AbstractString}(ps::ParserState{T})
             if c == 'u' # Unicode escape
                 u = unescape_string(str[s - 1:s + 4]) # Get the string
                 c = u[1]
-                if utf16_is_surrogate(uint16(c))
+                if utf16_is_surrogate(@compat(UInt16(c)))
                     if str[s+5] != '\\' || str[s+6] != 'u'
                         _error("Unmatched UTF16 surrogate", ps)
                     end
                     u2 = unescape_string(str[s + 5:s + 10])
-                    c = utf16_get_supplementary(uint16(c),uint16(u2[1]))
+                    c = utf16_get_supplementary(@compat(UInt16(c)),@compat(UInt16(u2[1])))
                     # Skip the additional 6 characters
                     for _ = 1:6
                         s = nextind(str, s)
@@ -240,6 +239,17 @@ function parse_value{T<:AbstractString}(ps::ParserState{T}, ordered::Bool)
     return ret
 end
 
+if VERSION < v"0.4.0-dev+3874"
+    function tryparse(T::Type{Float64},str::AbstractString)
+        temp = Array(Float64,1)
+        if float64_isvalid(str,temp)
+            return Nullable(temp[1])
+        else
+            return Nullable{Float64}()
+        end
+    end
+end
+
 function parse_number{T<:AbstractString}(ps::ParserState{T})
     str = ps.str
     p = ps.s
@@ -303,9 +313,10 @@ function parse_number{T<:AbstractString}(ps::ParserState{T})
     vs = SubString(ps.str, ps.s, p-1)
     ps.s = p
     if is_float
-        float64_isvalid(vs, ps.tmp64) ? (return ps.tmp64[1]) : error("Invalid floating point number", ps)
+        tmp64 = tryparse(Float64,vs)
+        isnull(tmp64) ? error("Invalid floating point number", ps) : return get(tmp64)
     else
-        return parseint(vs)
+        return Base.parse(Int,vs)
     end
 end
 

@@ -67,10 +67,10 @@ end
 
 function print_escaped(io::IO, s::AbstractString)
     for c in s
-        c <= '\x7f' ? (unescaped[int(c)+1]  ? Base.print(io, c) :
+        c <= '\x7f' ? (unescaped[@compat(Int(c))+1]  ? Base.print(io, c) :
                        c == '\\'       ? Base.print(io, "\\\\") :
                        c == '"'        ? Base.print(io, "\\\"") :
-                       8 <= c <= 10    ? Base.print(io, '\\', "btn"[int(c)-7]) :
+                       8 <= c <= 10    ? Base.print(io, '\\', "btn"[@compat(Int(c))-7]) :
                        c == '\f'       ? Base.print(io, "\\f") :
                        c == '\r'       ? Base.print(io, "\\r") :
                                          Base.print(io, "\\u", hex(c, 4))) :
