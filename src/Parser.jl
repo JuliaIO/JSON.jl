@@ -5,18 +5,10 @@ using Compat
 #Define ordered dictionary from DataStructures if present
 _HAVE_DATASTRUCTURES = try
     using DataStructures
+    import DataStructures.OrderedDict
     true
 catch
     false
-end
-
-if _HAVE_DATASTRUCTURES
-    import DataStructures.OrderedDict
-else
-    function OrderedDict(key_types, types)
-        Base.warn_once("Ordered JSON object parsing is not available.\nRun `Pkg.add(\"DataStructures.jl\")` to enable.")
-        Dict{key_types, types}()
-    end
 end
 
 const TYPES = Any # Union(Dict, Array, AbstractString, Number, Bool, Nothing) # Types it may encounter
@@ -232,7 +224,8 @@ function parse_value{T<:AbstractString}(ps::ParserState{T}, ordered::Bool)
     (ps.s > ps.e) && return nothing # Nothing left
 
     ch = charat(ps)
-    if ch == '"' ret = parse_string(ps)
+    if ch == '"'
+        ret = parse_string(ps)
     elseif ch == '{'
         ret = parse_object(ps, ordered)
     elseif (ch >= '0' && ch <= '9') || ch=='-' || ch=='+'
@@ -320,7 +313,7 @@ function parse(str::AbstractString; ordered::Bool=false)
     pos::Int = 1
     len::Int = endof(str)
     len < 1 && return
-
+    ordered && !_HAVE_DATASTRUCTURES && error("DataStructures package required for ordered parsing: try `Pkg.add(\"DataStructures\")`") 
     parse_value(ParserState(str, pos, len), ordered)
 end
 
