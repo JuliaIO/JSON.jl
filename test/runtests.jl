@@ -53,7 +53,7 @@ finished_async_tests = RemoteRef()
     s = accept(s)
 
     s.line_buffered = false
-    start_reading(s)
+    Base.start_reading(s)
 
     @test JSON.parse(s) != nothing  # a
     @test JSON.parse(s) != nothing  # b
