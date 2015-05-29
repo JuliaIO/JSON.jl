@@ -227,3 +227,11 @@ symtest = @compat Dict(:symbolarray => [:apple, :pear], :symbolsingleton => :hel
 @test (JSON.json(symtest) == "{\"symbolarray\":[\"apple\",\"pear\"],\"symbolsingleton\":\"hello\"}"
          || JSON.json(symtest) == "{\"symbolsingleton\":\"hello\",\"symbolarray\":[\"apple\",\"pear\"]}")
 
+# test for issue #109
+type t109
+   i::Int
+end
+let iob = IOBuffer()
+    JSON.print(iob, t109(1))
+    @test get(JSON.parse(takebuf_string(iob)), "i", 0) == 1
+end

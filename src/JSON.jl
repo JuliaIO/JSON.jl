@@ -138,7 +138,7 @@ end
 
 function _print(io::IO, state::State, a)
     start_object(io, state, true)
-    range = typeof(a).names
+    range = @compat fieldnames(a)
     if length(range) > 0
         Base.print(io, prefix(state), "\"", range[1], "\"", colon(state))
         JSON._print(io, state, a.(range[1]))
