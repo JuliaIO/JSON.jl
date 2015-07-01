@@ -134,13 +134,8 @@ function parse_object{T<:AbstractString}(ps::ParserState{T}, ordered::Bool, obj)
     return obj
 end
 
-if VERSION <= v"0.3-"
-    utf16_is_surrogate(c::Uint16) = (c & 0xf800) == 0xd800
-    utf16_get_supplementary(lead::Uint16, trail::Uint16) = char((lead-0xd7f7)<<10 + trail)
-else
-    const utf16_is_surrogate = Base.utf16_is_surrogate
-    const utf16_get_supplementary = Base.utf16_get_supplementary
-end
+utf16_is_surrogate(c::Uint16) = (c & 0xf800) == 0xd800
+utf16_get_supplementary(lead::Uint16, trail::Uint16) = @compat(Char(@compat(UInt32(lead-0xd7f7)<<10) + trail))
 
 # TODO: Try to find ways to improve the performance of this (currently one
 #       of the slowest parsing methods).
