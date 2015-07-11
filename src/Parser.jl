@@ -322,9 +322,20 @@ function parse(str::AbstractString; ordered::Bool=false, single_quote::Bool=fals
     pos::Int = 1
     len::Int = endof(str)
     quote_char::Char = single_quote ? '\'' : '\"'
-    len < 1 && return
+    len < 1 && return 
     ordered && !_HAVE_DATASTRUCTURES && error("DataStructures package required for ordered parsing: try `Pkg.add(\"DataStructures\")`")
     parse_value(ParserState(str, pos, len), ordered, quote_char)
+end
+
+# Allow post-fix options in the forms: "so!" or "single_ordered" or "os!", etc. 
+function _parse(str::AbstractString, opt::Tuple)
+    if opt |> isempty
+        parse(str)
+    else
+        opts = opt[1][end] != '!' ? split(opt[1], "_") : split(opt[1], "")
+        opts = [ c[1] for c in opts ]
+        parse(str, ordered ='o' in opts, single_quote = 's' in opts)
+    end
 end
 
 end #module Parser
