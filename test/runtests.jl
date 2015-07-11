@@ -235,3 +235,21 @@ let iob = IOBuffer()
     JSON.print(iob, t109(1))
     @test get(JSON.parse(takebuf_string(iob)), "i", 0) == 1
 end
+
+# Tests for Macro strings
+
+let mstr_test = @compat Dict("a" => 1)
+    @test mstr_test == JSON"""{"a":1}"""
+    @test mstr_test == J"{'a':1}"
+    @test JSON_ORDERED"""{"x": 3}""" == DataStructures.OrderedDict{String,Any}([("x",3)])
+
+    @test (@compat Dict("a_number" => 5, "an_array" => ["string"; 9]) ) == J"{'a_number' : 5, 'an_array' : ['string', 9] }"
+
+    @test JSON"""
+    {
+      "a_number" : 5.0,
+      "an_array" : ["string", 9]
+    }
+    """ == (@compat Dict("a_number" => 5, "an_array" => ["string"; 9]) )
+
+end

@@ -2,7 +2,7 @@ module JSON
 
 using Compat
 
-export json, @J_str, @JSON_str, @JSON_ORDERED_str # returns a compact (or indented) JSON representation as a String
+export json, @J_str, @JSON_mstr, @JSON_ORDERED_mstr # returns a compact (or indented) JSON representation as a String
 
 include("Parser.jl")
 
@@ -283,8 +283,8 @@ function parsefile(filename::AbstractString; ordered::Bool=false, use_mmap=true)
 end
 
 # Macros
-macro JSON_str(arg::AbstractString) parse(arg) end
-macro JSON_ORDERED_str(arg::AbstractString) parse(arg, ordered=true) end
-macro J_str(arg::AbstractString) parse(arg, quote_char='\'') end # convenience intented for short single quoted json data
+macro JSON_mstr(arg::AbstractString) parse(arg) end
+macro JSON_ORDERED_mstr(arg::AbstractString) parse(arg, ordered=true) end
+macro J_str(arg::AbstractString) parse(arg, single_quote=true) end # convenience intented for short single quoted json data
 
 end # module

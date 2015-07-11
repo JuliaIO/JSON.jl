@@ -28,6 +28,24 @@ JSON.json(j)
 #  "{\"an_array\":[\"string\",9],\"a_number\":5.0}"
 ```
 
+### Macro Strings
+
+`JSON` and `J` can be used to embed JSON data directly into source code:
+
+```julia
+basic_dict = JSON"""
+{
+  "a_number" : 5.0,
+  "an_array" : ["string", 9]
+}
+"""
+```
+
+
+```julia
+basic_dict = J"{'a_number' : 5.0, 'an_array' : ['string', 9]}"
+```
+
 ## Documentation
 
 ```julia

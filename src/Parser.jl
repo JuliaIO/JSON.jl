@@ -318,9 +318,10 @@ function parse_number{T<:AbstractString}(ps::ParserState{T})
     end
 end
 
-function parse(str::AbstractString; ordered::Bool=false, quote_char::Char='"')
+function parse(str::AbstractString; ordered::Bool=false, single_quote::Bool=false)
     pos::Int = 1
     len::Int = endof(str)
+    quote_char::Char = single_quote ? '\'' : '\"'
     len < 1 && return
     ordered && !_HAVE_DATASTRUCTURES && error("DataStructures package required for ordered parsing: try `Pkg.add(\"DataStructures\")`")
     parse_value(ParserState(str, pos, len), ordered, quote_char)
