@@ -2,11 +2,12 @@ module JSON
 
 using Compat
 
-export json # returns a compact (or indented) JSON representation as a String
+export json, @json_str, @json_mstr # returns a compact (or indented) JSON representation as a String
 
 include("Parser.jl")
 
 import .Parser.parse
+import .Parser._parse
 
 const INDENT=true
 const NOINDENT=false
@@ -17,8 +18,8 @@ type State{I}
     indentlen::Int
     prefix::AbstractString
     otype::Array{Bool, 1}
-    State(indentstep::Int) = new(indentstep, 
-                                 0, 
+    State(indentstep::Int) = new(indentstep,
+                                 0,
                                  "",
                                  Bool[])
 end
@@ -246,7 +247,7 @@ function consumeString(io::IO, obj::IOBuffer)
     throw(EOFError())
 end
 
-function parse(io::IO; ordered::Bool=false)
+function parse(io::IO; ordered::Bool=false, single_quote::Bool=false)
     open_bracket = close_bracket = nothing
     try
         open_bracket, close_bracket = determine_bracket_type(io)
@@ -271,16 +272,19 @@ function parse(io::IO; ordered::Bool=false)
             consumeString(io, obj)
         end
     end
-    JSON.parse(takebuf_string(obj), ordered=ordered)
+    JSON.parse(takebuf_string(obj), ordered=ordered, single_quote=single_quote)
 end
 
-function parsefile(filename::AbstractString; ordered::Bool=false, use_mmap=true)
+function parsefile(filename::AbstractString; ordered::Bool=false, single_quote::Bool=false, use_mmap=true)
     sz = filesize(filename)
     open(filename) do io
         s = use_mmap ? UTF8String(mmap_array(Uint8, (sz,), io)) : readall(io)
-        JSON.parse(s, ordered=ordered)
+        JSON.parse(s, ordered=ordered, single_quote=single_quote)
     end
 end
 
-end # module
+# Macros 
+macro json_mstr(arg::AbstractString, opts...) _parse(arg, opts) end
+macro json_str(arg::AbstractString, opts...) _parse(arg, opts) end 
 
+end # module
