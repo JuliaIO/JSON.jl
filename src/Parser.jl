@@ -219,14 +219,15 @@ end
 function parse_value{T<:AbstractString}(ps::ParserState{T}, ordered::Bool, quote_char::Char)
     chomp_space(ps)
     (ps.s > ps.e) && return nothing # Nothing left
-
+    leniant = true
+    
     ch = charat(ps)
     if ch == quote_char
         ret = parse_string(ps, quote_char)
     elseif ch == '{'
         ret = parse_object(ps, ordered, quote_char)
-    elseif (ch >= '0' && ch <= '9') || ch=='-' || ch=='+'
-        ret = parse_number(ps)
+    elseif (ch >= '0' && ch <= '9') || ch=='-' || ch=='+' || (leniant && ch=='I' || ch=='N')
+        ret = parse_number(ps, true)
     elseif ch == '['
         ret = parse_array(ps, ordered, quote_char)
     elseif ch == 'f' || ch == 't' || ch == 'n'
@@ -248,7 +249,7 @@ if VERSION < v"0.4.0-dev+3874"
     end
 end
 
-function parse_number{T<:AbstractString}(ps::ParserState{T})
+function parse_number{T<:AbstractString}(ps::ParserState{T}, leniant::Bool)
     str = ps.str
     p = ps.s
     e = ps.e
@@ -258,6 +259,13 @@ function parse_number{T<:AbstractString}(ps::ParserState{T})
     if c=='-' || c=='+' # Look for sign
         p += 1
         (p <= e) ? (c = str[p]) : _error("Unrecognized number", ps)  # Something must follow a sign
+    end
+    
+    if leniant && (str[p]=='I' || str[p]=='N') 
+        vs = SubString(ps.str, ps.s, p+2)
+        @show(vs)
+        ps.s = p+3
+        return Base.parse(Float64, vs)
     end
 
     if c == '0' # If number begins with 0, it must be int(0) or a floating point

@@ -253,3 +253,11 @@ let mstr_test = @compat Dict("a" => 1)
     """ == (@compat Dict("a_number" => 5, "an_array" => ["string"; 9]) )
 
 end
+
+# Test Leniant
+let tmp = JSON.parse("{\"a\": NaN}")
+    @test isnan(tmp["a"]) == true 
+end
+
+
+
