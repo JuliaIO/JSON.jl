@@ -46,6 +46,8 @@ basic_dict = JSON"""
 basic_dict = J"{'a_number' : 5.0, 'an_array' : ['string', 9]}"
 ```
 
+Note that the shorter `@J_str` relies on the `single_quote` parsing behavior. 
+
 ## Documentation
 
 ```julia
@@ -68,9 +70,9 @@ json(a::Any)
 Returns a compact JSON representation as a String.
 
 ```julia
-JSON.parse(s::String; ordered=false)
-JSON.parse(io::IO; ordered=false)
-JSON.parsefile(filename::String; ordered=false, use_mmap=true)
+JSON.parse(s::String; ordered=false, single_quote=false)
+JSON.parse(io::IO; ordered=false, single_quote=false)
+JSON.parsefile(filename::String; ordered=false, single_quote=false, use_mmap=true)
 ```
 
 Parses a JSON String or IO stream into a nested Array or Dict.
@@ -78,5 +80,7 @@ Parses a JSON String or IO stream into a nested Array or Dict.
 If `ordered=true` is specified, JSON objects are parsed into
 `OrderedDicts`, which maintains the insertion order of the items in
 the object. (*)
+
+Setting `single_quote` enables parsing on non-standard usage of single quote `'\''` for string values. 
 
 (*) Requires the `DataStructures.jl` package to be installed.

@@ -239,13 +239,13 @@ end
 # Tests for Macro strings
 
 let mstr_test = @compat Dict("a" => 1)
-    @test mstr_test == JSON"""{"a":1}"""
-    @test mstr_test == J"{'a':1}"
-    @test JSON_ORDERED"""{"x": 3}""" == DataStructures.OrderedDict{String,Any}([("x",3)])
+    @test mstr_test == json"""{"a":1}"""
+    @test mstr_test == json"{'a':1}"single
+    @test json"""{"x": 3}"""ordered == DataStructures.OrderedDict{String,Any}([("x",3)])
 
-    @test (@compat Dict("a_number" => 5, "an_array" => ["string"; 9]) ) == J"{'a_number' : 5, 'an_array' : ['string', 9] }"
+    @test (@compat Dict("a_number" => 5, "an_array" => ["string"; 9]) ) == json"{'a_number' : 5, 'an_array' : ['string', 9] }"s!
 
-    @test JSON"""
+    @test json"""
     {
       "a_number" : 5.0,
       "an_array" : ["string", 9]
