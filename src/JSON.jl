@@ -2,6 +2,8 @@ module JSON
 
 using Compat
 
+import Base.colon
+
 export json # returns a compact (or indented) JSON representation as a String
 
 include("Parser.jl")
