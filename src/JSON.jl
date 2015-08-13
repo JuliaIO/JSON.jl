@@ -279,7 +279,7 @@ end
 function parsefile(filename::AbstractString; ordered::Bool=false, use_mmap=true)
     sz = filesize(filename)
     open(filename) do io
-        s = use_mmap ? UTF8String(mmap_array(Uint8, (sz,), io)) : readall(io)
+        s = use_mmap ? UTF8String(Mmap.mmap(io, Vector{Uint8}, sz)) : readall(io)
         JSON.parse(s, ordered=ordered)
     end
 end
