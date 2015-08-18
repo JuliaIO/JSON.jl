@@ -261,5 +261,8 @@ end
 @test_throws ErrorException JSON.parse("[5,2,-]")
 @test_throws ErrorException JSON.parse("[5,2,+β]")
 
+# Test for Issue #99
+@test_throws ErrorException JSON.parse("[\"🍕\"_\"🍕\"")
+
 # Check that printing to the default STDOUT doesn't fail
 JSON.print(["JSON.jl tests pass!"],1)
