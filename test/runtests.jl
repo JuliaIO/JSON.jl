@@ -239,3 +239,8 @@ end
 # Check NaNs are printed correctly
 @test sprint(JSON.print, [NaN]) == "[null]"
 @test sprint(JSON.print, [Inf]) == "[null]"
+
+# Check printing of more exotic objects
+@test sprint(JSON.print, sprint) == string("\"function at ", sprint.fptr, "\"")
+@test sprint(JSON.print, Float64) == string("\"Float64\"")
+@test_throws ArgumentError sprint(JSON.print, JSON)
