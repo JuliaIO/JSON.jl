@@ -1,7 +1,7 @@
 The Julia JSON package is licensed under the MIT Expat License:
 
 > Copyright (c) 2012: Avik Sengupta, Stefan Karpinski, David de Laat, 
-> Dirk Gadsen and other contributors – https://github.com/aviks/JSON.jl/contributors
+> Dirk Gadsen and other contributors – https://github.com/JuliaLang/JSON.jl/contributors
 > 
 > Permission is hereby granted, free of charge, to any person obtaining
 > a copy of this software and associated documentation files (the
