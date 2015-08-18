@@ -235,3 +235,7 @@ let iob = IOBuffer()
     JSON.print(iob, t109(1))
     @test get(JSON.parse(takebuf_string(iob)), "i", 0) == 1
 end
+
+# Check NaNs are printed correctly
+@test sprint(JSON.print, [NaN]) == "[null]"
+@test sprint(JSON.print, [Inf]) == "[null]"
