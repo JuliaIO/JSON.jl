@@ -53,12 +53,11 @@ end
 # Used for line counts
 function _count_before{T<:AbstractString}(haystack::T, needle::Char, _end::Int)
     count = 0
-    i = 1
-    while i < _end
-        haystack[i]==needle && (count += 1)
-        i += 1
+    for (i,c) in enumerate(haystack)
+        i >= _end && return count
+        count += c == needle
     end
-    count
+    return count
 end
 
 # Prints an error message with an indicator to the source
