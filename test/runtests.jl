@@ -244,3 +244,6 @@ end
 @test sprint(JSON.print, sprint) == string("\"function at ", sprint.fptr, "\"")
 @test sprint(JSON.print, Float64) == string("\"Float64\"")
 @test_throws ArgumentError sprint(JSON.print, JSON)
+
+# Check that printing to the default STDOUT doesn't fail
+JSON.print(["JSON.jl tests pass!"],1)
