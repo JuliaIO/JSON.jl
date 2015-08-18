@@ -3,7 +3,7 @@
 
 [![Build Status](https://travis-ci.org/JuliaLang/JSON.jl.svg)](https://travis-ci.org/JuliaLang/JSON.jl)
 [![Build status](https://ci.appveyor.com/api/projects/status/2sfomjwl29k6y6oy)](https://ci.appveyor.com/project/staticfloat/json-jl)
-[![Coverage Status](https://coveralls.io/repos/JuliaLang/JSON.jl/badge.svg?branch=master&service=github)](https://coveralls.io/github/JuliaLang/JSON.jl?branch=master)
+[![codecov.io](http://codecov.io/github/JuliaLang/JSON.jl/coverage.svg?branch=master)](http://codecov.io/github/JuliaLang/JSON.jl?branch=master)
 [![JSON](http://pkg.julialang.org/badges/JSON_release.svg)](http://pkg.julialang.org/?pkg=JSON&ver=release)
 
 **Installation**: `julia> Pkg.add("JSON")`
