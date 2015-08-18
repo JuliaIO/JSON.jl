@@ -245,5 +245,21 @@ end
 @test sprint(JSON.print, Float64) == string("\"Float64\"")
 @test_throws ArgumentError sprint(JSON.print, JSON)
 
+# Test parser failures
+# Unexpected character in array
+@test_throws ErrorException JSON.parse("[1,2,3/4,5,6,7]")
+# Unexpected character in object
+@test_throws ErrorException JSON.parse("{\"1\":2, \"2\":3 _ \"4\":5}")
+# Unrecognized escaped character
+@test_throws ErrorException JSON.parse("[\"alpha\\α\"]")
+# Unrecognized 'simple' and 'unknown value'
+@test JSON.parse("[true]") == [true]
+@test JSON.parse("[tXXe]") == [true]
+@test_throws ErrorException JSON.parse("[fail]")
+@test_throws ErrorException JSON.parse("∞")
+# Unrecognized number
+@test_throws ErrorException JSON.parse("[5,2,-]")
+@test_throws ErrorException JSON.parse("[5,2,+β]")
+
 # Check that printing to the default STDOUT doesn't fail
 JSON.print(["JSON.jl tests pass!"],1)
