@@ -1,3 +1,5 @@
+VERSION >= v"0.4.0-dev+6521" && __precompile__()
+
 module JSON
 
 using Compat
@@ -19,8 +21,8 @@ type State{I}
     indentlen::Int
     prefix::AbstractString
     otype::Array{Bool, 1}
-    State(indentstep::Int) = new(indentstep, 
-                                 0, 
+    State(indentstep::Int) = new(indentstep,
+                                 0,
                                  "",
                                  Bool[])
 end
@@ -288,4 +290,3 @@ function parsefile(filename::AbstractString; ordered::Bool=false, use_mmap=true)
 end
 
 end # module
-
