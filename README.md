@@ -19,7 +19,7 @@ import JSON
 # JSON.parse - string or stream to Julia data structures
 s = "{\"a_number\" : 5.0, \"an_array\" : [\"string\", 9]}"
 j = JSON.parse(s)
-#  Dict{String,Any} with 2 entries:
+#  Dict{AbstractString,Any} with 2 entries:
 #    "an_array" => {"string",9}
 #    "a_number" => 5.0
 
@@ -33,9 +33,9 @@ JSON.json(j)
 ## Documentation
 
 ```julia
-JSON.print(io::IO, s::String)
-JSON.print(io::IO, s::Union(Integer, FloatingPoint))
-JSON.print(io::IO, n::Nothing)
+JSON.print(io::IO, s::AbstractString)
+JSON.print(io::IO, s::Union(Integer, AbstractFloat))
+JSON.print(io::IO, n::Void)
 JSON.print(io::IO, b::Bool)
 JSON.print(io::IO, a::Associative)
 JSON.print(io::IO, v::AbstractVector)
@@ -49,15 +49,15 @@ to the supplied IO.
 json(a::Any)
 ```
 
-Returns a compact JSON representation as a String.
+Returns a compact JSON representation as an `AbstractString`.
 
 ```julia
-JSON.parse(s::String; ordered=false)
+JSON.parse(s::AbstractString; ordered=false)
 JSON.parse(io::IO; ordered=false)
-JSON.parsefile(filename::String; ordered=false, use_mmap=true)
+JSON.parsefile(filename::AbstractString; ordered=false, use_mmap=true)
 ```
 
-Parses a JSON String or IO stream into a nested Array or Dict.
+Parses a JSON `AbstractString` or IO stream into a nested Array or Dict.
 
 If `ordered=true` is specified, JSON objects are parsed into
 `OrderedDicts`, which maintains the insertion order of the items in

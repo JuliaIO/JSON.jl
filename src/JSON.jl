@@ -6,7 +6,7 @@ using Compat
 
 import Base.colon
 
-export json # returns a compact (or indented) JSON representation as a String
+export json # returns a compact (or indented) JSON representation as a string
 
 include("Parser.jl")
 
@@ -92,7 +92,7 @@ function _print(io::IO, state::State, s::Symbol)
     _print(io, state, string(s))
 end
 
-function _print(io::IO, state::State, s::Union(Integer, FloatingPoint))
+function _print(io::IO, state::State, s::Union(Integer, AbstractFloat))
     if isnan(s) || isinf(s)
         Base.print(io, "null")
     else
@@ -100,7 +100,7 @@ function _print(io::IO, state::State, s::Union(Integer, FloatingPoint))
     end
 end
 
-function _print(io::IO, state::State, n::Nothing)
+@compat function _print(io::IO, state::State, n::Void)
     Base.print(io, "null")
 end
 
@@ -284,7 +284,7 @@ end
 function parsefile(filename::AbstractString; ordered::Bool=false, use_mmap=true)
     sz = filesize(filename)
     open(filename) do io
-        s = use_mmap ? UTF8String(Mmap.mmap(io, Vector{Uint8}, sz)) : readall(io)
+        s = use_mmap ? UTF8String(Mmap.mmap(io, Vector{UInt8}, sz)) : readall(io)
         JSON.parse(s, ordered=ordered)
     end
 end
