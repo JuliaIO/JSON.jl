@@ -11,7 +11,7 @@ catch
     false
 end
 
-const TYPES = Any # Union(Dict, Array, AbstractString, Number, Bool, Nothing) # Types it may encounter
+const TYPES = Any # Union(Dict, Array, AbstractString, Number, Bool, Void) # Types it may encounter
 const KEY_TYPES = Union(AbstractString) # Types it may encounter as object keys
 
 export parse
@@ -133,8 +133,8 @@ function parse_object{T<:AbstractString}(ps::ParserState{T}, ordered::Bool, obj)
     return obj
 end
 
-utf16_is_surrogate(c::Uint16) = (c & 0xf800) == 0xd800
-utf16_get_supplementary(lead::Uint16, trail::Uint16) = @compat(Char(@compat(UInt32(lead-0xd7f7)<<10) + trail))
+utf16_is_surrogate(c::UInt16) = (c & 0xf800) == 0xd800
+utf16_get_supplementary(lead::UInt16, trail::UInt16) = @compat(Char(@compat(UInt32(lead-0xd7f7)<<10) + trail))
 
 # TODO: Try to find ways to improve the performance of this (currently one
 #       of the slowest parsing methods).

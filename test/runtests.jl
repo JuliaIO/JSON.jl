@@ -5,7 +5,7 @@ import DataStructures
 
 include(joinpath(dirname(@__FILE__),"json_samples.jl"))
 
-@test JSON.parse("{\"x\": 3}"; ordered = true) == DataStructures.OrderedDict{String,Any}([("x",3)])
+@test JSON.parse("{\"x\": 3}"; ordered = true) == DataStructures.OrderedDict{AbstractString,Any}([("x",3)])
 
 # Test definitions -------
 validate_c(c) = begin
@@ -182,7 +182,7 @@ a=JSON.parse(test21)
 @test json([0 1; 2 0]) == "[[0,2],[1,0]]"
 
 
-# ::Nothing values should be encoded as null
+# ::Void values should be encoded as null
 testDict = @compat Dict("a" => nothing)
 nothingJson = JSON.json(testDict)
 nothingDict = JSON.parse(nothingJson)
