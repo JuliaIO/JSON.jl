@@ -92,7 +92,7 @@ function _print(io::IO, state::State, s::Symbol)
     _print(io, state, string(s))
 end
 
-function _print(io::IO, state::State, s::Union(Integer, AbstractFloat))
+@compat function _print(io::IO, state::State, s::Union{Integer, AbstractFloat})
     if isnan(s) || isinf(s)
         Base.print(io, "null")
     else
@@ -121,7 +121,7 @@ function _print(io::IO, state::State, a::Associative)
     end_object(io, state, true)
 end
 
-function _print(io::IO, state::State, a::Union(AbstractVector,Tuple))
+@compat function _print(io::IO, state::State, a::Union{AbstractVector,Tuple})
     if length(a) == 0
         Base.print(io, "[]")
         return
