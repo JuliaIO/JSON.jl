@@ -11,8 +11,8 @@ catch
     false
 end
 
-const TYPES = Any # Union(Dict, Array, AbstractString, Number, Bool, Void) # Types it may encounter
-const KEY_TYPES = Union(AbstractString) # Types it may encounter as object keys
+const TYPES = Any # Union{Dict, Array, AbstractString, Number, Bool, Void} # Types it may encounter
+const KEY_TYPES = AbstractString # Union{AbstractString} # Types it may encounter as object keys
 
 export parse
 

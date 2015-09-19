@@ -34,7 +34,7 @@ JSON.json(j)
 
 ```julia
 JSON.print(io::IO, s::AbstractString)
-JSON.print(io::IO, s::Union(Integer, AbstractFloat))
+JSON.print(io::IO, s::Union{Integer, AbstractFloat})
 JSON.print(io::IO, n::Void)
 JSON.print(io::IO, b::Bool)
 JSON.print(io::IO, a::Associative)
