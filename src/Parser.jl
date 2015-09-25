@@ -3,12 +3,13 @@ module Parser #JSON
 using Compat
 
 #Define ordered dictionary from DataStructures if present
-_HAVE_DATASTRUCTURES = try
-    using DataStructures
-    import DataStructures.OrderedDict
-    true
-catch
-    false
+function __init__()
+    global _HAVE_DATASTRUCTURES = try
+        @eval import DataStructures.OrderedDict
+        true
+    catch
+        false
+    end
 end
 
 const TYPES = Any # Union{Dict, Array, AbstractString, Number, Bool, Void} # Types it may encounter
