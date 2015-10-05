@@ -1,11 +1,13 @@
 using JSON
 using Base.Test
 using Compat
-import DataStructures
 
 include(joinpath(dirname(@__FILE__),"json_samples.jl"))
 
-@test JSON.parse("{\"x\": 3}"; ordered = true) == DataStructures.OrderedDict{AbstractString,Any}([("x",3)])
+if JSON.Parser._HAVE_DATASTRUCTURES
+    import DataStructures
+    @test JSON.parse("{\"x\": 3}"; ordered = true) == DataStructures.OrderedDict{AbstractString,Any}([("x",3)])
+end
 
 # Test definitions -------
 validate_c(c) = begin
