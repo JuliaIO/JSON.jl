@@ -5,7 +5,7 @@ import DataStructures
 
 include(joinpath(dirname(@__FILE__),"json_samples.jl"))
 
-@test JSON.parse("{\"x\": 3}"; ordered = true) == DataStructures.OrderedDict{AbstractString,Any}([("x",3)])
+@test JSON.parse("{\"x\": 3}", dicttype=DataStructures.OrderedDict) == DataStructures.OrderedDict{AbstractString,Any}([("x",3)])
 
 # Test definitions -------
 validate_c(c) = begin

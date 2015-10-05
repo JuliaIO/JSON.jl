@@ -52,15 +52,18 @@ json(a::Any)
 Returns a compact JSON representation as an `AbstractString`.
 
 ```julia
-JSON.parse(s::AbstractString; ordered=false)
-JSON.parse(io::IO; ordered=false)
-JSON.parsefile(filename::AbstractString; ordered=false, use_mmap=true)
+JSON.parse(s::AbstractString; dicttype=Dict)
+JSON.parse(io::IO; dicttype=Dict)
+JSON.parsefile(filename::AbstractString; dicttype=Dict, use_mmap=true)
 ```
 
 Parses a JSON `AbstractString` or IO stream into a nested Array or Dict.
 
-If `ordered=true` is specified, JSON objects are parsed into
-`OrderedDicts`, which maintains the insertion order of the items in
-the object. (*)
-
-(*) Requires the `DataStructures.jl` package to be installed.
+The `dicttype` indicates the dictionary type (`<: Associative`) that
+JSON objects are parsed to.  It defaults to `Dict` (the built-in Julia
+dictionary), but a different type can be passed to, for example,
+provide a desired ordering.  For example, if you `import DataStructures`
+(assuming the [DataStructures
+package](https://github.com/JuliaLang/DataStructures.jl) is
+installed), you can pass `dicttype=DataStructures.OrderedDict` to
+maintain the insertion order of the items in the object.

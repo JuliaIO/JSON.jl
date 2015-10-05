@@ -2,16 +2,6 @@ module Parser #JSON
 
 using Compat
 
-#Define ordered dictionary from DataStructures if present
-function __init__()
-    global _HAVE_DATASTRUCTURES = try
-        @eval import DataStructures.OrderedDict
-        true
-    catch
-        false
-    end
-end
-
 const TYPES = Any # Union{Dict, Array, AbstractString, Number, Bool, Void} # Types it may encounter
 const KEY_TYPES = AbstractString # Union{AbstractString} # Types it may encounter as object keys
 
@@ -77,13 +67,13 @@ end
 
 # PARSING
 
-function parse_array{T<:AbstractString}(ps::ParserState{T}, ordered::Bool)
+function parse_array{T<:AbstractString}(ps::ParserState{T}, dictT::Type)
     incr(ps) # Skip over the '['
     _array = TYPES[]
     chomp_space(ps)
     charat(ps)==']' && (incr(ps); return _array) # Check for empty array
     while true # Extract values from array
-        v = parse_value(ps, ordered) # Extract value
+        v = parse_value(ps, dictT) # Extract value
         push!(_array, v)
         # Eat up trailing whitespace
         chomp_space(ps)
@@ -101,15 +91,11 @@ function parse_array{T<:AbstractString}(ps::ParserState{T}, ordered::Bool)
     return _array
 end
 
-function parse_object{T<:AbstractString}(ps::ParserState{T}, ordered::Bool)
-    if ordered
-        parse_object(ps, ordered, OrderedDict{KEY_TYPES,TYPES}())
-    else
-        parse_object(ps, ordered, Dict{KEY_TYPES,TYPES}())
-    end
+function parse_object{T<:AbstractString}(ps::ParserState{T}, dictT::Type)
+    parse_object(ps, dictT, dictT{KEY_TYPES,TYPES}())
 end
 
-function parse_object{T<:AbstractString}(ps::ParserState{T}, ordered::Bool, obj)
+function parse_object{T<:AbstractString}(ps::ParserState{T}, dictT::Type, obj)
     incr(ps) # Skip over opening '{'
     chomp_space(ps)
     charat(ps)=='}' && (incr(ps); return obj) # Check for empty object
@@ -117,7 +103,7 @@ function parse_object{T<:AbstractString}(ps::ParserState{T}, ordered::Bool, obj)
         chomp_space(ps)
         _key = parse_string(ps)           # Key
         skip_separator(ps)
-        _value = parse_value(ps, ordered) # Value
+        _value = parse_value(ps, dictT) # Value
         obj[_key] = _value                             # Building object
         chomp_space(ps)
         c = charat(ps) # Find the next pair or end of object
@@ -213,7 +199,7 @@ function parse_simple{T<:AbstractString}(ps::ParserState{T})
     ret
 end
 
-function parse_value{T<:AbstractString}(ps::ParserState{T}, ordered::Bool)
+function parse_value{T<:AbstractString}(ps::ParserState{T}, dictT::Type)
     chomp_space(ps)
     (ps.s > ps.e) && return nothing # Nothing left
 
@@ -221,11 +207,11 @@ function parse_value{T<:AbstractString}(ps::ParserState{T}, ordered::Bool)
     if ch == '"'
         ret = parse_string(ps)
     elseif ch == '{'
-        ret = parse_object(ps, ordered)
+        ret = parse_object(ps, dictT)
     elseif (ch >= '0' && ch <= '9') || ch=='-' || ch=='+'
         ret = parse_number(ps)
     elseif ch == '['
-        ret = parse_array(ps, ordered)
+        ret = parse_array(ps, dictT)
     elseif ch == 'f' || ch == 't' || ch == 'n'
         ret = parse_simple(ps)
     else
@@ -315,12 +301,11 @@ function parse_number{T<:AbstractString}(ps::ParserState{T})
     end
 end
 
-function parse(str::AbstractString; ordered::Bool=false)
+function parse{T<:Associative}(str::AbstractString; dicttype::Type{T}=Dict)
     pos::Int = 1
     len::Int = endof(str)
     len < 1 && return
-    ordered && !_HAVE_DATASTRUCTURES && error("DataStructures package required for ordered parsing: try `Pkg.add(\"DataStructures\")`") 
-    parse_value(ParserState(str, pos, len), ordered)
+    parse_value(ParserState(str, pos, len), dicttype)
 end
 
 end #module Parser
