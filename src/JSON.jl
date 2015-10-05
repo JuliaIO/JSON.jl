@@ -253,7 +253,7 @@ function consumeString(io::IO, obj::IOBuffer)
     throw(EOFError())
 end
 
-function parse(io::IO; ordered::Bool=false)
+function parse{T<:Associative}(io::IO; dicttype::Type{T}=Dict)
     open_bracket = close_bracket = nothing
     try
         open_bracket, close_bracket = determine_bracket_type(io)
@@ -278,14 +278,14 @@ function parse(io::IO; ordered::Bool=false)
             consumeString(io, obj)
         end
     end
-    JSON.parse(takebuf_string(obj), ordered=ordered)
+    JSON.parse(takebuf_string(obj); dicttype=dicttype)
 end
 
-function parsefile(filename::AbstractString; ordered::Bool=false, use_mmap=true)
+function parsefile{T<:Associative}(filename::AbstractString; dicttype::Type{T}=Dict, use_mmap=true)
     sz = filesize(filename)
     open(filename) do io
         s = use_mmap ? UTF8String(Mmap.mmap(io, Vector{UInt8}, sz)) : readall(io)
-        JSON.parse(s, ordered=ordered)
+        JSON.parse(s; dicttype=dicttype)
     end
 end
 
