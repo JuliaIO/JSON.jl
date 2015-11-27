@@ -6,7 +6,7 @@ using Compat
 
 import Base.colon
 
-export json # returns a compact (or indented) JSON representation as a string
+export json, @json_str, @json_mstr   # returns a compact (or indented) JSON representation as a string
 
 include("Parser.jl")
 
@@ -288,5 +288,18 @@ function parsefile{T<:Associative}(filename::AbstractString; dicttype::Type{T}=D
         JSON.parse(s; dicttype=dicttype)
     end
 end
+
+# Macros 
+str_helper(arg) = parse(arg)
+# I couldn't figure out a way to append the type.
+# The following doesn't work.
+## str_helper(arg, typ) = :(parse($arg, dicttype=eval(symbol($typ))))
+
+macro json_mstr(args...) 
+    str_helper(args...) 
+end
+macro json_str(args...) 
+    str_helper(args...) 
+end 
 
 end # module

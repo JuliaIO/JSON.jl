@@ -67,3 +67,16 @@ provide a desired ordering.  For example, if you `import DataStructures`
 package](https://github.com/JuliaLang/DataStructures.jl) is
 installed), you can pass `dicttype=DataStructures.OrderedDict` to
 maintain the insertion order of the items in the object.
+
+### Macro Strings
+
+`json"..."` can be used to embed JSON data directly into source code:
+
+```julia
+basic_dict = json"""
+{
+  "a_number" : 5.0,
+  "an_array" : ["string", 9]
+}
+"""
+```
