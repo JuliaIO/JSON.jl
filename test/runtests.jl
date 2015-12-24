@@ -46,7 +46,11 @@ validate_unicode(unicode) = begin
                             end
 # -------
 
-finished_async_tests = RemoteRef()
+if VERSION >= v"0.5.0-dev+1343"
+    finished_async_tests = RemoteChannel()
+else
+    finished_async_tests = RemoteRef()
+end
 
 @async begin
     s = listen(7777)
