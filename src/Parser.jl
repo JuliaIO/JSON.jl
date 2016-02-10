@@ -427,10 +427,24 @@ function _get_parsercontext(dicttype, inttype, allownan)
     end
 end
 
+"""
+    parse{T<:Associative}(str::AbstractString;
+                          dicttype::Type{T}=Dict,
+                          inttype::Type{<:Real}=Int64,
+                          allownan::Bool=true)
+
+Parses the given JSON string into corresponding Julia types.
+
+Keyword arguments:
+  • dicttype: Associative type to use when parsing JSON objects (default: Dict{String, Any})
+  • inttype: Real number type to use when parsing JSON numbers that can be parsed
+             as integers (default: Int64)
+  • allownan: allow parsing of NaN, Infinity, and -Infinity (default: true)
+"""
 function parse(str::AbstractString;
                dicttype=Dict{String,Any},
                inttype::Type{<:Real}=Int64,
-               allownan=true)
+               allownan::Bool=true)
     pc = _get_parsercontext(dicttype, inttype, allownan)
     ps = MemoryParserState(str, 1)
     v = parse_value(pc, ps)
@@ -441,20 +455,50 @@ function parse(str::AbstractString;
     v
 end
 
+"""
+    parse{T<:Associative}(io::IO;
+                          dicttype::Type{T}=Dict,
+                          inttype::Type{<:Real}=Int64,
+                          allownan=true)
+
+Parses JSON from the given IO stream into corresponding Julia types.
+
+Keyword arguments:
+  • dicttype: Associative type to use when parsing JSON objects (default: Dict{String, Any})
+  • inttype: Real number type to use when parsing JSON numbers that can be parsed
+             as integers (default: Int64)
+  • allownan: allow parsing of NaN, Infinity, and -Infinity (default: true)
+"""
 function parse(io::IO;
                dicttype=Dict{String,Any},
                inttype::Type{<:Real}=Int64,
-               allownan=true)
+               allownan::Bool=true)
     pc = _get_parsercontext(dicttype, inttype, allownan)
     ps = StreamingParserState(io)
     parse_value(pc, ps)
 end
 
+"""
+    parsefile(filename::AbstractString;
+              dicttype=Dict{String, Any},
+              inttype::Type{<:Real}=Int64,
+              allownan::Bool=true,
+              use_mmap::Bool=true)
+
+Convenience function to parse JSON from the given file into corresponding Julia types.
+
+Keyword arguments:
+  • dicttype: Associative type to use when parsing JSON objects (default: Dict{String, Any})
+  • inttype: Real number type to use when parsing JSON numbers that can be parsed
+             as integers (default: Int64)
+  • allownan: allow parsing of NaN, Infinity, and -Infinity (default: true)
+  • use_mmap: use mmap when opening the file (default: true)
+"""
 function parsefile(filename::AbstractString;
                    dicttype=Dict{String, Any},
                    inttype::Type{<:Real}=Int64,
-                   allownan=true,
-                   use_mmap=true)
+                   allownan::Bool=true,
+                   use_mmap::Bool=true)
     sz = filesize(filename)
     open(filename) do io
         s = use_mmap ? String(Mmap.mmap(io, Vector{UInt8}, sz)) : read(io, String)
