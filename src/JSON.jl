@@ -208,6 +208,11 @@ function print(a, indent=0)
     end
 end
 
+"""
+    json(a, indent=0)
+
+Creates a JSON string from a dictionary
+"""
 json(a, indent=0) = sprint(JSON.print, a, indent)
 
 function determine_bracket_type(io::IO)
@@ -253,6 +258,11 @@ function consumeString(io::IO, obj::IOBuffer)
     throw(EOFError())
 end
 
+"""
+    parse{T<:Associative}(io::IO; dicttype::Type{T}=Dict)
+
+Parses the JSON from the IO stream and creates a dictionary
+"""
 function parse{T<:Associative}(io::IO; dicttype::Type{T}=Dict)
     open_bracket = close_bracket = nothing
     try

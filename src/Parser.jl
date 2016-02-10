@@ -301,6 +301,11 @@ function parse_number{T<:AbstractString}(ps::ParserState{T})
     end
 end
 
+"""
+    parse{T<:Associative}(str::AbstractString; dicttype::Type{T}=Dict)
+
+Parses the JSON file and creates a dictionary
+"""
 function parse{T<:Associative}(str::AbstractString; dicttype::Type{T}=Dict)
     pos::Int = 1
     len::Int = endof(str)
