@@ -88,7 +88,7 @@ function _print(io::IO, state::State, s::AbstractString)
     Base.print(io, '"')
 end
 
-function _print(io::IO, state::State, s::Symbol)
+function _print{S <: Union{Symbol,Enum}}(io::IO, state::State, s::S)
     _print(io, state, string(s))
 end
 
