@@ -157,8 +157,10 @@ function _print(io::IO, state::State, a)
     end_object(io, state, true)
 end
 
+if VERSION < v"0.5.0-dev+2396"
 function _print(io::IO, state::State, f::Function)
     Base.print(io, "\"function at ", f.fptr, "\"")
+end
 end
 
 function _print(io::IO, state::State, d::DataType)

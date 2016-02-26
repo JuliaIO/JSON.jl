@@ -2,9 +2,6 @@ module Parser #JSON
 
 using Compat
 
-const TYPES = Any # Union{Dict, Array, AbstractString, Number, Bool, Void} # Types it may encounter
-const KEY_TYPES = AbstractString # Union{AbstractString} # Types it may encounter as object keys
-
 export parse
 
 type ParserState{T<:AbstractString}
@@ -69,7 +66,7 @@ end
 
 function parse_array{T<:AbstractString}(ps::ParserState{T}, dictT::Type)
     incr(ps) # Skip over the '['
-    _array = TYPES[]
+    _array = Any[]
     chomp_space(ps)
     charat(ps)==']' && (incr(ps); return _array) # Check for empty array
     while true # Extract values from array
@@ -92,10 +89,16 @@ function parse_array{T<:AbstractString}(ps::ParserState{T}, dictT::Type)
 end
 
 function parse_object{T<:AbstractString}(ps::ParserState{T}, dictT::Type)
-    parse_object(ps, dictT, dictT{KEY_TYPES,TYPES}())
+    # Handle case where type is not parameterized yet with key type
+    keyT = dictT.parameters[1]
+    if typeof(keyT) == TypeVar
+        parse_object(ps, dictT, AbstractString, dictT{AbstractString, Any}())
+    else
+        parse_object(ps, dictT, keyT, dictT())
+    end
 end
 
-function parse_object{T<:AbstractString}(ps::ParserState{T}, dictT::Type, obj)
+function parse_object{T<:AbstractString}(ps::ParserState{T}, dictT::Type, keyT::Type, obj)
     incr(ps) # Skip over opening '{'
     chomp_space(ps)
     charat(ps)=='}' && (incr(ps); return obj) # Check for empty object
@@ -103,8 +106,8 @@ function parse_object{T<:AbstractString}(ps::ParserState{T}, dictT::Type, obj)
         chomp_space(ps)
         _key = parse_string(ps)           # Key
         skip_separator(ps)
-        _value = parse_value(ps, dictT) # Value
-        obj[_key] = _value                             # Building object
+        _value = parse_value(ps, dictT)   # Value
+        obj[keyT(_key)] = _value          # Building object
         chomp_space(ps)
         c = charat(ps) # Find the next pair or end of object
         if c == ','
