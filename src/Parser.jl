@@ -104,10 +104,10 @@ function parse_object{T<:AbstractString}(ps::ParserState{T}, dictT::Type, keyT::
     charat(ps)=='}' && (incr(ps); return obj) # Check for empty object
     while true
         chomp_space(ps)
-        _key = parse_string(ps)           # Key
+        _key = parse_string(ps)            # Key
         skip_separator(ps)
-        _value = parse_value(ps, dictT)   # Value
-        obj[keyT(_key)] = _value          # Building object
+        _value = parse_value(ps, dictT)    # Value
+        obj[convert(keyT, _key)] = _value  # Building object
         chomp_space(ps)
         c = charat(ps) # Find the next pair or end of object
         if c == ','
