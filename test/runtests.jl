@@ -6,6 +6,7 @@ import DataStructures
 include(joinpath(dirname(@__FILE__),"json_samples.jl"))
 
 @test JSON.parse("{\"x\": 3}", dicttype=DataStructures.OrderedDict) == DataStructures.OrderedDict{AbstractString,Any}([("x",3)])
+@test JSON.parse("{\"x\": 3}", dicttype=Dict{Symbol,Int32}) == Dict{Symbol,Int32}([(:x,3)])
 
 # Test definitions -------
 validate_c(c) = begin
@@ -245,7 +246,10 @@ end
 @test sprint(JSON.print, [Inf]) == "[null]"
 
 # Check printing of more exotic objects
-@test sprint(JSON.print, sprint) == string("\"function at ", sprint.fptr, "\"")
+if VERSION < v"0.5.0-dev+2396"
+    # Test broken in v0.5, code is using internal structure of Function type!
+    @test sprint(JSON.print, sprint) == string("\"function at ", sprint.fptr, "\"")
+end
 @test sprint(JSON.print, Float64) == string("\"Float64\"")
 @test_throws ArgumentError sprint(JSON.print, JSON)
 
