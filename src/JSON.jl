@@ -88,8 +88,10 @@ function _print(io::IO, state::State, s::AbstractString)
     Base.print(io, '"')
 end
 
-function _print(io::IO, state::State, s::Base.Dates.TimeType)
-    _print(io, state, string(s))
+if isdefined(Base, :Dates)
+    function _print(io::IO, state::State, s::Base.Dates.TimeType)
+        _print(io, state, string(s))
+    end
 end
 
 function _print(io::IO, state::State, s::Symbol)

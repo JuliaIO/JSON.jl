@@ -254,7 +254,7 @@ end
 @test_throws ArgumentError sprint(JSON.print, JSON)
 
 # test for issue #90 - Date/DateTime
-if VERSION >= v"0.4.6-pre+18"
+if isdefined(Base, :Dates)
 @test json(Date("2016-04-13")) == "\"2016-04-13\""
 @test json([Date("2016-04-13"), Date("2016-04-12")]) == "[\"2016-04-13\",\"2016-04-12\"]"
 @test json(DateTime("2016-04-13T00:00:00")) == "\"2016-04-13T00:00:00\""
