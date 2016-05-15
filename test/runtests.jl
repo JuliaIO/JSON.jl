@@ -172,7 +172,7 @@ json_zeros = json(zeros)
 
 
 # Printing an empty array or Dict shouldn't cause a BoundsError
-@test json(ASCIIString[]) == "[]"
+@test json(Compat.ASCIIString[]) == "[]"
 @test json(Dict()) == "{}"
 
 #test for issue 26
