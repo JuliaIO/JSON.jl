@@ -151,7 +151,7 @@ function _print(io::IO, state::State, a)
     range = @compat fieldnames(a)
     if length(range) > 0
         Base.print(io, prefix(state), "\"", range[1], "\"", colon(state))
-        JSON._print(io, state, a.(range[1]))
+        JSON._print(io, state, getfield(a,range[1]))
 
         for name in range[2:end]
             Base.print(io, ",")
