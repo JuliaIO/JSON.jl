@@ -2,7 +2,7 @@ isdefined(Base, :__precompile__) && __precompile__()
 
 module JSON
 
-using Compat
+using Compat; import Compat.String
 
 import Base.colon
 
@@ -292,7 +292,7 @@ end
 function parsefile{T<:Associative}(filename::AbstractString; dicttype::Type{T}=Dict, use_mmap=true)
     sz = filesize(filename)
     open(filename) do io
-        s = use_mmap ? UTF8String(Mmap.mmap(io, Vector{UInt8}, sz)) : readall(io)
+        s = use_mmap ? String(Mmap.mmap(io, Vector{UInt8}, sz)) : readall(io)
         JSON.parse(s; dicttype=dicttype)
     end
 end

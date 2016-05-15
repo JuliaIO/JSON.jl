@@ -1,6 +1,6 @@
 module Parser #JSON
 
-using Compat
+using Compat; import Compat.String
 
 export parse
 
