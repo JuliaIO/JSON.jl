@@ -74,7 +74,7 @@ function print_escaped(io::IO, s::AbstractString)
         c <= '\x7f' ? (unescaped[@compat(Int(c))+1]  ? Base.print(io, c) :
                        c == '\\'       ? Base.print(io, "\\\\") :
                        c == '"'        ? Base.print(io, "\\\"") :
-                       8 <= c <= 10    ? Base.print(io, '\\', "btn"[@compat(Int(c))-7]) :
+                       8 ≤ @compat(UInt32(c)) ≤ 10 ? Base.print(io, '\\', "btn"[@compat(Int(c))-7]) :
                        c == '\f'       ? Base.print(io, "\\f") :
                        c == '\r'       ? Base.print(io, "\\r") :
                                          Base.print(io, "\\u", hex(c, 4))) :
@@ -151,7 +151,7 @@ function _print(io::IO, state::State, a)
     range = @compat fieldnames(a)
     if length(range) > 0
         Base.print(io, prefix(state), "\"", range[1], "\"", colon(state))
-        JSON._print(io, state, a.(range[1]))
+        JSON._print(io, state, getfield(a, range[1]))
 
         for name in range[2:end]
             Base.print(io, ",")
@@ -292,7 +292,7 @@ end
 function parsefile{T<:Associative}(filename::AbstractString; dicttype::Type{T}=Dict, use_mmap=true)
     sz = filesize(filename)
     open(filename) do io
-        s = use_mmap ? UTF8String(Mmap.mmap(io, Vector{UInt8}, sz)) : readall(io)
+        s = use_mmap ? Compat.UTF8String(Mmap.mmap(io, Vector{UInt8}, sz)) : readall(io)
         JSON.parse(s; dicttype=dicttype)
     end
 end
