@@ -15,7 +15,7 @@ for i in 1:33
         try
             JSON.parsefile(filepath)
 
-            print_with_color(:red, " [Fail] ")
+            print_with_color(:red, " [Fail (Allowed)] ")
             println("Test $file parsed successfully; should throw ErrorException.")
         catch ex
             if isa(ex, ErrorException)
@@ -23,7 +23,7 @@ for i in 1:33
                 println("Test $file now fails as expected.")
                 println("It can be removed from ALLOWED_CHECK_FAILURES now.")
             else
-                print_with_color(:red, " [Fail] ")
+                print_with_color(:red, " [Fail (Allowed)] ")
                 println("Test $file throws unexpected error; should throw ErrorException:")
                 println(ex)
             end
