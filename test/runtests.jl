@@ -283,3 +283,19 @@ end
 
 # Check that printing to the default STDOUT doesn't fail
 JSON.print(["JSON.jl tests pass!"],1)
+
+# Tests for Macro strings
+
+let mstr_test = @compat Dict("a" => 1)
+    @test mstr_test == json"""{"a":1}"""
+    # Doesn't work:
+    ## @test json"""{"x": 3}"""OrderedDict == DataStructures.OrderedDict{String,Any}([("x",3)])     
+
+    @test json"""
+    {
+      "a_number" : 5.0,
+      "an_array" : ["string", 9]
+    }
+    """ == (@compat Dict("a_number" => 5.0, "an_array" => ["string"; 9]) )
+
+end
