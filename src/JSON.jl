@@ -4,8 +4,6 @@ module JSON
 
 using Compat
 
-import Base.colon
-
 export json # returns a compact (or indented) JSON representation as a string
 
 include("Parser.jl")
@@ -41,8 +39,8 @@ suffix(::State{NOINDENT}) = ""
 prefix(s::State{INDENT})  = s.prefix
 prefix(::State{NOINDENT}) = ""
 
-colon(s::State{INDENT})  = ": "
-colon(::State{NOINDENT}) = ":"
+separator(::State{INDENT})   = ": "
+separator(::State{NOINDENT}) = ":"
 
 # short hand for printing suffix then prefix
 printsp(io::IO, state::State{INDENT}) = Base.print(io, suffix(state), prefix(state))
@@ -121,7 +119,7 @@ function _print(io::IO, state::State, a::Associative)
         first ? (first = false) : Base.print(io, ",", suffix(state))
         Base.print(io, prefix(state))
         JSON._print(io, state, string(key))
-        Base.print(io, colon(state))
+        Base.print(io, separator(state))
         JSON._print(io, state, value)
     end
     end_object(io, state, true)
@@ -150,13 +148,13 @@ function _print(io::IO, state::State, a)
     start_object(io, state, true)
     range = @compat fieldnames(a)
     if length(range) > 0
-        Base.print(io, prefix(state), "\"", range[1], "\"", colon(state))
+        Base.print(io, prefix(state), "\"", range[1], "\"", separator(state))
         JSON._print(io, state, getfield(a, range[1]))
 
         for name in range[2:end]
             Base.print(io, ",")
             printsp(io, state)
-            Base.print(io, "\"", name, "\"", colon(state))
+            Base.print(io, "\"", name, "\"", separator(state))
             JSON._print(io, state, a.(name))
         end
     end
