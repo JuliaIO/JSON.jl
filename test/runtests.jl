@@ -13,7 +13,7 @@ include(joinpath(dirname(@__FILE__),"json_samples.jl"))
 validate_c(c) = begin
                     j = JSON.parse(c);
                     @test j != nothing
-                    @test typeof(j["widget"]["image"]["hOffset"]) == Int
+                    @test typeof(j["widget"]["image"]["hOffset"]) == Int64
                     @test j["widget"]["image"]["hOffset"] == 250
                     @test typeof(j["widget"]["text"]["size"]) == Float64
                     @test j["widget"]["text"]["size"] == 36.5
@@ -22,9 +22,9 @@ validate_c(c) = begin
 validate_e(e) = begin
                     j=JSON.parse(e)
                     @test j != nothing
-                    @test typeof(j) == Dict{AbstractString, Any}
+                    @test typeof(j) == Dict{Compat.UTF8String, Any}
                     @test length(j) == 1
-                    @test typeof(j["menu"]) == Dict{AbstractString, Any}
+                    @test typeof(j["menu"]) == Dict{Compat.UTF8String, Any}
                     @test length(j["menu"]) == 2
                     @test j["menu"]["header"] == "SVG\tViewerα"
                     @test isa(j["menu"]["items"], Array)
@@ -270,16 +270,18 @@ end
 @test_throws ErrorException JSON.parse("[1,2,3/4,5,6,7]")
 # Unexpected character in object
 @test_throws ErrorException JSON.parse("{\"1\":2, \"2\":3 _ \"4\":5}")
-# Unrecognized escaped character
+# Invalid escaped character
 @test_throws ErrorException JSON.parse("[\"alpha\\α\"]")
-# Unrecognized 'simple' and 'unknown value'
+# Invalid 'simple' and 'unknown value'
 @test JSON.parse("[true]") == [true]
-@test JSON.parse("[tXXe]") == [true]
+@test_throws ErrorException JSON.parse("[tXXe]")
 @test_throws ErrorException JSON.parse("[fail]")
 @test_throws ErrorException JSON.parse("∞")
-# Unrecognized number
+# Invalid number
 @test_throws ErrorException JSON.parse("[5,2,-]")
 @test_throws ErrorException JSON.parse("[5,2,+β]")
+# Incomplete escape
+@test_throws ErrorException JSON.parse("\"\\")
 
 # Test for Issue #99
 @test_throws ErrorException JSON.parse("[\"🍕\"_\"🍕\"")

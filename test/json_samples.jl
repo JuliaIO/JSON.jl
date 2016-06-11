@@ -45,7 +45,7 @@ c="{\"widget\": {
         \"width\": 500,
         \"height\": 500
     },
-    \"image\": { 
+    \"image\": {
         \"src\": \"Images/Sun.png\",
         \"name\": \"sun1\",
         \"hOffset\": 250,
@@ -65,7 +65,7 @@ c="{\"widget\": {
 }}"
 
 d = "{\"web-app\": {
-  \"servlet\": [   
+  \"servlet\": [
     {
       \"servlet-name\": \"cofaxCDS\",
       \"servlet-class\": \"org.cofax.cds.CDSServlet\",
@@ -121,7 +121,7 @@ d = "{\"web-app\": {
     {
       \"servlet-name\": \"cofaxAdmin\",
       \"servlet-class\": \"org.cofax.cds.AdminServlet\"},
- 
+
     {
       \"servlet-name\": \"fileServlet\",
       \"servlet-class\": \"org.cofax.cds.FileServlet\"},
@@ -148,7 +148,7 @@ d = "{\"web-app\": {
     \"cofaxAdmin\": \"/admin/*\",
     \"fileServlet\": \"/static/*\",
     \"cofaxTools\": \"/tools/*\"},
- 
+
   \"taglib\": {
     \"taglib-uri\": \"cofax.tld\",
     \"taglib-location\": \"/WEB-INF/tlds/cofax.tld\"}}}"
@@ -186,7 +186,7 @@ e="{\"menu\": {
 
 gmaps= "{\"markers\": [
         {
-            \"point\":\"new GLatLng(40.266044,-74.718479)\", 
+            \"point\":\"new GLatLng(40.266044,-74.718479)\",
             \"homeTeam\":\"Lawrence Library\",
             \"awayTeam\":\"LUGip\",
             \"markerImage\":\"images/red.png\",
@@ -273,7 +273,7 @@ colors3 = "{
 }"
 
 twitter = "{\"results\":[
- 
+
      {\"text\":\"@twitterapi  http:\/\/tinyurl.com\/ctrefg\",
      \"to_user_id\":396524,
      \"to_user\":\"TwitterAPI\",
@@ -283,7 +283,7 @@ twitter = "{\"results\":[
           \"result_type\":\"popular\",
           \"recent_retweets\": 109
          },
-     \"id\":1478555574,   
+     \"id\":1478555574,
      \"from_user_id\":1833773,
      \"iso_language_code\":\"nl\",
      \"source\":\"<a href=\\\"http:\/\/twitter.com\/\\\">twitter<\/a>\",
@@ -296,8 +296,7 @@ twitter = "{\"results\":[
      \"next_page\":\"?page=2&max_id=1480307926&q=%40twitterapi\",
      \"completed_in\":0.031704,
      \"page\":1,
-     \"query\":\"%40twitterapi\"}
-}"
+     \"query\":\"%40twitterapi\"}"
 
 facebook= "{
    \"data\": [
@@ -493,7 +492,7 @@ iphone = "{
             {
                 \"id\": \"About\",
                 \"label\": \"About xProgress CVG Viewer...\"
-            } 
+            }
         ]
     }
 }"
@@ -518,7 +517,7 @@ customer = "{
          {
            \"type\": \"fax\",
            \"number\": \"646 555-4567\"
-         } 
+         }
     ]
  }"
 
@@ -609,5 +608,5 @@ unicode = "{\"অলিম্পিকস\": {
        "
 
 
-   
+
 test21 = "[\r\n{\r\n\"a\": 1,\r\n\"b\": 2\r\n},\r\n{\r\n\"a\": 3,\r\n\"b\": 4\r\n}\r\n]"

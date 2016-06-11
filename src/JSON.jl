@@ -216,78 +216,7 @@ end
 
 json(a, indent=0) = sprint(JSON.print, a, indent)
 
-function determine_bracket_type(io::IO)
-    open_bracket = close_bracket = nothing
-    while open_bracket == nothing
-        eof(io) && throw(EOFError())
-        c = read(io, Char)
-        if c == '{'
-            open_bracket = '{'
-            close_bracket = '}'
-        elseif c == '['
-            open_bracket = '['
-            close_bracket = ']'
-        elseif c == '\0'
-            throw(EOFError())
-        end
-    end
-    open_bracket, close_bracket
-end
-
-###
-# Consume a string (even if it is invalid), with ack to Douglas Crockford.
-# On entry we must already have consumed the opening quotation double-quotation mark
-# Add the characters of the string to obj
-function consumeString(io::IO, obj::IOBuffer)
-    c = '"'
-
-    # When parsing for string values, we must look for " and \ characters.
-    while true
-        eof(io) && throw(EOFError())
-        c = read(io, Char)
-        if c == '"'
-            write(obj, c)
-            return
-        end
-        if c == '\\'
-            write(obj, c)
-            eof(io) && throw(EOFError())
-            c = read(io, Char)
-        end
-        write(obj, c)
-    end
-    throw(EOFError())
-end
-
-function parse{T<:Associative}(io::IO; dicttype::Type{T}=Dict)
-    open_bracket = close_bracket = nothing
-    try
-        open_bracket, close_bracket = determine_bracket_type(io)
-    catch exception
-        isa(exception, EOFError) && return
-    end
-    num_brackets_needed = 1
-
-    obj = IOBuffer()
-    write(obj, open_bracket)
-
-    while num_brackets_needed > 0
-        eof(io) && throw(EOFError())
-        c = read(io, Char)
-        write(obj, c)
-
-        if c == open_bracket
-            num_brackets_needed += 1
-        elseif c == close_bracket
-            num_brackets_needed -= 1
-        elseif c == '"'
-            consumeString(io, obj)
-        end
-    end
-    JSON.parse(takebuf_string(obj); dicttype=dicttype)
-end
-
-function parsefile{T<:Associative}(filename::AbstractString; dicttype::Type{T}=Dict, use_mmap=true)
+function parsefile{T<:Associative}(filename::AbstractString; dicttype::Type{T}=Dict{Compat.UTF8String, Any}, use_mmap=true)
     sz = filesize(filename)
     open(filename) do io
         s = use_mmap ? Compat.UTF8String(Mmap.mmap(io, Vector{UInt8}, sz)) : readall(io)
