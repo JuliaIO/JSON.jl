@@ -211,9 +211,12 @@ obj = JSON.parse("{\"\U0001d712\":\"\\ud835\\udf12\"}")
 tmppath, io = mktemp()
 write(io, facebook)
 close(io)
-@unix_only @test haskey(JSON.parsefile(tmppath), "data")
-# don't use mmap on Windows, to avoid ERROR: unlink: operation not permitted (EPERM)
-@windows_only @test haskey(JSON.parsefile(tmppath; use_mmap=false), "data")
+if is_windows()
+    # don't use mmap on Windows, to avoid ERROR: unlink: operation not permitted (EPERM)
+    @test haskey(JSON.parsefile(tmppath; use_mmap=false), "data")
+else
+    @test haskey(JSON.parsefile(tmppath), "data")
+end
 rm(tmppath)
 
 # check indented json has same final value as non indented
