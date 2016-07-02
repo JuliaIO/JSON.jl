@@ -155,7 +155,7 @@ function _print(io::IO, state::State, a)
             Base.print(io, ",")
             printsp(io, state)
             Base.print(io, "\"", name, "\"", separator(state))
-            JSON._print(io, state, a.(name))
+            JSON._print(io, state, getfield(a, name))
         end
     end
     end_object(io, state, true)
