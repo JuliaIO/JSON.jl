@@ -187,12 +187,12 @@ function _print{T, N}(io::IO, state::State, a::AbstractArray{T, N})
             newdims = ntuple(i -> 1:size(a, i), N - 1)
         end
         Base.print(io, prefix(state))
-        JSON._print(io, state, slice(a, newdims..., 1))
+        JSON._print(io, state, Compat.view(a, newdims..., 1))
 
         for j in 2:lengthN
             Base.print(io, ",")
             printsp(io, state)
-            JSON._print(io, state, slice(a, newdims..., j))
+            JSON._print(io, state, Compat.view(a, newdims..., j))
         end
         end_object(io, state, false)
     else
