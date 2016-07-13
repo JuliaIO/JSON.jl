@@ -187,6 +187,9 @@ a=JSON.parse(test21)
 #Multidimensional arrays
 @test json([0 1; 2 0]) == "[[0,2],[1,0]]"
 
+# issue #152
+@test json([Int64[] Int64[]]) == "[[],[]]"
+@test json([Int64[] Int64[]]') == "[]"
 
 # ::Void values should be encoded as null
 testDict = @compat Dict("a" => nothing)

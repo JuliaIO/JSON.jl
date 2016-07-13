@@ -179,7 +179,7 @@ end
 # i.e. json([1 2 3; 4 5 6]) == "[[1,4],[2,5],[3,6]]"
 function _print{T, N}(io::IO, state::State, a::AbstractArray{T, N})
     lengthN = size(a, N)
-    if lengthN >= 0
+    if lengthN > 0
         start_object(io, state, false)
         if VERSION <= v"0.3"
             newdims = ntuple(N - 1, i -> 1:size(a, i))
@@ -187,12 +187,12 @@ function _print{T, N}(io::IO, state::State, a::AbstractArray{T, N})
             newdims = ntuple(i -> 1:size(a, i), N - 1)
         end
         Base.print(io, prefix(state))
-        JSON._print(io, state, slice(a, newdims..., 1))
+        JSON._print(io, state, Compat.view(a, newdims..., 1))
 
         for j in 2:lengthN
             Base.print(io, ",")
             printsp(io, state)
-            JSON._print(io, state, slice(a, newdims..., j))
+            JSON._print(io, state, Compat.view(a, newdims..., j))
         end
         end_object(io, state, false)
     else
