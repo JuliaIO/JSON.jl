@@ -219,7 +219,7 @@ json(a, indent=0) = sprint(JSON.print, a, indent)
 function parsefile{T<:Associative}(filename::AbstractString; dicttype::Type{T}=Dict{Compat.UTF8String, Any}, use_mmap=true)
     sz = filesize(filename)
     open(filename) do io
-        s = use_mmap ? Compat.UTF8String(Mmap.mmap(io, Vector{UInt8}, sz)) : readall(io)
+        s = use_mmap ? Compat.UTF8String(Mmap.mmap(io, Vector{UInt8}, sz)) : readstring(io)
         JSON.parse(s; dicttype=dicttype)
     end
 end
