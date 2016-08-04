@@ -10,6 +10,10 @@ include("Parser.jl")
 
 import .Parser.parse
 
+typealias JSONPrimitive @compat(Union{
+        Associative, Tuple, AbstractArray, AbstractString, Integer,
+        AbstractFloat, Bool, Void})
+
 """
 Return a value of a JSON-encodable primitive type that `x` should be lowered
 into before encoding as JSON. Supported types are: `Associative` to JSON
@@ -32,9 +36,7 @@ function lower(a)
     end
     obj
 end
-lower(a::Union{
-        Associative, Tuple, AbstractArray, AbstractString, Integer,
-        AbstractFloat, Bool, Void}) = a
+lower(a::JSONPrimitive) = a
 
 if isdefined(Base, :Dates)
     lower(s::Base.Dates.TimeType) = string(s)
@@ -210,8 +212,15 @@ function _writejson{T, N}(io::IO, state::State, a::AbstractArray{T, N})
     end
 end
 
+# this is _print() instead of _print because we need to support v0.3
+# FIXME: drop the parentheses when v0.3 support dropped
 "Deprecated way to overload JSON printing behaviour. Use `lower` instead."
-function _print end
+function _print(io::IO, s::State, a::JSONPrimitive)
+    Base.depwarn(
+        "Do not call internal function `JSON._print`; use `JSON.print`",
+        :_print)
+    _writejson(io, s, a)
+end
 
 function print(io::IO, a, indent=0)
     _writejson(io, State(indent), a)
