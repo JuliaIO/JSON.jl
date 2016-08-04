@@ -80,23 +80,23 @@ function print_escaped(io::IO, s::AbstractString)
     end
 end
 
-function _print(io::IO, state::State, s::AbstractString)
+function _writejson(io::IO, state::State, s::AbstractString)
     Base.print(io, '"')
     JSON.print_escaped(io, s)
     Base.print(io, '"')
 end
 
 if isdefined(Base, :Dates)
-    function _print(io::IO, state::State, s::Base.Dates.TimeType)
-        _print(io, state, string(s))
+    function _writejson(io::IO, state::State, s::Base.Dates.TimeType)
+        _writejson(io, state, string(s))
     end
 end
 
-function _print(io::IO, state::State, s::Symbol)
-    _print(io, state, string(s))
+function _writejson(io::IO, state::State, s::Symbol)
+    _writejson(io, state, string(s))
 end
 
-@compat function _print(io::IO, state::State, s::Union{Integer, AbstractFloat})
+@compat function _writejson(io::IO, state::State, s::Union{Integer, AbstractFloat})
     if isnan(s) || isinf(s)
         Base.print(io, "null")
     else
@@ -104,11 +104,11 @@ end
     end
 end
 
-@compat function _print(io::IO, state::State, n::Void)
+@compat function _writejson(io::IO, state::State, n::Void)
     Base.print(io, "null")
 end
 
-function _print(io::IO, state::State, a::Associative)
+function _writejson(io::IO, state::State, a::Associative)
     if length(a) == 0
         Base.print(io, "{}")
         return
@@ -118,14 +118,14 @@ function _print(io::IO, state::State, a::Associative)
     for (key, value) in a
         first ? (first = false) : Base.print(io, ",", suffix(state))
         Base.print(io, prefix(state))
-        JSON._print(io, state, string(key))
+        _writejson(io, state, string(key))
         Base.print(io, separator(state))
-        JSON._print(io, state, value)
+        _writejson(io, state, value)
     end
     end_object(io, state, true)
 end
 
-@compat function _print(io::IO, state::State, a::Union{AbstractVector,Tuple})
+@compat function _writejson(io::IO, state::State, a::Union{AbstractVector,Tuple})
     if length(a) == 0
         Base.print(io, "[]")
         return
@@ -133,51 +133,57 @@ end
     start_object(io, state, false)
     Base.print(io, prefix(state))
     i = start(a)
-    !done(a,i) && ((x, i) = next(a, i); JSON._print(io, state, x); )
+    !done(a,i) && ((x, i) = next(a, i); _writejson(io, state, x); )
 
     while !done(a,i)
         (x, i) = next(a, i)
         Base.print(io, ",")
         printsp(io, state)
-        JSON._print(io, state, x)
+        _writejson(io, state, x)
     end
     end_object(io, state, false)
 end
 
-function _print(io::IO, state::State, a)
+function _writejson(io::IO, state::State, a)
+    # FIXME: Remove this fallback when _print removed.
+    if applicable(_print, io, state, a)
+        Base.depwarn(
+            "Overloads to `_print` are deprecated; extend `lower` instead.",
+            :_print)
+    end
     start_object(io, state, true)
     range = @compat fieldnames(a)
     if length(range) > 0
         Base.print(io, prefix(state), "\"", range[1], "\"", separator(state))
-        JSON._print(io, state, getfield(a, range[1]))
+        _writejson(io, state, getfield(a, range[1]))
 
         for name in range[2:end]
             Base.print(io, ",")
             printsp(io, state)
             Base.print(io, "\"", name, "\"", separator(state))
-            JSON._print(io, state, getfield(a, name))
+            _writejson(io, state, getfield(a, name))
         end
     end
     end_object(io, state, true)
 end
 
 if VERSION < v"0.5.0-dev+2396"
-function _print(io::IO, state::State, f::Function)
+function _writejson(io::IO, state::State, f::Function)
     Base.print(io, "\"function at ", f.fptr, "\"")
 end
 end
 
-function _print(io::IO, state::State, d::DataType)
+function _writejson(io::IO, state::State, d::DataType)
     Base.print(io, "\"", d, "\"")
 end
 
-function _print(::IO, ::State, m::Module)
+function _writejson(::IO, ::State, m::Module)
     throw(ArgumentError("cannot serialize Module $m as JSON"))
 end
 
 # Note: Arrays are printed in COLUMN MAJOR format.
 # i.e. json([1 2 3; 4 5 6]) == "[[1,4],[2,5],[3,6]]"
-function _print{T, N}(io::IO, state::State, a::AbstractArray{T, N})
+function _writejson{T, N}(io::IO, state::State, a::AbstractArray{T, N})
     lengthN = size(a, N)
     if lengthN > 0
         start_object(io, state, false)
@@ -187,12 +193,12 @@ function _print{T, N}(io::IO, state::State, a::AbstractArray{T, N})
             newdims = ntuple(i -> 1:size(a, i), N - 1)
         end
         Base.print(io, prefix(state))
-        JSON._print(io, state, Compat.view(a, newdims..., 1))
+        _writejson(io, state, Compat.view(a, newdims..., 1))
 
         for j in 2:lengthN
             Base.print(io, ",")
             printsp(io, state)
-            JSON._print(io, state, Compat.view(a, newdims..., j))
+            _writejson(io, state, Compat.view(a, newdims..., j))
         end
         end_object(io, state, false)
     else
@@ -200,15 +206,18 @@ function _print{T, N}(io::IO, state::State, a::AbstractArray{T, N})
     end
 end
 
+"Deprecated way to overload JSON printing behaviour. Use `lower` instead."
+function _print end
+
 function print(io::IO, a, indent=0)
-    JSON._print(io, State(indent), a)
+    _writejson(io, State(indent), a)
     if indent > 0
         Base.print(io, "\n")
     end
 end
 
 function print(a, indent=0)
-    JSON._print(STDOUT, State(indent), a)
+    _writejson(STDOUT, State(indent), a)
     if indent > 0
         println()
     end
