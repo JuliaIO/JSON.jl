@@ -10,6 +10,32 @@ include("Parser.jl")
 
 import .Parser.parse
 
+"""
+Return a value of a JSON-encodable primitive type that `x` should be lowered
+into before encoding as JSON. Supported types are: `Associative` to JSON
+objects, `Tuple` and `AbstractVector` to JSON arrays, `AbstractArray` to nested
+JSON arrays, `AbstractString` to JSON string, `Integer` and `AbstractFloat` to
+JSON number, `Bool` to JSON boolean, and `Void` to JSON null.
+
+Extensions of this method should preserve the property that the return value is
+one of the aforementioned types. If first lowering to some intermediate type is
+required, then extensions should call `lower` before returning a value.
+
+Note that the return value need not be *recursively* lowered—this function may
+for instance return an `AbstractArray{Any, 1}` whose elements are not JSON
+primitives.
+"""
+function lower(a)
+    obj = @compat Dict{Symbol, Any}()
+    for name in @compat fieldnames(a)
+        obj[name] = getfield(a, name)
+    end
+    obj
+end
+lower(a::Union{
+        Associative, Tuple, AbstractArray, AbstractString, Integer,
+        AbstractFloat, Bool, Void}) = a
+
 const INDENT=true
 const NOINDENT=false
 const unescaped = Bool[isprint(c) && !iscntrl(c) && !(c in ['\\','"']) for c in '\x00':'\x7F']
@@ -150,21 +176,10 @@ function _writejson(io::IO, state::State, a)
         Base.depwarn(
             "Overloads to `_print` are deprecated; extend `lower` instead.",
             :_print)
+        _print(io, state, a)
+    else
+        _writejson(io, state, lower(a))
     end
-    start_object(io, state, true)
-    range = @compat fieldnames(a)
-    if length(range) > 0
-        Base.print(io, prefix(state), "\"", range[1], "\"", separator(state))
-        _writejson(io, state, getfield(a, range[1]))
-
-        for name in range[2:end]
-            Base.print(io, ",")
-            printsp(io, state)
-            Base.print(io, "\"", name, "\"", separator(state))
-            _writejson(io, state, getfield(a, name))
-        end
-    end
-    end_object(io, state, true)
 end
 
 if VERSION < v"0.5.0-dev+2396"
