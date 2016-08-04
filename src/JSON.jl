@@ -36,6 +36,19 @@ lower(a::Union{
         Associative, Tuple, AbstractArray, AbstractString, Integer,
         AbstractFloat, Bool, Void}) = a
 
+if isdefined(Base, :Dates)
+    lower(s::Base.Dates.TimeType) = string(s)
+end
+
+lower(s::Symbol) = string(s)
+
+if VERSION < v"0.5.0-dev+2396"
+    lower(f::Function) = "function at $(f.fptr)"
+end
+
+lower(d::DataType) = string(d)
+lower(m::Module) = throw(ArgumentError("cannot serialize Module $m as JSON"))
+
 const INDENT=true
 const NOINDENT=false
 const unescaped = Bool[isprint(c) && !iscntrl(c) && !(c in ['\\','"']) for c in '\x00':'\x7F']
@@ -112,16 +125,6 @@ function _writejson(io::IO, state::State, s::AbstractString)
     Base.print(io, '"')
 end
 
-if isdefined(Base, :Dates)
-    function _writejson(io::IO, state::State, s::Base.Dates.TimeType)
-        _writejson(io, state, string(s))
-    end
-end
-
-function _writejson(io::IO, state::State, s::Symbol)
-    _writejson(io, state, string(s))
-end
-
 @compat function _writejson(io::IO, state::State, s::Union{Integer, AbstractFloat})
     if isnan(s) || isinf(s)
         Base.print(io, "null")
@@ -180,20 +183,6 @@ function _writejson(io::IO, state::State, a)
     else
         _writejson(io, state, lower(a))
     end
-end
-
-if VERSION < v"0.5.0-dev+2396"
-function _writejson(io::IO, state::State, f::Function)
-    Base.print(io, "\"function at ", f.fptr, "\"")
-end
-end
-
-function _writejson(io::IO, state::State, d::DataType)
-    Base.print(io, "\"", d, "\"")
-end
-
-function _writejson(::IO, ::State, m::Module)
-    throw(ArgumentError("cannot serialize Module $m as JSON"))
 end
 
 # Note: Arrays are printed in COLUMN MAJOR format.
