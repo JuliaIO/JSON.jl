@@ -7,12 +7,26 @@ using Compat
 export json # returns a compact (or indented) JSON representation as a string
 
 include("Parser.jl")
+include("bytes.jl")
 
 import .Parser.parse
+
+# These are temporary ways to bypass excess memory allocation
+# They can be removed once types define their own serialization behaviour again
+"Internal JSON.jl implementation detail; do not depend on this type."
+immutable AssociativeWrapper{T} <: Associative{Symbol, Any}
+    wrapped::T
+    fns::Array{Symbol, 1}
+end
+AssociativeWrapper(x) = AssociativeWrapper(x, @compat fieldnames(x))
 
 typealias JSONPrimitive @compat(Union{
         Associative, Tuple, AbstractArray, AbstractString, Integer,
         AbstractFloat, Bool, Void})
+
+Base.getindex(w::AssociativeWrapper, s::Symbol) = getfield(w.wrapped, s)
+Base.keys(w::AssociativeWrapper) = w.fns
+Base.length(w::AssociativeWrapper) = length(w.fns)
 
 """
 Return a value of a JSON-encodable primitive type that `x` should be lowered
@@ -29,13 +43,7 @@ Note that the return value need not be *recursively* lowered—this function may
 for instance return an `AbstractArray{Any, 1}` whose elements are not JSON
 primitives.
 """
-function lower(a)
-    obj = @compat Dict{Symbol, Any}()
-    for name in @compat fieldnames(a)
-        obj[name] = getfield(a, name)
-    end
-    obj
-end
+lower(a) = AssociativeWrapper(a)
 lower(a::JSONPrimitive) = a
 
 if isdefined(Base, :Dates)
@@ -53,7 +61,21 @@ lower(m::Module) = throw(ArgumentError("cannot serialize Module $m as JSON"))
 
 const INDENT=true
 const NOINDENT=false
-const unescaped = Bool[isprint(c) && !iscntrl(c) && !(c in ['\\','"']) for c in '\x00':'\x7F']
+const REVERSE_ESCAPES = Dict(map(reverse, ESCAPES))
+const escaped = Array(Vector{UInt8}, 256)
+for c in 0x00:0xFF
+    escaped[c + 1] = if c == SOLIDUS
+        [SOLIDUS]  # don't escape this one
+    elseif c ≥ 0x80
+        [c]  # UTF-8 character copied verbatim
+    elseif haskey(REVERSE_ESCAPES, c)
+        [BACKSLASH, REVERSE_ESCAPES[c]]
+    elseif iscntrl(@compat Char(c)) || !isprint(@compat Char(c))
+        UInt8[BACKSLASH, LATIN_U, hex(c, 4)...]
+    else
+        [c]
+    end
+end
 
 type State{I}
     indentstep::Int
@@ -109,15 +131,15 @@ function end_object(io::IO, state::State{NOINDENT}, is_dict::Bool)
 end
 
 function print_escaped(io::IO, s::AbstractString)
-    for c in s
-        c <= '\x7f' ? (unescaped[@compat(Int(c))+1]  ? Base.print(io, c) :
-                       c == '\\'       ? Base.print(io, "\\\\") :
-                       c == '"'        ? Base.print(io, "\\\"") :
-                       8 ≤ @compat(UInt32(c)) ≤ 10 ? Base.print(io, '\\', "btn"[@compat(Int(c))-7]) :
-                       c == '\f'       ? Base.print(io, "\\f") :
-                       c == '\r'       ? Base.print(io, "\\r") :
-                                         Base.print(io, "\\u", hex(c, 4))) :
+    @inbounds for c in s
+        c <= '\x7f' ? Base.write(io, escaped[@compat UInt8(c) + 0x01]) :
                       Base.print(io, c) #JSON is UTF8 encoded
+    end
+end
+
+function print_escaped(io::IO, s::Compat.UTF8String)
+    @inbounds for c in s.data
+        Base.write(io, escaped[c + 0x01])
     end
 end
 
@@ -146,12 +168,12 @@ function _writejson(io::IO, state::State, a::Associative)
     end
     start_object(io, state, true)
     first = true
-    for (key, value) in a
+    for key in keys(a)
         first ? (first = false) : Base.print(io, ",", suffix(state))
         Base.print(io, prefix(state))
         _writejson(io, state, string(key))
         Base.print(io, separator(state))
-        _writejson(io, state, value)
+        _writejson(io, state, a[key])
     end
     end_object(io, state, true)
 end
@@ -176,15 +198,17 @@ end
 end
 
 function _writejson(io::IO, state::State, a)
-    # FIXME: Remove this fallback when _print removed.
-    if applicable(_print, io, state, a)
+    # FIXME: This fallback is harming performance substantially.
+    # Remove this fallback when _print removed.
+    #= if applicable(_print, io, state, a)
         Base.depwarn(
             "Overloads to `_print` are deprecated; extend `lower` instead.",
             :_print)
         _print(io, state, a)
     else
         _writejson(io, state, lower(a))
-    end
+    end =#
+    _writejson(io, state, lower(a))
 end
 
 # Note: Arrays are printed in COLUMN MAJOR format.
