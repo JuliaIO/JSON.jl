@@ -200,15 +200,14 @@ end
 function _writejson(io::IO, state::State, a)
     # FIXME: This fallback is harming performance substantially.
     # Remove this fallback when _print removed.
-    #= if applicable(_print, io, state, a)
+    if applicable(_print, io, state, a)
         Base.depwarn(
             "Overloads to `_print` are deprecated; extend `lower` instead.",
             :_print)
         _print(io, state, a)
     else
         _writejson(io, state, lower(a))
-    end =#
-    _writejson(io, state, lower(a))
+    end
 end
 
 # Note: Arrays are printed in COLUMN MAJOR format.
