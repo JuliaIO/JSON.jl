@@ -73,5 +73,5 @@ JSON.lower(p::Point2D) = [x.x, x.y]
 ```
 
 Define a custom serialization rule for a particular data type. Must return a
-value that can be directly serialized; see help for more details. Do **not**
-extend `JSON._print`; that is a clunky API and is now deprecated.
+value that can be directly serialized; see help for more details. Note that
+`JSON._print` is deprecated and will eventually been discontinued.
