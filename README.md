@@ -67,3 +67,11 @@ provide a desired ordering.  For example, if you `import DataStructures`
 package](https://github.com/JuliaLang/DataStructures.jl) is
 installed), you can pass `dicttype=DataStructures.OrderedDict` to
 maintain the insertion order of the items in the object.
+
+```julia
+JSON.lower(p::Point2D) = [x.x, x.y]
+```
+
+Define a custom serialization rule for a particular data type. Must return a
+value that can be directly serialized; see help for more details. Note that
+`JSON._print` is deprecated and will eventually been discontinued.
