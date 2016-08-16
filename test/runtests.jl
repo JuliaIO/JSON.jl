@@ -308,5 +308,8 @@ end
 # Lowering tests
 include("lowering.jl")
 
+# Custom serializing tests
+include("serializer.jl")
+
 # Check that printing to the default STDOUT doesn't fail
 JSON.print(["JSON.jl tests pass!"],1)
