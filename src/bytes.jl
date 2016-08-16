@@ -42,3 +42,26 @@ const ESCAPES = Dict(
     LATIN_N      => NEWLINE,
     LATIN_R      => RETURN,
     LATIN_T      => TAB)
+
+const REVERSE_ESCAPES = Dict(map(reverse, ESCAPES))
+const ESCAPED_ARRAY = Array(Vector{UInt8}, 256)
+for c in 0x00:0xFF
+    ESCAPED_ARRAY[c + 1] = if c == SOLIDUS
+        [SOLIDUS]  # don't escape this one
+    elseif c ≥ 0x80
+        [c]  # UTF-8 character copied verbatim
+    elseif haskey(REVERSE_ESCAPES, c)
+        [BACKSLASH, REVERSE_ESCAPES[c]]
+    elseif iscntrl(@compat Char(c)) || !isprint(@compat Char(c))
+        UInt8[BACKSLASH, LATIN_U, hex(c, 4)...]
+    else
+        [c]
+    end
+end
+
+export BACKSPACE, TAB, NEWLINE, FORM_FEED, RETURN, SPACE, STRING_DELIM,
+       PLUS_SIGN, DELIMITER, MINUS_SIGN, DECIMAL_POINT, SOLIDUS, DIGIT_ZERO,
+       DIGIT_NINE, SEPARATOR, LATIN_UPPER_A, LATIN_UPPER_E, LATIN_UPPER_F,
+       ARRAY_BEGIN, BACKSLASH, ARRAY_END, LATIN_A, LATIN_B, LATIN_E, LATIN_F,
+       LATIN_L, LATIN_N, LATIN_R, LATIN_S, LATIN_T, LATIN_U, OBJECT_BEGIN,
+       OBJECT_END, ESCAPES, REVERSE_ESCAPES, ESCAPED_ARRAY
