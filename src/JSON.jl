@@ -18,11 +18,11 @@ immutable AssociativeWrapper{T} <: Associative{Symbol, Any}
     wrapped::T
     fns::Array{Symbol, 1}
 end
-AssociativeWrapper(x) = AssociativeWrapper(x, @compat fieldnames(x))
+AssociativeWrapper(x) = AssociativeWrapper(x, fieldnames(x))
 
-typealias JSONPrimitive @compat(Union{
+typealias JSONPrimitive Union{
         Associative, Tuple, AbstractArray, AbstractString, Integer,
-        AbstractFloat, Bool, Void})
+        AbstractFloat, Bool, Void}
 
 Base.getindex(w::AssociativeWrapper, s::Symbol) = getfield(w.wrapped, s)
 Base.keys(w::AssociativeWrapper) = w.fns
@@ -70,7 +70,7 @@ for c in 0x00:0xFF
         [c]  # UTF-8 character copied verbatim
     elseif haskey(REVERSE_ESCAPES, c)
         [BACKSLASH, REVERSE_ESCAPES[c]]
-    elseif iscntrl(@compat Char(c)) || !isprint(@compat Char(c))
+    elseif iscntrl(Char(c)) || !isprint(Char(c))
         UInt8[BACKSLASH, LATIN_U, hex(c, 4)...]
     else
         [c]
@@ -132,7 +132,7 @@ end
 
 function print_escaped(io::IO, s::AbstractString)
     @inbounds for c in s
-        c <= '\x7f' ? Base.write(io, escaped[@compat UInt8(c) + 0x01]) :
+        c <= '\x7f' ? Base.write(io, escaped[UInt8(c) + 0x01]) :
                       Base.print(io, c) #JSON is UTF8 encoded
     end
 end
@@ -149,7 +149,7 @@ function _writejson(io::IO, state::State, s::AbstractString)
     Base.print(io, '"')
 end
 
-@compat function _writejson(io::IO, state::State, s::Union{Integer, AbstractFloat})
+function _writejson(io::IO, state::State, s::Union{Integer, AbstractFloat})
     if isnan(s) || isinf(s)
         Base.print(io, "null")
     else
@@ -157,7 +157,7 @@ end
     end
 end
 
-@compat function _writejson(io::IO, state::State, n::Void)
+function _writejson(io::IO, state::State, n::Void)
     Base.print(io, "null")
 end
 
@@ -178,7 +178,7 @@ function _writejson(io::IO, state::State, a::Associative)
     end_object(io, state, true)
 end
 
-@compat function _writejson(io::IO, state::State, a::Union{AbstractVector,Tuple})
+function _writejson(io::IO, state::State, a::Union{AbstractVector,Tuple})
     if length(a) == 0
         Base.print(io, "[]")
         return

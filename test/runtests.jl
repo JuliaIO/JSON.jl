@@ -155,14 +155,14 @@ json_dollars = json(dollars)
 write(w, json_dollars)
 
 # unmatched brackets
-brackets = @compat Dict("foo"=>"ba}r", "be}e]p"=>"boo{p")
+brackets = Dict("foo"=>"ba}r", "be}e]p"=>"boo{p")
 json_brackets = json(brackets)
 @test JSON.parse(json_brackets) != nothing
 write(w, json_dollars)
 
 fetch(finished_async_tests)
 
-zeros = @compat Dict("\0"=>"\0")
+zeros = Dict("\0" => "\0")
 json_zeros = json(zeros)
 @test contains(json_zeros,"\\u0000")
 @test !contains(json_zeros,"\\0")
@@ -192,7 +192,7 @@ a=JSON.parse(test21)
 @test json([Int64[] Int64[]]') == "[]"
 
 # ::Void values should be encoded as null
-testDict = @compat Dict("a" => nothing)
+testDict = Dict("a" => nothing)
 nothingJson = JSON.json(testDict)
 nothingDict = JSON.parse(nothingJson)
 @test testDict == nothingDict
@@ -235,7 +235,7 @@ ejson2 = json(ev)
 @test JSON.parse(ejson1) == JSON.parse(ejson2)
 
 # test symbols are treated as strings
-symtest = @compat Dict(:symbolarray => [:apple, :pear], :symbolsingleton => :hello)
+symtest = Dict(:symbolarray => [:apple, :pear], :symbolsingleton => :hello)
 @test (JSON.json(symtest) == "{\"symbolarray\":[\"apple\",\"pear\"],\"symbolsingleton\":\"hello\"}"
          || JSON.json(symtest) == "{\"symbolsingleton\":\"hello\",\"symbolarray\":[\"apple\",\"pear\"]}")
 
@@ -289,8 +289,8 @@ end
 # Test for Issue #99
 @test_throws ErrorException JSON.parse("[\"🍕\"_\"🍕\"")
 
-# Check that printing to the default STDOUT doesn't fail
-JSON.print(["JSON.jl tests pass!"],1)
-
 # Lowering tests
 include("lowering.jl")
+
+# Check that printing to the default STDOUT doesn't fail
+JSON.print(["JSON.jl tests pass!"],1)
