@@ -73,7 +73,7 @@ skip past that byte. Otherwise, an error is thrown.
     if byteat(ps) == c
         incr!(ps)
     else
-        _error("Expected '$(@compat Char(c))' here", ps)
+        _error("Expected '$(Char(c))' here", ps)
     end
 end
 
@@ -229,7 +229,7 @@ end
 
 
 utf16_is_surrogate(c::UInt16) = (c & 0xf800) == 0xd800
-utf16_get_supplementary(lead::UInt16, trail::UInt16) = @compat(Char(@compat(UInt32(lead-0xd7f7)<<10) + trail))
+utf16_get_supplementary(lead::UInt16, trail::UInt16) = Char(UInt32(lead-0xd7f7)<<10 + trail)
 
 function read_four_hex_digits!(ps::ParserState)
     local n::UInt16 = 0
@@ -239,9 +239,9 @@ function read_four_hex_digits!(ps::ParserState)
         n = n << 4 + if isjsondigit(b)
             b - DIGIT_ZERO
         elseif LATIN_A ≤ b ≤ LATIN_F
-            b - (LATIN_A - @compat UInt8(10))
+            b - (LATIN_A - UInt8(10))
         elseif LATIN_UPPER_A ≤ b ≤ LATIN_UPPER_F
-            b - (LATIN_UPPER_A - @compat UInt8(10))
+            b - (LATIN_UPPER_A - UInt8(10))
         else
             _error(E_BAD_ESCAPE, ps)
         end
@@ -258,7 +258,7 @@ function read_unicode_escape!(ps)
         u2 = read_four_hex_digits!(ps)
         utf16_get_supplementary(u1, u2)
     else
-        @compat(Char(u1))
+        Char(u1)
     end
 end
 
@@ -295,7 +295,7 @@ has a leading zero.
 """
 function hasleadingzero(bytes::Vector{UInt8}, from::Int, to::Int)
     c = bytes[from]
-    from + 1 < to && c == @compat(UInt8('-')) &&
+    from + 1 < to && c == UInt8('-') &&
             bytes[from + 1] == DIGIT_ZERO && isjsondigit(bytes[from + 2]) ||
     from < to && to > from + 1 && c == DIGIT_ZERO &&
             isjsondigit(bytes[from + 1])
@@ -322,10 +322,9 @@ the byte before `to`. Bytes enclosed should all be ASCII characters.
 """
 function int_from_bytes(bytes::Vector{UInt8}, from::Int, to::Int)
     @inbounds isnegative = bytes[from] == MINUS_SIGN ? (from += 1; true) : false
-    num = @compat Int64(0)
+    num = Int64(0)
     @inbounds for i in from:to
-        num = (@compat Int64(10)) * num +
-                @compat Int64(bytes[i] - DIGIT_ZERO)
+        num = Int64(10) * num + Int64(bytes[i] - DIGIT_ZERO)
     end
     ifelse(isnegative, -num, num)
 end
@@ -358,9 +357,9 @@ function parse_number(ps::ParserState)
         c = current(ps)
 
         if isjsondigit(c) || c == MINUS_SIGN
-            push!(number, @compat UInt8(c))
+            push!(number, UInt8(c))
         elseif c in (PLUS_SIGN, LATIN_E, LATIN_UPPER_E, DECIMAL_POINT)
-            push!(number, @compat UInt8(c))
+            push!(number, UInt8(c))
             isint = false
         else
             break
@@ -375,7 +374,7 @@ end
 
 function unparameterize_type{T}(::Type{T})
     candidate = typeintersect(T, Associative{Compat.UTF8String, Any})
-    candidate <: (@compat Union{}) ? T : candidate
+    candidate <: Union{} ? T : candidate
 end
 
 function parse{T<:Associative}(str::AbstractString; dicttype::Type{T}=Dict{Compat.UTF8String,Any})
