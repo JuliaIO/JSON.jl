@@ -58,7 +58,6 @@ end
     s = listen(7777)
     s = accept(s)
 
-    s.line_buffered = false
     Base.start_reading(s)
 
     @test JSON.parse(s) != nothing  # a
