@@ -71,7 +71,7 @@ installed), you can pass `dicttype=DataStructures.OrderedDict` to
 maintain the insertion order of the items in the object.
 
 ```julia
-JSON.lower(p::Point2D) = [x.x, x.y]
+JSON.lower(p::Point2D) = [p.x, p.y]
 ```
 
 Define a custom serialization rule for a particular data type. Must return a
