@@ -149,6 +149,12 @@ function _writejson(io::IO, state::State, s::AbstractString)
     Base.print(io, '"')
 end
 
+# workaround for issue in Julia 0.5.x where Float32 values are printed as
+# 3.4f-5 instead of 3.4e-5
+if v"0.5-" <= VERSION < v"0.6-"
+    _writejson(io::IO, state::State, s::Float32) = _writejson(io, state, Float64(s))
+end
+
 function _writejson(io::IO, state::State, s::Union{Integer, AbstractFloat})
     if isnan(s) || isinf(s)
         Base.print(io, "null")
