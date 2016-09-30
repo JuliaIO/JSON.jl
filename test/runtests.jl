@@ -251,6 +251,9 @@ end
 @test sprint(JSON.print, [NaN]) == "[null]"
 @test sprint(JSON.print, [Inf]) == "[null]"
 
+# check for issue #163
+@test Float32(JSON.parse(json(2.1f-8))) == 2.1f-8
+
 # Check printing of more exotic objects
 if VERSION < v"0.5.0-dev+2396"
     # Test broken in v0.5, code is using internal structure of Function type!
