@@ -56,6 +56,7 @@ if VERSION < v"0.5.0-dev+2396"
     lower(f::Function) = "function at $(f.fptr)"
 end
 
+lower(c::Char) = string(c)
 lower(d::DataType) = string(d)
 lower(m::Module) = throw(ArgumentError("cannot serialize Module $m as JSON"))
 
@@ -173,10 +174,6 @@ function _writejson(io::IO, state::State, a::Nullable)
     else
         _writejson(io, state, get(a))
     end
-end
-
-function _writejson(io::IO, state::State, c::Char)
-    _writejson(io, state, string(c))
 end
 
 function _writejson(io::IO, state::State, a::Associative)
