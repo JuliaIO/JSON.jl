@@ -167,6 +167,14 @@ function _writejson(io::IO, state::State, n::Void)
     Base.print(io, "null")
 end
 
+function _writejson(io::IO, state::State, a::Nullable)
+    if isnull(a)
+        Base.print(io, "null")
+    else
+        _writejson(io, state, get(a))
+    end
+end
+
 function _writejson(io::IO, state::State, a::Associative)
     if length(a) == 0
         Base.print(io, "{}")
