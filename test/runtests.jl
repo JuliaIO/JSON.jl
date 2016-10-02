@@ -253,7 +253,7 @@ end
 
 # check Nullables are printed correctly
 @test sprint(JSON.print, [Nullable{Int64}()]) == "[null]"
-@test sprint(JSON.print, [Nullable{Int64}(1)]) == "[1]"
+@test sprint(JSON.print, [Nullable{Int64}(Int64(1))]) == "[1]"
 
 # check for issue #163
 @test Float32(JSON.parse(json(2.1f-8))) == 2.1f-8
