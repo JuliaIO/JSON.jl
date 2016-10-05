@@ -2,6 +2,7 @@ using JSON
 using Base.Test
 using Compat
 import DataStructures
+import FixedPointNumbers: Fixed
 
 include("json-checker.jl")
 include(joinpath(dirname(@__FILE__),"json_samples.jl"))

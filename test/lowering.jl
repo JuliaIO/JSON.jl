@@ -15,3 +15,6 @@ JSON.lower{T}(v::Type151{T}) = Dict(:type => T, :value => v.x)
 @test JSON.parse(JSON.json(Type151(1.0))) == Dict(
     "type" => "Float64",
     "value" => 1.0)
+
+fixednum = Fixed{Int16, 15}(0.1234)
+@test JSON.parse(JSON.json(fixednum)) == Float64(fixednum)

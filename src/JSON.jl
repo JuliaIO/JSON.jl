@@ -59,6 +59,7 @@ end
 lower(c::Char) = string(c)
 lower(d::DataType) = string(d)
 lower(m::Module) = throw(ArgumentError("cannot serialize Module $m as JSON"))
+lower(x::Real) = Float64(x)
 
 const INDENT=true
 const NOINDENT=false
