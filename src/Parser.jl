@@ -1,12 +1,12 @@
-module Parser #JSON
+module Parser  # JSON
+
+using ..Common
 
 using Compat
 import Compat: String
 
 export parse
 
-include("bytes.jl")
-include("errors.jl")
 
 # A string constructor function (not necessarily a type)
 const _String = VERSION < v"0.4" ? utf8 : Compat.UTF8String
