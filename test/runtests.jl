@@ -14,7 +14,7 @@ include(joinpath(dirname(@__FILE__),"json_samples.jl"))
 validate_c(c) = begin
                     j = JSON.parse(c);
                     @test j != nothing
-                    @test typeof(j["widget"]["image"]["hOffset"]) == Int64
+                    @test typeof(j["widget"]["image"]["hOffset"]) == Int
                     @test j["widget"]["image"]["hOffset"] == 250
                     @test typeof(j["widget"]["text"]["size"]) == Float64
                     @test j["widget"]["text"]["size"] == 36.5
@@ -188,8 +188,8 @@ a=JSON.parse(test21)
 @test json([0 1; 2 0]) == "[[0,2],[1,0]]"
 
 # issue #152
-@test json([Int64[] Int64[]]) == "[[],[]]"
-@test json([Int64[] Int64[]]') == "[]"
+@test json([Int[] Int[]]) == "[[],[]]"
+@test json([Int[] Int[]]') == "[]"
 
 # ::Void values should be encoded as null
 testDict = Dict("a" => nothing)
@@ -254,8 +254,8 @@ end
 
 # check Nullables are printed correctly
 @test sprint(JSON.print, [Nullable()]) == "[null]"
-@test sprint(JSON.print, [Nullable{Int64}()]) == "[null]"
-@test sprint(JSON.print, [Nullable{Int64}(Int64(1))]) == "[1]"
+@test sprint(JSON.print, [Nullable{Int}()]) == "[null]"
+@test sprint(JSON.print, [Nullable{Int}(Int(1))]) == "[1]"
 
 # check Chars
 @test json('a') == "\"a\""
