@@ -19,7 +19,7 @@ function parse_string(ps::MemoryParserState)
         parse_string(ps, b)
     end
 
-    _String(b)
+    Compat.UTF8String(b)
 end
 
 """
@@ -58,7 +58,7 @@ function predict_string(ps::MemoryParserState)
             if ps.utf8data[s] == LATIN_U  # Unicode escape
                 t = ps.s
                 ps.s = s + 1
-                len += length(string(read_unicode_escape!(ps)).data)
+                len += sizeof(string(read_unicode_escape!(ps)))
                 s = ps.s
                 ps.s = t
                 continue
@@ -97,7 +97,7 @@ function parse_string(ps::MemoryParserState, b)
             c = ps.utf8data[s]
             if c == LATIN_U  # Unicode escape
                 ps.s = s + 1
-                for c in string(read_unicode_escape!(ps)).data
+                for c in Vector{UInt8}(string(read_unicode_escape!(ps)))
                     i += 1
                     b[i] = c
                 end

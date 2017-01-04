@@ -7,10 +7,6 @@ import Compat: String
 
 export parse
 
-
-# A string constructor function (not necessarily a type)
-const _String = VERSION < v"0.4" ? utf8 : Compat.UTF8String
-
 """
 Like `isspace`, but work on bytes and includes only the four whitespace
 characters defined by the JSON standard: space, tab, line feed, and carriage
@@ -272,7 +268,7 @@ function parse_string(ps::ParserState)
         if c == BACKSLASH
             c = advance!(ps)
             if c == LATIN_U  # Unicode escape
-                append!(b, string(read_unicode_escape!(ps)).data)
+                append!(b, Vector{UInt8}(string(read_unicode_escape!(ps))))
             else
                 c = get(ESCAPES, c, 0x00)
                 c == 0x00 && _error(E_BAD_ESCAPE, ps)
@@ -282,7 +278,7 @@ function parse_string(ps::ParserState)
         elseif c < SPACE
             _error(E_BAD_CONTROL, ps)
         elseif c == STRING_DELIM
-            return _String(b)
+            return Compat.UTF8String(b)
         end
 
         push!(b, c)
@@ -308,12 +304,8 @@ byte before `to`. Bytes enclosed should all be ASCII characters.
 function float_from_bytes(bytes::Vector{UInt8}, from::Int, to::Int)
     # The ccall is not ideal (Base.tryparse would be better), but it actually
     # makes an 2× difference to performance
-    @static if VERSION ≥ v"0.4"
-        ccall(:jl_try_substrtod, Nullable{Float64},
-                (Ptr{UInt8}, Csize_t, Csize_t), bytes, from - 1, to - from + 1)
-    else
-        tryparse(Float64, Compat.ASCIIString(bytes[from:to]))
-    end
+    ccall(:jl_try_substrtod, Nullable{Float64},
+            (Ptr{UInt8}, Csize_t, Csize_t), bytes, from - 1, to - from + 1)
 end
 
 """
@@ -378,7 +370,7 @@ function unparameterize_type{T}(::Type{T})
 end
 
 function parse{T<:Associative}(str::AbstractString; dicttype::Type{T}=Dict{Compat.UTF8String,Any})
-    ps = MemoryParserState(_String(str).data, 1)
+    ps = MemoryParserState(Vector{UInt8}(Compat.UTF8String(str)), 1)
     v = parse_value(ps, unparameterize_type(T))
     chomp_space!(ps)
     if hasmore(ps)
