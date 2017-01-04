@@ -1,6 +1,8 @@
 using JSON
 using Base.Test
 using Compat
+import Compat: String
+
 import DataStructures
 import FixedPointNumbers: Fixed
 
@@ -245,7 +247,7 @@ type t109
 end
 let iob = IOBuffer()
     JSON.print(iob, t109(1))
-    @test get(JSON.parse(takebuf_string(iob)), "i", 0) == 1
+    @test get(JSON.parse(String(take!(iob))), "i", 0) == 1
 end
 
 # Check NaNs are printed correctly
