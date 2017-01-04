@@ -126,7 +126,7 @@ function print_escaped(io::IO, s::AbstractString)
 end
 
 function print_escaped(io::IO, s::Compat.UTF8String)
-    @inbounds for c in s.data
+    @inbounds for c in Vector{UInt8}(s)
         Base.write(io, ESCAPED_ARRAY[c + 0x01])
     end
 end
