@@ -9,7 +9,7 @@ immutable Type151{T}
     x::T
 end
 
-@test JSON.json(Type151) == "\"Type151{T}\""
+@test JSON.parse(JSON.json(Type151)) == string(Type151)
 
 JSON.lower{T}(v::Type151{T}) = Dict(:type => T, :value => v.x)
 @test JSON.parse(JSON.json(Type151(1.0))) == Dict(

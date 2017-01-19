@@ -58,7 +58,7 @@ if VERSION < v"0.5.0-dev+2396"
 end
 
 lower(c::Char) = string(c)
-lower(d::DataType) = string(d)
+lower(d::Type) = string(d)
 lower(m::Module) = throw(ArgumentError("cannot serialize Module $m as JSON"))
 lower(x::Real) = Float64(x)
 
