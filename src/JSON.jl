@@ -17,7 +17,7 @@ import .Parser.parse
 "Internal JSON.jl implementation detail; do not depend on this type."
 immutable AssociativeWrapper{T} <: Associative{Symbol, Any}
     wrapped::T
-    fns::Array{Symbol, 1}
+    fns::Vector{Symbol}
 end
 AssociativeWrapper(x) = AssociativeWrapper(x, fieldnames(x))
 
@@ -69,7 +69,7 @@ type State{I}
     indentstep::Int
     indentlen::Int
     prefix::AbstractString
-    otype::Array{Bool, 1}
+    otype::Vector{Bool}
     State(indentstep::Int) = new(indentstep,
                                  0,
                                  "",

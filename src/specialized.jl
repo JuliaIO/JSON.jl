@@ -6,7 +6,7 @@ function parse_string(ps::MemoryParserState)
     fastpath, len = predict_string(ps)
 
     # Now read the string itself
-    b = Array{UInt8, 1}(len)
+    b = Vector{UInt8}(len)
 
     # Fast path occurs when the string has no escaped characters. This is quite
     # often the case in real-world data, especially when keys are short strings.
