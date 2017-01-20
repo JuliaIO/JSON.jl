@@ -164,11 +164,11 @@ write(w, json_dollars)
 
 fetch(finished_async_tests)
 
-zeros = Dict("\0" => "\0")
-json_zeros = json(zeros)
+zerosDict = Dict("\0" => "\0")
+json_zeros = json(zerosDict)
 @test contains(json_zeros,"\\u0000")
 @test !contains(json_zeros,"\\0")
-@test JSON.parse(json_zeros) == zeros
+@test JSON.parse(json_zeros) == zerosDict
 
 #Uncomment while doing timing tests
 #@time for i=1:100 ; JSON.parse(d) ; end
@@ -308,5 +308,10 @@ end
 # Lowering tests
 include("lowering.jl")
 
+# Unmarshal tests
+include("unmarshal.jl")
+
 # Check that printing to the default STDOUT doesn't fail
 JSON.print(["JSON.jl tests pass!"],1)
+
+
