@@ -30,7 +30,7 @@ validate_e(e) = begin
                     @test typeof(j["menu"]) == Dict{Compat.UTF8String, Any}
                     @test length(j["menu"]) == 2
                     @test j["menu"]["header"] == "SVG\tViewerα"
-                    @test isa(j["menu"]["items"], Array)
+                    @test isa(j["menu"]["items"], Vector{Any})
                     @test length(j["menu"]["items"]) == 22
                     @test j["menu"]["items"][3] == nothing
                     @test j["menu"]["items"][2]["id"] == "OpenNew"
@@ -184,7 +184,7 @@ obj = JSON.parse("{\"a\":2e10}")
 
 #test for issue 21
 a=JSON.parse(test21)
-@test isa(a, Array{Any})
+@test isa(a, Vector{Any})
 @test length(a) == 2
 #Multidimensional arrays
 @test json([0 1; 2 0]) == "[[0,2],[1,0]]"
