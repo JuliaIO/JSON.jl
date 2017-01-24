@@ -349,12 +349,27 @@ function unmarshal(DT, parsedJson)
 #        @show iter, DTNext, !haskey(parsedJson, string(iter)) 
 
         if !haskey(parsedJson, string(iter)) 
-            val = DTNext()
+            try
+            	val = DTNext()
+            catch ex
+            	if isa(ex, MethodError)
+			error("Key $(string(iter)) is missing from the structure $(DT) and field is not Nullable")
+                end
+                rethrow(ex)
+            end # try-cath
         else
             if (DTNext <: Array) || (typeof(parsedJson[string(iter)]) <: Dict{String,Any})
                 val = unmarshal( DTNext, parsedJson[string(iter)])
             else
-                val = DTNext(parsedJson[string(iter)])
+        #      @show parsedJson[string(iter)] 
+                try
+                	val = DTNext(parsedJson[string(iter)])
+                catch ex
+                	if isa(ex, UndefVarError) || isa(ex, MethodError)
+				error("Cannot construct $(DTNext)($(parsedJson[string(iter)])). Type $(DT) might be not be concrete. Consider implementing overload function unmarshal(T ::$(DT), dict) to return a value of type $(DT)") 
+                        end
+			rethrow(ex)
+                end # try-cath
             end
         end
             
