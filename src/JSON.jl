@@ -65,15 +65,15 @@ lower(x::Real) = Float64(x)
 const INDENT=true
 const NOINDENT=false
 
-type State{I}
+@compat type State{I}
     indentstep::Int
     indentlen::Int
     prefix::AbstractString
     otype::Vector{Bool}
-    State(indentstep::Int) = new(indentstep,
-                                 0,
-                                 "",
-                                 Bool[])
+    (::Type{State{I}}){I}(indentstep::Int) = new{I}(indentstep,
+                                                    0,
+                                                    "",
+                                                    Bool[])
 end
 State(indentstep::Int=0) = State{indentstep>0}(indentstep)
 
