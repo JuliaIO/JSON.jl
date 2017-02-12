@@ -19,7 +19,7 @@ Like `isdigit`, but for bytes.
 """
 isjsondigit(b::UInt8) = DIGIT_ZERO ≤ b ≤ DIGIT_NINE
 
-abstract ParserState
+@compat abstract type ParserState end
 
 type MemoryParserState <: ParserState
     utf8data::Vector{UInt8}
