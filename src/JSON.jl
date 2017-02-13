@@ -21,7 +21,7 @@ immutable AssociativeWrapper{T} <: Associative{Symbol, Any}
 end
 AssociativeWrapper(x) = AssociativeWrapper(x, fieldnames(x))
 
-typealias JSONPrimitive Union{
+const JSONPrimitive = Union{
         Associative, Tuple, AbstractArray, AbstractString, Integer,
         AbstractFloat, Bool, Void}
 
