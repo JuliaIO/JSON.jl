@@ -30,6 +30,29 @@ JSON.json([2,3])
 #  "[2,3]"
 JSON.json(j)
 #  "{\"an_array\":[\"string\",9],\"a_number\":5.0}"
+input = "{ \"bar\": { \"baz\": 17 }, \"foo\": 3.14 }"
+
+immutable Bar
+    baz::Int
+end
+
+immutable Foo
+    bar::Bar
+end
+
+immutable Baz
+    foo::Nullable{Float64}
+    bar::Bar
+end
+
+JSON.unmarshal(Foo, JSON.parse(input))
+# Foo(Bar(17))
+jstring = JSON.json(ones(Float64, 3))
+#"[1.0,1.0,1.0]"
+
+JSON.unmarshal(Array{Float64}, JSON.parse(jstring))
+#3-element Array{Float64,1}:
+# [ 1.0 ; 1.0 ; 1.0 ]
 ```
 
 ## Documentation
@@ -73,7 +96,12 @@ maintain the insertion order of the items in the object.
 ```julia
 JSON.lower(p::Point2D) = [p.x, p.y]
 ```
-
 Define a custom serialization rule for a particular data type. Must return a
 value that can be directly serialized; see help for more details. Note that
 `JSON._print` is deprecated and will eventually been discontinued.
+
+```julia
+JSON.unmarshal(MyType, parseOutput )
+```
+Builds on object of type :MyType from the dictionary produced by JSON.parse
+
