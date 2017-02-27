@@ -3,6 +3,7 @@ module TestSerializer
 using JSON
 using Base.Test
 using Compat
+import Compat: String
 
 # to define a new serialization behaviour, import these first
 import JSON.Serializations: CommonSerialization, StandardSerialization
