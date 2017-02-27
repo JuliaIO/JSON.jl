@@ -9,14 +9,14 @@ import JSON.Serializations: CommonSerialization, StandardSerialization
 import JSON: StructuralContext
 
 # those names are long so we can define some type aliases
-typealias CS CommonSerialization
-typealias SC StructuralContext
+const CS = CommonSerialization
+const SC = StructuralContext
 
 # for test harness purposes
 function sprint_kwarg(f, args...; kwargs...)
     b = IOBuffer()
     f(b, args...; kwargs...)
-    takebuf_string(b)
+    String(take!(b))
 end
 
 # issue #168: Print NaN and Inf as Julia would
