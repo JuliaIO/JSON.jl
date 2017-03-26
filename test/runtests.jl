@@ -4,7 +4,6 @@ using Compat
 import Compat: String
 
 import DataStructures
-import FixedPointNumbers: Fixed
 
 include("json-checker.jl")
 include(joinpath(dirname(@__FILE__),"json_samples.jl"))
@@ -301,9 +300,14 @@ end
 @test_throws ErrorException JSON.parse("[5,2,+β]")
 # Incomplete escape
 @test_throws ErrorException JSON.parse("\"\\")
+# Control character
+@test_throws ErrorException JSON.parse("\"\0\"")
 
 # Test for Issue #99
 @test_throws ErrorException JSON.parse("[\"🍕\"_\"🍕\"")
+
+# Test streaming parser
+@test_throws ErrorException JSON.parse(IOBuffer("[1, 2, ]"))
 
 # Lowering tests
 include("lowering.jl")
