@@ -4,7 +4,6 @@ using Compat
 import Compat: String
 
 import DataStructures
-import FixedPointNumbers: Fixed
 
 include("json-checker.jl")
 include(joinpath(dirname(@__FILE__),"json_samples.jl"))
@@ -284,26 +283,38 @@ if isdefined(Base, :Dates)
 @test json([DateTime("2016-04-13T00:00:00"), DateTime("2016-04-12T00:00:00")]) == "[\"2016-04-13T00:00:00\",\"2016-04-12T00:00:00\"]"
 end
 
-# Test parser failures
-# Unexpected character in array
-@test_throws ErrorException JSON.parse("[1,2,3/4,5,6,7]")
-# Unexpected character in object
-@test_throws ErrorException JSON.parse("{\"1\":2, \"2\":3 _ \"4\":5}")
-# Invalid escaped character
-@test_throws ErrorException JSON.parse("[\"alpha\\α\"]")
-# Invalid 'simple' and 'unknown value'
 @test JSON.parse("[true]") == [true]
-@test_throws ErrorException JSON.parse("[tXXe]")
-@test_throws ErrorException JSON.parse("[fail]")
-@test_throws ErrorException JSON.parse("∞")
-# Invalid number
-@test_throws ErrorException JSON.parse("[5,2,-]")
-@test_throws ErrorException JSON.parse("[5,2,+β]")
-# Incomplete escape
-@test_throws ErrorException JSON.parse("\"\\")
 
-# Test for Issue #99
-@test_throws ErrorException JSON.parse("[\"🍕\"_\"🍕\"")
+# Test parser failures
+const FAILURES = [
+    # Unexpected character in array
+    "[1,2,3/4,5,6,7]",
+    # Unexpected character in object
+    "{\"1\":2, \"2\":3 _ \"4\":5}",
+    # Invalid escaped character
+    "[\"alpha\\α\"]",
+    # Invalid 'simple' and 'unknown value'
+    "[tXXe]",
+    "[fail]",
+    "∞",
+    # Invalid number
+    "[5,2,-]",
+    "[5,2,+β]",
+    # Incomplete escape
+    "\"\\",
+    # Control character
+    "\"\0\"",
+    # Issue #99
+    "[\"🍕\"_\"🍕\""
+]
+
+for fail in FAILURES
+    # Test memory parser
+    @test_throws ErrorException JSON.parse(fail)
+
+    # Test streaming parser
+    @test_throws ErrorException JSON.parse(IOBuffer(fail))
+end
 
 # Lowering tests
 include("lowering.jl")

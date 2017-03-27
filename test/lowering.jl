@@ -1,3 +1,11 @@
+module TestLowering
+
+using JSON
+using Base.Test
+using Compat
+using FixedPointNumbers: Fixed
+import Compat: String
+
 if isdefined(Base, :Dates)
     @test JSON.json(Date(2016, 8, 3)) == "\"2016-08-03\""
 end
@@ -18,3 +26,5 @@ JSON.lower{T}(v::Type151{T}) = Dict(:type => T, :value => v.x)
 
 fixednum = Fixed{Int16, 15}(0.1234)
 @test JSON.parse(JSON.json(fixednum)) == Float64(fixednum)
+
+end

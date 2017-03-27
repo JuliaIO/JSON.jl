@@ -48,8 +48,12 @@ end
 
 @inline function byteat(ps::StreamingParserState)
     if ps.used
-        ps.cur = read(ps.io, UInt8)
         ps.used = false
+        if eof(ps.io)
+            _error(E_UNEXPECTED_EOF, ps)
+        else
+            ps.cur = read(ps.io, UInt8)
+        end
     end
     ps.cur
 end

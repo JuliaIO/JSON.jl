@@ -57,13 +57,9 @@ function lower(a)
     end
 end
 
-lower(a::JSONPrimitive) = a
-
 if isdefined(Base, :Dates)
     lower(s::Base.Dates.TimeType) = string(s)
 end
-
-lower(s::Symbol) = string(s)
 
 if VERSION < v"0.5.0-dev+2396"
     lower(f::Function) = "function at $(f.fptr)"
@@ -182,7 +178,6 @@ for kind in ("object", "array")
     beginsym = Symbol(uppercase(kind), "_BEGIN")
     endfn = Symbol("end_", kind)
     endsym = Symbol(uppercase(kind), "_END")
-    ctxfn = Symbol("json_", kind)
     # Begin and end objects
     @eval function $beginfn(io::PrettyContext)
         write(io, $beginsym)
@@ -199,7 +194,6 @@ for kind in ("object", "array")
         io.first = false
     end
     @eval $endfn(io::CompactContext) = (write(io, $endsym); io.first = false)
-    @eval $ctxfn(f, io::JSONContext) = ($beginfn(io); f(io); $endfn(io))
 end
 
 function show_string(io::IO, x)
