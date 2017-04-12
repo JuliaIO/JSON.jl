@@ -3,9 +3,6 @@ module Parser  # JSON
 using ..Common
 
 using Compat
-import Compat: String
-
-export parse
 
 """
 Like `isspace`, but work on bytes and includes only the four whitespace
@@ -388,7 +385,15 @@ function parse{T<:Associative}(io::IO; dicttype::Type{T}=Dict{Compat.UTF8String,
     parse_value(ps, unparameterize_type(T))
 end
 
+function parsefile{T<:Associative}(filename::AbstractString; dicttype::Type{T}=Dict{Compat.UTF8String, Any}, use_mmap=true)
+    sz = filesize(filename)
+    open(filename) do io
+        s = use_mmap ? Compat.UTF8String(Mmap.mmap(io, Vector{UInt8}, sz)) : readstring(io)
+        parse(s; dicttype=dicttype)
+    end
+end
+
 # Efficient implementations of some of the above for in-memory parsing
 include("specialized.jl")
 
-end #module Parser
+end  # module Parser

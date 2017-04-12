@@ -6,7 +6,7 @@ import Compat: String
 import DataStructures
 
 include("json-checker.jl")
-include(joinpath(dirname(@__FILE__),"json_samples.jl"))
+include("json-samples.jl")
 
 @test JSON.parse("{\"x\": 3}", dicttype=DataStructures.OrderedDict) == DataStructures.OrderedDict{AbstractString,Any}([("x",3)])
 @test JSON.parse("{\"x\": 3}", dicttype=Dict{Symbol,Int32}) == Dict{Symbol,Int32}([(:x,3)])

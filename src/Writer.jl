@@ -1,22 +1,9 @@
-isdefined(Base, :__precompile__) && __precompile__()
-
-module JSON
+module Writer
 
 using Compat
-
-export json # returns a compact (or indented) JSON representation as a string
-
-include("Common.jl")
-
-# Parser modules
-include("Parser.jl")
-
-# Writer modules
-include("Serializations.jl")
-
-using .Common
-import .Parser.parse
-import .Serializations.StandardSerialization
+using ..Common
+using ..Serializations: Serialization, StandardSerialization,
+                        CommonSerialization
 
 """
 Internal JSON.jl implementation detail; do not depend on this type.
@@ -35,6 +22,8 @@ const JSONPrimitive = Union{
         AbstractFloat, Void, CompositeTypeWrapper}
 
 """
+    lower(x)
+
 Return a value of a JSON-encodable primitive type that `x` should be lowered
 into before encoding as JSON. Supported types are: `Associative` to JSON
 objects, `Tuple` and `AbstractVector` to JSON arrays, `AbstractArray` to nested
@@ -124,7 +113,7 @@ immutable StringContext{T<:IO} <: IO
 end
 
 # These make defining additional methods on `show_json` easier.
-const CS = Serializations.CommonSerialization
+const CS = CommonSerialization
 const SC = StructuralContext
 
 # Low-level direct access
@@ -138,10 +127,10 @@ write(io::StringContext, char::Char) =
 =#
 
 """
-Internal implementation detail.
+    indent(io::StructuralContext)
 
-If appropriate, write a newline, then indent the IO by the appropriate number of
-spaces. Otherwise, do nothing.
+If appropriate, write a newline to the given context, then indent it by the
+appropriate number of spaces. Otherwise, do nothing.
 """
 @inline function indent(io::PrettyContext)
     write(io, NEWLINE)
@@ -152,19 +141,19 @@ end
 @inline indent(io::CompactContext) = nothing
 
 """
-Internal implementation detail.
+    separate(io::StructuralContext)
 
-Write a colon, followed by a space if appropriate.
+Write a colon, followed by a space if appropriate, to the given context.
 """
 @inline separate(io::PrettyContext) = write(io, SEPARATOR, SPACE)
 @inline separate(io::CompactContext) = write(io, SEPARATOR)
 
 """
-Internal implementation detail.
+    delimit(io::StructuralContext)
 
-If this is not the first item written in a collection, write a comma in the IO.
-Otherwise, do not write a comma, but set a flag that the first element has been
-written already.
+If this is not the first item written in a collection, write a comma in the
+structural context.  Otherwise, do not write a comma, but set a flag that the
+first element has been written already.
 """
 @inline function delimit(io::JSONContext)
     if !io.first
@@ -196,20 +185,42 @@ for kind in ("object", "array")
     @eval $endfn(io::CompactContext) = (write(io, $endsym); io.first = false)
 end
 
+"""
+    show_string(io::IO, str)
+
+Print `str` as a JSON string (that is, properly escaped and wrapped by double
+quotes) to the given IO object `io`.
+"""
 function show_string(io::IO, x)
     write(io, STRING_DELIM)
     Base.print(StringContext(io), x)
     write(io, STRING_DELIM)
 end
 
+"""
+    show_null(io::IO)
+
+Print the string `null` to the given IO object `io`.
+"""
 show_null(io::IO) = Base.print(io, "null")
 
+"""
+    show_element(io::StructuralContext, s, x)
+
+Print object `x` as an element of a JSON array to context `io` using rules
+defined by serialization `s`.
+"""
 function show_element(io::JSONContext, s, x)
     delimit(io)
     indent(io)
     show_json(io, s, x)
 end
 
+"""
+    show_key(io::StructuralContext, k)
+
+Print string `k` as the key of a JSON key-value pair to context `io`.
+"""
 function show_key(io::JSONContext, k)
     delimit(io)
     indent(io)
@@ -217,6 +228,12 @@ function show_key(io::JSONContext, k)
     separate(io)
 end
 
+"""
+    show_pair(io::StructuralContext, s, k, v)
+
+Print the key-value pair defined by `k => v` as JSON to context `io`, using
+rules defined by serialization `s`.
+"""
 function show_pair(io::JSONContext, s, k, v)
     show_key(io, k)
     show_json(io, s, v)
@@ -298,7 +315,7 @@ Serialize Julia object `obj` to IO `io` using the behaviour described by `s`. If
 printed on one line. If pretty-printing is enabled, then a trailing newline will
 be printed; otherwise there will be no trailing newline.
 """
-function show_json(io::IO, s::Serializations.Serialization, obj; indent=nothing)
+function show_json(io::IO, s::Serialization, obj; indent=nothing)
     ctx = indent === nothing ? CompactContext(io) : PrettyContext(io, indent)
     show_json(ctx, s, obj)
     if indent !== nothing
@@ -313,15 +330,7 @@ print(io::IO, obj) = show_json(io, StandardSerialization(), obj)
 print(a, indent) = print(STDOUT, a, indent)
 print(a) = print(STDOUT, a)
 
-json(a) = sprint(JSON.print, a)
-json(a, indent) = sprint(JSON.print, a, indent)
+json(a) = sprint(print, a)
+json(a, indent) = sprint(print, a, indent)
 
-function parsefile{T<:Associative}(filename::AbstractString; dicttype::Type{T}=Dict{Compat.UTF8String, Any}, use_mmap=true)
-    sz = filesize(filename)
-    open(filename) do io
-        s = use_mmap ? Compat.UTF8String(Mmap.mmap(io, Vector{UInt8}, sz)) : readstring(io)
-        JSON.parse(s; dicttype=dicttype)
-    end
 end
-
-end # module
