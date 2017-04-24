@@ -3,7 +3,6 @@ module TestSerializer
 using JSON
 using Base.Test
 using Compat
-import Compat: String
 
 # to define a new serialization behaviour, import these first
 import JSON.Serializations: CommonSerialization, StandardSerialization
@@ -45,7 +44,7 @@ JSON.show_json(io::SC, ::NaNSerialization, f::AbstractFloat) =
 # issue #170: Print JavaScript functions directly
 immutable JSSerialization <: CS end
 immutable JSFunction
-    data::Compat.UTF8String
+    data::String
 end
 
 function JSON.show_json(io::SC, ::JSSerialization, f::JSFunction)

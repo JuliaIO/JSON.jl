@@ -20,7 +20,7 @@ function parse_string(ps::MemoryParserState)
         parse_string(ps, b)
     end
 
-    Compat.UTF8String(b)
+    String(b)
 end
 
 """

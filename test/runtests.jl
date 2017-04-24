@@ -1,7 +1,6 @@
 using JSON
 using Base.Test
 using Compat
-import Compat: String
 
 import DataStructures
 
@@ -24,9 +23,9 @@ validate_c(c) = begin
 validate_e(e) = begin
                     j=JSON.parse(e)
                     @test j != nothing
-                    @test typeof(j) == Dict{Compat.UTF8String, Any}
+                    @test typeof(j) == Dict{String, Any}
                     @test length(j) == 1
-                    @test typeof(j["menu"]) == Dict{Compat.UTF8String, Any}
+                    @test typeof(j["menu"]) == Dict{String, Any}
                     @test length(j["menu"]) == 2
                     @test j["menu"]["header"] == "SVG\tViewerα"
                     @test isa(j["menu"]["items"], Vector{Any})
@@ -174,7 +173,7 @@ json_zeros = json(zeros)
 
 
 # Printing an empty array or Dict shouldn't cause a BoundsError
-@test json(Compat.ASCIIString[]) == "[]"
+@test json(String[]) == "[]"
 @test json(Dict()) == "{}"
 
 #test for issue 26
