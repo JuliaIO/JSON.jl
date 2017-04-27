@@ -46,13 +46,7 @@ function lower(a)
     end
 end
 
-if isdefined(Base, :Dates)
-    lower(s::Base.Dates.TimeType) = string(s)
-end
-
-if VERSION < v"0.5.0-dev+2396"
-    lower(f::Function) = "function at $(f.fptr)"
-end
+lower(s::Base.Dates.TimeType) = string(s)
 
 lower(c::Char) = string(c)
 lower(d::Type) = string(d)
@@ -246,7 +240,7 @@ show_json(io::SC, ::CS, x::Union{AbstractString, Symbol}) = show_string(io, x)
 function show_json(io::SC, s::CS, x::Union{Integer, AbstractFloat})
     # workaround for issue in Julia 0.5.x where Float32 values are printed as
     # 3.4f-5 instead of 3.4e-5
-    @static if v"0.5-" <= VERSION < v"0.6.0-dev.788"
+    @static if VERSION < v"0.6.0-dev.788"
         if isa(x, Float32)
             return show_json(io, s, Float64(x))
         end
