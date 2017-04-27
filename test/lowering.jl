@@ -27,4 +27,14 @@ JSON.lower{T}(v::Type151{T}) = Dict(:type => T, :value => v.x)
 fixednum = Fixed{Int16, 15}(0.1234)
 @test JSON.parse(JSON.json(fixednum)) == Float64(fixednum)
 
+# test that the default string-serialization of enums can be overriden by
+# `lower` if needed
+@enum Fruit apple orange banana
+JSON.lower(x::Fruit) = string("Fruit: ", x)
+@test JSON.json(apple) == "\"Fruit: apple\""
+
+@enum Vegetable carrot tomato potato
+JSON.lower(x::Vegetable) = Dict(string(x) => Int(x))
+@test JSON.json(potato) == "{\"potato\":2}"
+
 end
