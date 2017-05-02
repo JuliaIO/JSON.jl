@@ -17,18 +17,15 @@ immutable CompositeTypeWrapper{T}
 end
 CompositeTypeWrapper(x) = CompositeTypeWrapper(x, fieldnames(x))
 
-const JSONPrimitive = Union{
-        Associative, Tuple, AbstractArray, AbstractString, Integer,
-        AbstractFloat, Void, CompositeTypeWrapper}
-
 """
     lower(x)
 
 Return a value of a JSON-encodable primitive type that `x` should be lowered
 into before encoding as JSON. Supported types are: `Associative` to JSON
 objects, `Tuple` and `AbstractVector` to JSON arrays, `AbstractArray` to nested
-JSON arrays, `AbstractString` to JSON string, `Integer` and `AbstractFloat` to
-JSON number, `Bool` to JSON boolean, and `Void` to JSON null.
+JSON arrays, `AbstractString`, `Symbol`, `Enum`, or `Char` to JSON string,
+`Integer` and `AbstractFloat` to JSON number, `Bool` to JSON boolean, and
+`Void` to JSON null, or any other types with a `show_json` method defined.
 
 Extensions of this method should preserve the property that the return value is
 one of the aforementioned types. If first lowering to some intermediate type is
@@ -54,8 +51,14 @@ if VERSION < v"0.5.0-dev+2396"
     lower(f::Function) = "function at $(f.fptr)"
 end
 
-lower(c::Char) = string(c)
-lower(d::Type) = string(d)
+# To avoid allocating an intermediate string, we directly define `show_json`
+# for this type instead of lowering it to a string first (which would
+# allocate). However, the `show_json` method does call `lower` so as to allow
+# users to change the lowering of their `Enum` or even `AbstractString`
+# subtypes if necessary.
+const IsPrintedAsString = Union{Char, Type, AbstractString, Enum, Symbol}
+lower(x::IsPrintedAsString) = x
+
 lower(m::Module) = throw(ArgumentError("cannot serialize Module $m as JSON"))
 lower(x::Real) = Float64(x)
 
@@ -241,7 +244,16 @@ end
 show_pair(io::JSONContext, s, kv) = show_pair(io, s, first(kv), last(kv))
 
 # Default serialization rules for CommonSerialization (CS)
-show_json(io::SC, ::CS, x::Union{AbstractString, Symbol}) = show_string(io, x)
+function show_json(io::SC, s::CS, x::IsPrintedAsString)
+    # We need this check to allow `lower(x::Enum)` overrides to work if needed;
+    # it should be optimized out if `lower` is a no-op
+    lx = lower(x)
+    if x === lx
+        show_string(io, x)
+    else
+        show_json(io, s, lx)
+    end
+end
 
 function show_json(io::SC, s::CS, x::Union{Integer, AbstractFloat})
     # workaround for issue in Julia 0.5.x where Float32 values are printed as

@@ -264,6 +264,12 @@ end
 @test json('\n') == "\"\\n\""
 @test json('🍩') =="\"🍩\""
 
+# check enums
+@enum Animal zebra aardvark horse
+@test json(zebra) == "\"zebra\""
+@test json([aardvark, horse, Dict("z" => zebra)]) ==
+    "[\"aardvark\",\"horse\",{\"z\":\"zebra\"}]"
+
 # check for issue #163
 @test Float32(JSON.parse(json(2.1f-8))) == 2.1f-8
 
