@@ -123,7 +123,7 @@ end
 
 # Throws an error message with an indicator to the source
 function _error(message::AbstractString, ps::MemoryParserState)
-    orig = Compat.UTF8String(ps.utf8data)
+    orig = String(ps.utf8data)
     lines = _count_before(orig, '\n', ps.s)
     # Replace all special multi-line/multi-space characters with a space.
     strnl = replace(orig, r"[\b\f\n\r\t\s]", " ")
@@ -279,7 +279,7 @@ function parse_string(ps::ParserState)
         elseif c < SPACE
             _error(E_BAD_CONTROL, ps)
         elseif c == STRING_DELIM
-            return Compat.UTF8String(b)
+            return String(b)
         end
 
         push!(b, c)
@@ -366,12 +366,12 @@ end
 
 
 function unparameterize_type{T}(::Type{T})
-    candidate = typeintersect(T, Associative{Compat.UTF8String, Any})
+    candidate = typeintersect(T, Associative{String, Any})
     candidate <: Union{} ? T : candidate
 end
 
-function parse{T<:Associative}(str::AbstractString; dicttype::Type{T}=Dict{Compat.UTF8String,Any})
-    ps = MemoryParserState(Vector{UInt8}(Compat.UTF8String(str)), 1)
+function parse{T<:Associative}(str::AbstractString; dicttype::Type{T}=Dict{String,Any})
+    ps = MemoryParserState(Vector{UInt8}(String(str)), 1)
     v = parse_value(ps, unparameterize_type(T))
     chomp_space!(ps)
     if hasmore(ps)
@@ -380,15 +380,15 @@ function parse{T<:Associative}(str::AbstractString; dicttype::Type{T}=Dict{Compa
     v
 end
 
-function parse{T<:Associative}(io::IO; dicttype::Type{T}=Dict{Compat.UTF8String,Any})
+function parse{T<:Associative}(io::IO; dicttype::Type{T}=Dict{String,Any})
     ps = StreamingParserState(io)
     parse_value(ps, unparameterize_type(T))
 end
 
-function parsefile{T<:Associative}(filename::AbstractString; dicttype::Type{T}=Dict{Compat.UTF8String, Any}, use_mmap=true)
+function parsefile{T<:Associative}(filename::AbstractString; dicttype::Type{T}=Dict{String, Any}, use_mmap=true)
     sz = filesize(filename)
     open(filename) do io
-        s = use_mmap ? Compat.UTF8String(Mmap.mmap(io, Vector{UInt8}, sz)) : readstring(io)
+        s = use_mmap ? String(Mmap.mmap(io, Vector{UInt8}, sz)) : readstring(io)
         parse(s; dicttype=dicttype)
     end
 end

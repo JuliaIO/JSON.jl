@@ -1,7 +1,6 @@
 using JSON
 using Base.Test
 using Compat
-import Compat: String
 
 import DataStructures
 
@@ -24,9 +23,9 @@ validate_c(c) = begin
 validate_e(e) = begin
                     j=JSON.parse(e)
                     @test j != nothing
-                    @test typeof(j) == Dict{Compat.UTF8String, Any}
+                    @test typeof(j) == Dict{String, Any}
                     @test length(j) == 1
-                    @test typeof(j["menu"]) == Dict{Compat.UTF8String, Any}
+                    @test typeof(j["menu"]) == Dict{String, Any}
                     @test length(j["menu"]) == 2
                     @test j["menu"]["header"] == "SVG\tViewerα"
                     @test isa(j["menu"]["items"], Vector{Any})
@@ -50,11 +49,7 @@ validate_unicode(unicode) = begin
                             end
 # -------
 
-if VERSION >= v"0.5.0-dev+1343"
-    finished_async_tests = RemoteChannel()
-else
-    finished_async_tests = RemoteRef()
-end
+finished_async_tests = RemoteChannel()
 
 @async begin
     s = listen(7777)
@@ -174,7 +169,7 @@ json_zeros = json(zeros)
 
 
 # Printing an empty array or Dict shouldn't cause a BoundsError
-@test json(Compat.ASCIIString[]) == "[]"
+@test json(String[]) == "[]"
 @test json(Dict()) == "{}"
 
 #test for issue 26
@@ -274,10 +269,6 @@ end
 @test Float32(JSON.parse(json(2.1f-8))) == 2.1f-8
 
 # Check printing of more exotic objects
-if VERSION < v"0.5.0-dev+2396"
-    # Test broken in v0.5, code is using internal structure of Function type!
-    @test sprint(JSON.print, sprint) == string("\"function at ", sprint.fptr, "\"")
-end
 @test sprint(JSON.print, Float64) == string("\"Float64\"")
 @test_throws ArgumentError sprint(JSON.print, JSON)
 

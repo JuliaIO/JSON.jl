@@ -4,7 +4,6 @@ using JSON
 using Base.Test
 using Compat
 using FixedPointNumbers: Fixed
-import Compat: String
 
 if isdefined(Base, :Dates)
     @test JSON.json(Date(2016, 8, 3)) == "\"2016-08-03\""
