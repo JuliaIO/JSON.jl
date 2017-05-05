@@ -312,6 +312,9 @@ function show_json{T,n}(io::SC, s::CS, A::AbstractArray{T,n})
     end_array(io)
 end
 
+# special case for 0-dimensional arrays
+show_json{T}(io::SC, s::CS, A::AbstractArray{T,0}) = show_json(io, s, A[])
+
 show_json(io::SC, s::CS, a) = show_json(io, s, lower(a))
 
 # Fallback show_json for non-SC types
