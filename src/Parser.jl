@@ -315,9 +315,9 @@ the byte before `to`. Bytes enclosed should all be ASCII characters.
 """
 function int_from_bytes(bytes::Vector{UInt8}, from::Int, to::Int)
     @inbounds isnegative = bytes[from] == MINUS_SIGN ? (from += 1; true) : false
-    num = Int64(0)
+    num = 0
     @inbounds for i in from:to
-        num = Int64(10) * num + Int64(bytes[i] - DIGIT_ZERO)
+        num = 10 * num + Int(bytes[i] - DIGIT_ZERO)
     end
     ifelse(isnegative, -num, num)
 end
