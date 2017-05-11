@@ -37,32 +37,41 @@ b="{
 }
 "
 
-c="{\"widget\": {
-    \"debug\": \"on\",
-    \"window\": {
-        \"title\": \"Sample Konfabulator Widget\",
-        \"name\": \"main_window\",
-        \"width\": 500,
-        \"height\": 500
+const c = """
+{"widget": {
+    "debug": "on",
+    "window": {
+        "title": "Sample Konfabulator Widget",
+        "name": "main_window",
+        "width": 500,
+        "height": 500
     },
-    \"image\": {
-        \"src\": \"Images/Sun.png\",
-        \"name\": \"sun1\",
-        \"hOffset\": 250,
-        \"vOffset\": 250,
-        \"alignment\": \"center\"
+    "image": {
+        "src": "Images/Sun.png",
+        "name": "sun1",
+        "hOffset": 250,
+        "vOffset": 250,
+        "alignment": "center"
     },
-    \"text\": {
-        \"data\": \"Click Here\",
-        \"size\": 36.5,
-        \"style\": \"bold\",
-        \"name\": \"text1\",
-        \"hOffset\": 250,
-        \"vOffset\": 100,
-        \"alignment\": \"center\",
-        \"onMouseUp\": \"sun1.opacity = (sun1.opacity / 100) * 90;\"
+    "text": {
+        "data": "Click Here",
+        "size": 36.5,
+        "style": "bold",
+        "name": "text1",
+        "hOffset": 250,
+        "vOffset": 100,
+        "alignment": "center",
+        "onMouseUp": "sun1.opacity = (sun1.opacity / 100) * 90;"
     }
-}}"
+}}"""
+function validate_c(c)
+    j = JSON.parse(c)
+    @test j != nothing
+    @test typeof(j["widget"]["image"]["hOffset"]) == Int64
+    @test j["widget"]["image"]["hOffset"] == 250
+    @test typeof(j["widget"]["text"]["size"]) == Float64
+    @test j["widget"]["text"]["size"] == 36.5
+end
 
 d = "{\"web-app\": {
   \"servlet\": [
@@ -153,33 +162,48 @@ d = "{\"web-app\": {
     \"taglib-uri\": \"cofax.tld\",
     \"taglib-location\": \"/WEB-INF/tlds/cofax.tld\"}}}"
 
-e="{\"menu\": {
-    \"header\": \"SVG\\tViewer\\u03b1\",
-    \"items\": [
-        {\"id\": \"Open\"},
-        {\"id\": \"OpenNew\", \"label\": \"Open New\"},
+const svg_tviewer_menu = """
+{"menu": {
+    "header": "SVG\\tViewer\\u03b1",
+    "items": [
+        {"id": "Open"},
+        {"id": "OpenNew", "label": "Open New"},
         null,
-        {\"id\": \"ZoomIn\", \"label\": \"Zoom In\"},
-        {\"id\": \"ZoomOut\", \"label\": \"Zoom Out\"},
-        {\"id\": \"OriginalView\", \"label\": \"Original View\"},
+        {"id": "ZoomIn", "label": "Zoom In"},
+        {"id": "ZoomOut", "label": "Zoom Out"},
+        {"id": "OriginalView", "label": "Original View"},
         null,
-        {\"id\": \"Quality\"},
-        {\"id\": \"Pause\"},
-        {\"id\": \"Mute\"},
+        {"id": "Quality"},
+        {"id": "Pause"},
+        {"id": "Mute"},
         null,
-        {\"id\": \"Find\", \"label\": \"Find...\"},
-        {\"id\": \"FindAgain\", \"label\": \"Find Again\"},
-        {\"id\": \"Copy\"},
-        {\"id\": \"CopyAgain\", \"label\": \"Copy Again\"},
-        {\"id\": \"CopySVG\", \"label\": \"Copy SVG\"},
-        {\"id\": \"ViewSVG\", \"label\": \"View SVG\"},
-        {\"id\": \"ViewSource\", \"label\": \"View Source\"},
-        {\"id\": \"SaveAs\", \"label\": \"Save As\"},
+        {"id": "Find", "label": "Find..."},
+        {"id": "FindAgain", "label": "Find Again"},
+        {"id": "Copy"},
+        {"id": "CopyAgain", "label": "Copy Again"},
+        {"id": "CopySVG", "label": "Copy SVG"},
+        {"id": "ViewSVG", "label": "View SVG"},
+        {"id": "ViewSource", "label": "View Source"},
+        {"id": "SaveAs", "label": "Save As"},
         null,
-        {\"id\": \"Help\"},
-        {\"id\": \"About\", \"label\": \"About Adobe SVG Viewer...\"}
+        {"id": "Help"},
+        {"id": "About", "label": "About Adobe SVG Viewer..."}
     ]
-}}"
+}}"""
+function validate_svg_tviewer_menu(str)
+    j = JSON.parse(str)
+    @test j != nothing
+    @test typeof(j) == Dict{String, Any}
+    @test length(j) == 1
+    @test typeof(j["menu"]) == Dict{String, Any}
+    @test length(j["menu"]) == 2
+    @test j["menu"]["header"] == "SVG\tViewerα"
+    @test isa(j["menu"]["items"], Vector{Any})
+    @test length(j["menu"]["items"]) == 22
+    @test j["menu"]["items"][3] == nothing
+    @test j["menu"]["items"][2]["id"] == "OpenNew"
+    @test j["menu"]["items"][2]["label"] == "Open New"
+end
 
 
 #Example JSON strings from http://www.jquery4u.com/json/10-example-json-files/
@@ -343,27 +367,33 @@ facebook= "{
    ]
 }"
 
-flickr = "{
-    \"title\": \"Talk On Travel Pool\",
-    \"link\": \"http://www.flickr.com/groups/talkontravel/pool/\",
-    \"description\": \"Travel and vacation photos from around the world.\",
-    \"modified\": \"2009-02-02T11:10:27Z\",
-    \"generator\": \"http://www.flickr.com/\",
-    \"totalItems\":222,
-    \"items\": [
+const flickr = """{
+    "title": "Talk On Travel Pool",
+    "link": "http://www.flickr.com/groups/talkontravel/pool/",
+    "description": "Travel and vacation photos from around the world.",
+    "modified": "2009-02-02T11:10:27Z",
+    "generator": "http://www.flickr.com/",
+    "totalItems":222,
+    "items": [
             {
-            \"title\": \"View from the hotel\",
-            \"link\": \"http://www.flickr.com/photos/33112458@N08/3081564649/in/pool-998875@N22\",
-            \"media\": {\"m\":\"http://farm4.static.flickr.com/3037/3081564649_4a6569750c_m.jpg\"},
-            \"date_taken\": \"2008-12-04T04:43:03-08:00\",
-            \"description\": \"<p><a href=\\\"http://www.flickr.com/people/33112458@N08/\\\"> Talk On Travel<\/a> has added a photo to the pool:<\/p> <p><a href=\\\"http:// www.flickr.com/photos/33112458@N08/3081564649/\\\" title=\\\"View from the hotel\\\"> <img src=\\\"http://farm4.static.flickr.com/3037/3081564649_4a6569750c_m.jpg\\\" width=\\\"240\\\" height=\\\"180\\\" alt=\\\"View from the hotel\\\" /><\/a><\/p> \",
-            \"published\": \"2008-12-04T12:43:03Z\",
-            \"author\": \"nobody@flickr.com (Talk On Travel)\",
-            \"author_id\": \"33112458@N08\",
-            \"tags\": \"spain dolphins tenerife canaries lagomera aqualand playadelasamericas junglepark losgigantos loscristines talkontravel\"
+            "title": "View from the hotel",
+            "link": "http://www.flickr.com/photos/33112458@N08/3081564649/in/pool-998875@N22",
+            "media": {"m":"http://farm4.static.flickr.com/3037/3081564649_4a6569750c_m.jpg"},
+            "date_taken": "2008-12-04T04:43:03-08:00",
+            "description": "<p><a href=\\"http://www.flickr.com/people/33112458@N08/\\"> Talk On Travel<\/a> has added a photo to the pool:<\/p> <p><a href=\\"http:// www.flickr.com/photos/33112458@N08/3081564649/\\" title=\\"View from the hotel\\"> <img src=\\"http://farm4.static.flickr.com/3037/3081564649_4a6569750c_m.jpg\\" width=\\"240\\" height=\\"180\\" alt=\\"View from the hotel\\" /><\/a><\/p> ",
+            "published": "2008-12-04T12:43:03Z",
+            "author": "nobody@flickr.com (Talk On Travel)",
+            "author_id": "33112458@N08",
+            "tags": "spain dolphins tenerife canaries lagomera aqualand playadelasamericas junglepark losgigantos loscristines talkontravel"
             }
     ]
-}"
+}"""
+function validate_flickr(str)
+    k = JSON.parse(str)
+    @test k != nothing
+    @test k["totalItems"] == 222
+    @test k["items"][1]["description"][12] == '\"'
+end
 
 youtube = "{\"apiVersion\":\"2.0\",
  \"data\":{
@@ -596,17 +626,19 @@ interop = "{
     }
 }"
 
-unicode = "{\"অলিম্পিকস\": {
-         \"অ্যাথলেট\": \"২২টি দেশ থেকে ২,০৩৫ জন প্রতিযোগী\",
-         \"ইভেন্ট\": \"২২টি ইভেন্টের মধ্যে ছিল দড়ি টানাটানি\",
-          \"রেকর্ড\": [
-             {\"১০০মি. স্প্রিন্ট\": \"রেজি ওয়াকার, দক্ষিণ আফ্রিকা\"},
-             {\"Marathon\": \"জনি হেইস\"},
-             {\" ফ্রি-স্টাইল সাঁতার\": \"Henry Taylor, Britain\"}
-          ]
-       }}
-       "
-
-
-
-test21 = "[\r\n{\r\n\"a\": 1,\r\n\"b\": 2\r\n},\r\n{\r\n\"a\": 3,\r\n\"b\": 4\r\n}\r\n]"
+const unicode = """
+{"অলিম্পিকস": {
+    "অ্যাথলেট": "২২টি দেশ থেকে ২,০৩৫ জন প্রতিযোগী",
+    "ইভেন্ট": "২২টি ইভেন্টের মধ্যে ছিল দড়ি টানাটানি",
+    "রেকর্ড": [
+        {"১০০মি. স্প্রিন্ট": "রেজি ওয়াকার, দক্ষিণ আফ্রিকা"},
+        {"Marathon": "জনি হেইস"},
+        {" ফ্রি-স্টাইল সাঁতার": "Henry Taylor, Britain"}
+    ]
+}}
+"""
+function validate_unicode(str)
+    u = JSON.parse(str)
+    @test u != nothing
+    @test u["অলিম্পিকস"]["রেকর্ড"][2]["Marathon"] == "জনি হেইস"
+end
