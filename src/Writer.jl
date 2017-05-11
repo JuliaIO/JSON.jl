@@ -38,9 +38,8 @@ primitives.
 function lower(a)
     if nfields(typeof(a)) > 0
         CompositeTypeWrapper(a)
-    else
-        error("Cannot serialize type $(typeof(a))")
     end
+    # singletons are sent to nothing
 end
 
 lower(s::Base.Dates.TimeType) = string(s)
