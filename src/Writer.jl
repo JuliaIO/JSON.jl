@@ -54,6 +54,7 @@ lower(x::IsPrintedAsString) = x
 
 lower(m::Module) = throw(ArgumentError("cannot serialize Module $m as JSON"))
 lower(x::Real) = Float64(x)
+lower(x::Base.AbstractSet) = collect(x)
 
 """
 Abstract supertype of all JSON and JSON-like structural writer contexts.
