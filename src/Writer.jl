@@ -43,14 +43,13 @@ function lower(a)
     end
 end
 
-lower(s::Base.Dates.TimeType) = string(s)
-
 # To avoid allocating an intermediate string, we directly define `show_json`
 # for this type instead of lowering it to a string first (which would
 # allocate). However, the `show_json` method does call `lower` so as to allow
 # users to change the lowering of their `Enum` or even `AbstractString`
 # subtypes if necessary.
-const IsPrintedAsString = Union{Char, Type, AbstractString, Enum, Symbol}
+const IsPrintedAsString = Union{
+    Dates.TimeType, Char, Type, AbstractString, Enum, Symbol}
 lower(x::IsPrintedAsString) = x
 
 lower(m::Module) = throw(ArgumentError("cannot serialize Module $m as JSON"))
