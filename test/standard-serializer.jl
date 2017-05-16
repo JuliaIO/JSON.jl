@@ -57,3 +57,8 @@ end
     #Multidimensional arrays
     @test json([0 1; 2 0]) == "[[0,2],[1,0]]"
 end
+
+@testset "Sets" begin
+    @test json(Set()) == "[]"
+    @test json(Set([1, 2])) in ["[1,2]", "[2,1]"]
+end
