@@ -12,9 +12,9 @@ end
 @test JSON.json(:x) == "\"x\""
 @test_throws ArgumentError JSON.json(Base)
 
-immutable Type151{T}
+eval(Expr(:type, false, :(Type151{T}), quote
     x::T
-end
+end))
 
 @test JSON.parse(JSON.json(Type151)) == string(Type151)
 
