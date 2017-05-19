@@ -282,6 +282,12 @@ function show_json(io::SC, s::CS, a::Associative)
     end_object(io)
 end
 
+function show_json(io::SC, s::CS, kv::Pair)
+    begin_object(io)
+    show_pair(io, s, kv)
+    end_object(io)
+end
+
 function show_json(io::SC, s::CS, x::CompositeTypeWrapper)
     begin_object(io)
     fns = x.fns
