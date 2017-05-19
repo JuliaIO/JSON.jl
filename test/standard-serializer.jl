@@ -61,7 +61,7 @@ end
 @testset "Pairs" begin
     @test json(1 => 2) == "{\"1\":2}"
     @test json(:foo => 2) == "{\"foo\":2}"
-    @test json([1, 2] => [3, 4]) == "{\"$[1, 2]\":[3,4]}"
+    @test json([1, 2] => [3, 4]) == "{\"$([1, 2])\":[3,4]}"
     @test json([1 => 2]) == "[{\"1\":2}]"
 end
 
