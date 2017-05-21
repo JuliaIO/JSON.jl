@@ -58,6 +58,13 @@ end
     @test json([0 1; 2 0]) == "[[0,2],[1,0]]"
 end
 
+@testset "Pairs" begin
+    @test json(1 => 2) == "{\"1\":2}"
+    @test json(:foo => 2) == "{\"foo\":2}"
+    @test json([1, 2] => [3, 4]) == "{\"$([1, 2])\":[3,4]}"
+    @test json([1 => 2]) == "[{\"1\":2}]"
+end
+
 @testset "Sets" begin
     @test json(Set()) == "[]"
     @test json(Set([1, 2])) in ["[1,2]", "[2,1]"]
