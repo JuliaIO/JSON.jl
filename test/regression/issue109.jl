@@ -1,6 +1,7 @@
-type t109
+eval(Expr(:type, true, :t109,
+quote
     i::Int
-end
+end))
 
 let iob = IOBuffer()
     JSON.print(iob, t109(1))

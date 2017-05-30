@@ -20,7 +20,7 @@ function sprint_kwarg(f, args...; kwargs...)
 end
 
 # issue #168: Print NaN and Inf as Julia would
-immutable NaNSerialization <: CS end
+eval(Expr(:type, false, :(NaNSerialization <: CS), quote end))
 JSON.show_json(io::SC, ::NaNSerialization, f::AbstractFloat) =
     Base.print(io, f)
 
@@ -42,10 +42,11 @@ JSON.show_json(io::SC, ::NaNSerialization, f::AbstractFloat) =
 """
 
 # issue #170: Print JavaScript functions directly
-immutable JSSerialization <: CS end
-immutable JSFunction
+eval(Expr(:type, false, :(JSSerialization <: CS), quote end))
+eval(Expr(:type, false, :JSFunction,
+quote
     data::String
-end
+end))
 
 function JSON.show_json(io::SC, ::JSSerialization, f::JSFunction)
     first = true
@@ -73,7 +74,7 @@ end
 """
 
 # test serializing a type without any fields
-immutable SingletonType end
+eval(Expr(:type, false, :SingletonType, quote end))
 @test_throws ErrorException json(SingletonType())
 
 # test printing to STDOUT

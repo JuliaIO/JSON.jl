@@ -5,16 +5,17 @@ using ..Common
 using ..Serializations: Serialization, StandardSerialization,
                         CommonSerialization
 
-"""
+eval(Expr(:type, false, :(CompositeTypeWrapper{T}),
+quote
+    wrapped::T
+    fns::Vector{Symbol}
+end))
+@doc """
 Internal JSON.jl implementation detail; do not depend on this type.
 
 A JSON primitive that wraps around any composite type to enable `Dict`-like
 serialization.
-"""
-immutable CompositeTypeWrapper{T}
-    wrapped::T
-    fns::Vector{Symbol}
-end
+""" CompositeTypeWrapper
 CompositeTypeWrapper(x) = CompositeTypeWrapper(x, fieldnames(x))
 
 """
@@ -75,39 +76,42 @@ to the stream.
 """
 @compat abstract type JSONContext <: StructuralContext end
 
-"""
-Internal implementation detail.
-
-Keeps track of the current location in the array or object, which winds and
-unwinds during serialization.
-"""
-type PrettyContext{T<:IO} <: JSONContext
+eval(Expr(:type, true, :(PrettyContext{T<:IO} <: JSONContext),
+quote
     io::T
     step::Int     # number of spaces to step
     state::Int    # number of steps at present
     first::Bool   # whether an object/array was just started
-end
+end))
+@doc """
+Internal implementation detail.
+
+Keeps track of the current location in the array or object, which winds and
+unwinds during serialization.
+""" PrettyContext
 PrettyContext(io::IO, step) = PrettyContext(io, step, 0, false)
 
-"""
+eval(Expr(:type, true, :(CompactContext{T<:IO} <: JSONContext),
+quote
+    io::T
+    first::Bool
+end))
+@doc """
 Internal implementation detail.
 
 For compact printing, which in JSON is fully recursive.
-"""
-type CompactContext{T<:IO} <: JSONContext
-    io::T
-    first::Bool
-end
+""" CompactContext
 CompactContext(io::IO) = CompactContext(io, false)
 
-"""
+eval(Expr(:type, false, :(StringContext{T<:IO} <: IO),
+quote
+    io::T
+end))
+@doc """
 Internal implementation detail.
 
 Implements an IO context safe for printing into JSON strings.
-"""
-immutable StringContext{T<:IO} <: IO
-    io::T
-end
+""" StringContext
 
 # These make defining additional methods on `show_json` easier.
 const CS = CommonSerialization

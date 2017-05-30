@@ -1,4 +1,5 @@
 # JSON Microbenchmarks
+# 0.6 required for running benchmarks
 
 using JSON
 using BenchmarkTools
@@ -8,13 +9,13 @@ const suite = BenchmarkGroup()
 suite["print"] = BenchmarkGroup(["serialize"])
 suite["pretty-print"] = BenchmarkGroup(["serialize"])
 
-immutable CustomListType
+struct CustomListType
     x::Int
     y::Float64
     z::Union{CustomListType, Void}
 end
 
-immutable CustomTreeType
+struct CustomTreeType
     x::String
     y::Union{CustomTreeType, Void}
     z::Union{CustomTreeType, Void}

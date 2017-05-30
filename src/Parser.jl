@@ -18,16 +18,18 @@ isjsondigit(b::UInt8) = DIGIT_ZERO ≤ b ≤ DIGIT_NINE
 
 @compat abstract type ParserState end
 
-type MemoryParserState <: ParserState
+eval(Expr(:type, true, :(MemoryParserState <: ParserState),
+quote
     utf8data::Vector{UInt8}
     s::Int
-end
+end))
 
-type StreamingParserState{T <: IO} <: ParserState
+eval(Expr(:type, true, :(StreamingParserState{T <: IO} <: ParserState),
+quote
     io::T
     cur::UInt8
     used::Bool
-end
+end))
 StreamingParserState{T <: IO}(io::T) = StreamingParserState{T}(io, 0x00, true)
 
 """
