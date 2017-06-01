@@ -294,9 +294,8 @@ end
 
 function show_json(io::SC, s::CS, x::CompositeTypeWrapper)
     begin_object(io)
-    fns = x.fns
-    for k in 1:length(fns)
-        show_pair(io, s, fns[k], getfield(x.wrapped, k))
+    for fn in x.fns
+        show_pair(io, s, fn, getfield(x.wrapped, fn))
     end
     end_object(io)
 end
