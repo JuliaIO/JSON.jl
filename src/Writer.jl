@@ -315,7 +315,7 @@ Serialize a multidimensional array to JSON in column-major format. That is,
 function show_json{T,n}(io::SC, s::CS, A::AbstractArray{T,n})
     begin_array(io)
     newdims = ntuple(_ -> :, Val{n - 1})
-    for j in 1:size(A, n)
+    for j in indices(A, n)
         show_element(io, s, view(A, newdims..., j))
     end
     end_array(io)

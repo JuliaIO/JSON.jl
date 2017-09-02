@@ -56,6 +56,7 @@ end
 
     #Multidimensional arrays
     @test json([0 1; 2 0]) == "[[0,2],[1,0]]"
+    @test json(OffsetArray([0 1; 2 0], 0:1, 10:11)) == "[[0,2],[1,0]]"
 end
 
 @testset "Pairs" begin
