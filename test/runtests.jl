@@ -1,6 +1,7 @@
 using JSON
 using Base.Test
 using Compat
+using OffsetArrays
 
 import DataStructures
 
