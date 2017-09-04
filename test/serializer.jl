@@ -84,7 +84,7 @@ let filename = tempname()
             JSON.print(Any[1, 2, 3.0])
         end
     end
-    @test readstring(filename) == "[1,2,3.0]"
+    @test read(filename, String) == "[1,2,3.0]"
     rm(filename)
 end
 
