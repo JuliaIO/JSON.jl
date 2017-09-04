@@ -16,7 +16,7 @@ Internal JSON.jl implementation detail; do not depend on this type.
 A JSON primitive that wraps around any composite type to enable `Dict`-like
 serialization.
 """ CompositeTypeWrapper
-CompositeTypeWrapper(x) = CompositeTypeWrapper(x, fieldnames(x))
+CompositeTypeWrapper(x) = CompositeTypeWrapper(x, fieldnames(typeof(x)))
 
 """
     lower(x)
