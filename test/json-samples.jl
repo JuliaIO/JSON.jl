@@ -298,7 +298,7 @@ colors3 = "{
 
 twitter = "{\"results\":[
 
-     {\"text\":\"@twitterapi  http:\/\/tinyurl.com\/ctrefg\",
+     {\"text\":\"@twitterapi  http://tinyurl.com/ctrefg\",
      \"to_user_id\":396524,
      \"to_user\":\"TwitterAPI\",
      \"from_user\":\"jkoum\",
@@ -310,8 +310,8 @@ twitter = "{\"results\":[
      \"id\":1478555574,
      \"from_user_id\":1833773,
      \"iso_language_code\":\"nl\",
-     \"source\":\"<a href=\\\"http:\/\/twitter.com\/\\\">twitter<\/a>\",
-     \"profile_image_url\":\"http:\/\/s3.amazonaws.com\/twitter_production\/profile_images\/118412707\/2522215727_a5f07da155_b_normal.jpg\",
+     \"source\":\"<a href=\\\"http://twitter.com/\\\">twitter</a>\",
+     \"profile_image_url\":\"http://s3.amazonaws.com/twitter_production/profile_images/118412707/2522215727_a5f07da155_b_normal.jpg\",
      \"created_at\":\"Wed, 08 Apr 2009 19:22:10 +0000\"}],
      \"since_id\":0,
      \"max_id\":1480307926,
@@ -380,7 +380,7 @@ const flickr = """{
             "link": "http://www.flickr.com/photos/33112458@N08/3081564649/in/pool-998875@N22",
             "media": {"m":"http://farm4.static.flickr.com/3037/3081564649_4a6569750c_m.jpg"},
             "date_taken": "2008-12-04T04:43:03-08:00",
-            "description": "<p><a href=\\"http://www.flickr.com/people/33112458@N08/\\"> Talk On Travel<\/a> has added a photo to the pool:<\/p> <p><a href=\\"http:// www.flickr.com/photos/33112458@N08/3081564649/\\" title=\\"View from the hotel\\"> <img src=\\"http://farm4.static.flickr.com/3037/3081564649_4a6569750c_m.jpg\\" width=\\"240\\" height=\\"180\\" alt=\\"View from the hotel\\" /><\/a><\/p> ",
+            "description": "<p><a href=\\"http://www.flickr.com/people/33112458@N08/\\"> Talk On Travel</a> has added a photo to the pool:</p> <p><a href=\\"http:// www.flickr.com/photos/33112458@N08/3081564649/\\" title=\\"View from the hotel\\"> <img src=\\"http://farm4.static.flickr.com/3037/3081564649_4a6569750c_m.jpg\\" width=\\"240\\" height=\\"180\\" alt=\\"View from the hotel\\" /></a></p> ",
             "published": "2008-12-04T12:43:03Z",
             "author": "nobody@flickr.com (Talk On Travel)",
             "author_id": "33112458@N08",
@@ -593,15 +593,15 @@ interop = "{
             {
                 \"Title\": \"potato jpg\",
                 \"Summary\": \"Kentang Si bungsu dari keluarga Solanum tuberosum L ini ternyata memiliki khasiat untuk mengurangi kerutan  jerawat  bintik hitam dan kemerahan pada kulit  Gunakan seminggu sekali sebagai\",
-                \"Url\": \"http:\/\/www.mediaindonesia.com\/spaw\/uploads\/images\/potato.jpg\",
-                \"ClickUrl\": \"http:\/\/www.mediaindonesia.com\/spaw\/uploads\/images\/potato.jpg\",
-                \"RefererUrl\": \"http:\/\/www.mediaindonesia.com\/mediaperempuan\/index.php?ar_id=Nzkw\",
+                \"Url\": \"http://www.mediaindonesia.com/spaw/uploads/images/potato.jpg\",
+                \"ClickUrl\": \"http://www.mediaindonesia.com/spaw/uploads/images/potato.jpg\",
+                \"RefererUrl\": \"http://www.mediaindonesia.com/mediaperempuan/index.php?ar_id=Nzkw\",
                 \"FileSize\": 22630,
                 \"FileFormat\": \"jpeg\",
                 \"Height\": \"362\",
                 \"Width\": \"532\",
                 \"Thumbnail\": {
-                    \"Url\": \"http:\/\/thm-a01.yimg.com\/nimage\/557094559c18f16a\",
+                    \"Url\": \"http://thm-a01.yimg.com/nimage/557094559c18f16a\",
                     \"Height\": \"98\",
                     \"Width\": \"145\"
                 }
@@ -609,15 +609,15 @@ interop = "{
             {
                 \"Title\": \"potato jpg\",
                 \"Summary\": \"Introduction of puneri aloo This is a traditional potato preparation flavoured with curry leaves and peanuts and can be eaten on fasting day  Preparation time   10 min\",
-                \"Url\": \"http:\/\/www.infovisual.info\/01\/photo\/potato.jpg\",
-                \"ClickUrl\": \"http:\/\/www.infovisual.info\/01\/photo\/potato.jpg\",
-                \"RefererUrl\": \"http:\/\/sundayfood.com\/puneri-aloo-indian-%20recipe\",
+                \"Url\": \"http://www.infovisual.info/01/photo/potato.jpg\",
+                \"ClickUrl\": \"http://www.infovisual.info/01/photo/potato.jpg\",
+                \"RefererUrl\": \"http://sundayfood.com/puneri-aloo-indian-%20recipe\",
                 \"FileSize\": 119398,
                 \"FileFormat\": \"jpeg\",
                 \"Height\": \"685\",
                 \"Width\": \"1024\",
                 \"Thumbnail\": {
-                    \"Url\": \"http:\/\/thm-a01.yimg.com\/nimage\/7fa23212efe84b64\",
+                    \"Url\": \"http://thm-a01.yimg.com/nimage/7fa23212efe84b64\",
                     \"Height\": \"107\",
                     \"Width\": \"160\"
                 }
