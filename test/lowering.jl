@@ -12,7 +12,7 @@ end
 @test JSON.json(:x) == "\"x\""
 @test_throws ArgumentError JSON.json(Base)
 
-eval(Expr(:type, false, :(Type151{T}), quote
+eval(Expr(JSON.Common.STRUCTHEAD, false, :(Type151{T}), quote
     x::T
 end))
 

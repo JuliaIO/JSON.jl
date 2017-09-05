@@ -5,7 +5,7 @@ using ..Common
 using ..Serializations: Serialization, StandardSerialization,
                         CommonSerialization
 
-eval(Expr(:type, false, :(CompositeTypeWrapper{T}),
+eval(Expr(Common.STRUCTHEAD, false, :(CompositeTypeWrapper{T}),
 quote
     wrapped::T
     fns::Vector{Symbol}
@@ -76,7 +76,7 @@ to the stream.
 """
 @compat abstract type JSONContext <: StructuralContext end
 
-eval(Expr(:type, true, :(PrettyContext{T<:IO} <: JSONContext),
+eval(Expr(Common.STRUCTHEAD, true, :(PrettyContext{T<:IO} <: JSONContext),
 quote
     io::T
     step::Int     # number of spaces to step
@@ -91,7 +91,7 @@ unwinds during serialization.
 """ PrettyContext
 PrettyContext(io::IO, step) = PrettyContext(io, step, 0, false)
 
-eval(Expr(:type, true, :(CompactContext{T<:IO} <: JSONContext),
+eval(Expr(Common.STRUCTHEAD, true, :(CompactContext{T<:IO} <: JSONContext),
 quote
     io::T
     first::Bool
@@ -103,7 +103,7 @@ For compact printing, which in JSON is fully recursive.
 """ CompactContext
 CompactContext(io::IO) = CompactContext(io, false)
 
-eval(Expr(:type, false, :(StringContext{T<:IO} <: IO),
+eval(Expr(Common.STRUCTHEAD, false, :(StringContext{T<:IO} <: IO),
 quote
     io::T
 end))

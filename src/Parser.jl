@@ -18,13 +18,13 @@ isjsondigit(b::UInt8) = DIGIT_ZERO ≤ b ≤ DIGIT_NINE
 
 @compat abstract type ParserState end
 
-eval(Expr(:type, true, :(MemoryParserState <: ParserState),
+eval(Expr(Common.STRUCTHEAD, true, :(MemoryParserState <: ParserState),
 quote
     utf8data::Vector{UInt8}
     s::Int
 end))
 
-eval(Expr(:type, true, :(StreamingParserState{T <: IO} <: ParserState),
+eval(Expr(Common.STRUCTHEAD, true, :(StreamingParserState{T <: IO} <: ParserState),
 quote
     io::T
     cur::UInt8
