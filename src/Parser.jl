@@ -18,13 +18,13 @@ isjsondigit(b::UInt8) = DIGIT_ZERO ≤ b ≤ DIGIT_NINE
 
 @compat abstract type ParserState end
 
-eval(Expr(:type, true, :(MemoryParserState <: ParserState),
+eval(Expr(Common.STRUCTHEAD, true, :(MemoryParserState <: ParserState),
 quote
     utf8data::Vector{UInt8}
     s::Int
 end))
 
-eval(Expr(:type, true, :(StreamingParserState{T <: IO} <: ParserState),
+eval(Expr(Common.STRUCTHEAD, true, :(StreamingParserState{T <: IO} <: ParserState),
 quote
     io::T
     cur::UInt8
@@ -390,7 +390,7 @@ end
 function parsefile{T<:Associative}(filename::AbstractString; dicttype::Type{T}=Dict{String, Any}, use_mmap=true)
     sz = filesize(filename)
     open(filename) do io
-        s = use_mmap ? String(Mmap.mmap(io, Vector{UInt8}, sz)) : readstring(io)
+        s = use_mmap ? String(Mmap.mmap(io, Vector{UInt8}, sz)) : read(io, String)
         parse(s; dicttype=dicttype)
     end
 end

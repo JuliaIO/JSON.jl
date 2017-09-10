@@ -16,7 +16,7 @@ function bench(f, simulate=false)
         JSON.parsefile(fp)
         toq()
     else
-        data = readstring(fp)
+        data = read(fp, String)
         tic()
         JSON.Parser.parse(data)
         toq()

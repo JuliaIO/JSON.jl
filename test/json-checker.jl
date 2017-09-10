@@ -23,6 +23,6 @@ for i in 1:27
     file = "roundtrip$(lpad(i, 2, 0)).json"
     filepath = joinpath(JSON_DATA_DIR, "roundtrip", file)
 
-    rt = roundtrip(readstring(filepath))
+    rt = roundtrip(read(filepath, String))
     @test rt == roundtrip(rt)
 end

@@ -20,7 +20,7 @@ function sprint_kwarg(f, args...; kwargs...)
 end
 
 # issue #168: Print NaN and Inf as Julia would
-eval(Expr(:type, false, :(NaNSerialization <: CS), quote end))
+eval(Expr(JSON.Common.STRUCTHEAD, false, :(NaNSerialization <: CS), quote end))
 JSON.show_json(io::SC, ::NaNSerialization, f::AbstractFloat) =
     Base.print(io, f)
 
@@ -42,8 +42,8 @@ JSON.show_json(io::SC, ::NaNSerialization, f::AbstractFloat) =
 """
 
 # issue #170: Print JavaScript functions directly
-eval(Expr(:type, false, :(JSSerialization <: CS), quote end))
-eval(Expr(:type, false, :JSFunction,
+eval(Expr(JSON.Common.STRUCTHEAD, false, :(JSSerialization <: CS), quote end))
+eval(Expr(JSON.Common.STRUCTHEAD, false, :JSFunction,
 quote
     data::String
 end))
@@ -74,7 +74,7 @@ end
 """
 
 # test serializing a type without any fields
-eval(Expr(:type, false, :SingletonType, quote end))
+eval(Expr(JSON.Common.STRUCTHEAD, false, :SingletonType, quote end))
 @test_throws ErrorException json(SingletonType())
 
 # test printing to STDOUT
@@ -84,7 +84,7 @@ let filename = tempname()
             JSON.print(Any[1, 2, 3.0])
         end
     end
-    @test readstring(filename) == "[1,2,3.0]"
+    @test read(filename, String) == "[1,2,3.0]"
     rm(filename)
 end
 

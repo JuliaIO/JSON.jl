@@ -1,4 +1,4 @@
-eval(Expr(:type, true, :t109,
+eval(Expr(JSON.Common.STRUCTHEAD, true, :t109,
 quote
     i::Int
 end))

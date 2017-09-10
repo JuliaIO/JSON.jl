@@ -8,6 +8,7 @@ implementations, as they relate to JSON.
 module Serializations
 
 using Compat
+using ..Common
 
 """
 A `Serialization` defines how objects are lowered to JSON format.
@@ -24,7 +25,7 @@ packages explicitly defining `JSON.show_json` for this serialization, or by the
 which case `Serialization` should be subtyped.
 """ CommonSerialization
 
-eval(Expr(:type, false, :(StandardSerialization <: CommonSerialization),
+eval(Expr(Common.STRUCTHEAD, false, :(StandardSerialization <: CommonSerialization),
           quote end))
 @doc """
 The `StandardSerialization` defines a common, standard JSON serialization format
