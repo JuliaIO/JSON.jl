@@ -43,7 +43,7 @@ const ESCAPES = Dict(
     LATIN_R      => RETURN,
     LATIN_T      => TAB)
 
-const REVERSE_ESCAPES = Dict(map(reverse, ESCAPES))
+const REVERSE_ESCAPES = Dict(reverse(p) for p in ESCAPES)
 const ESCAPED_ARRAY = Vector{Vector{UInt8}}(256)
 for c in 0x00:0xFF
     ESCAPED_ARRAY[c + 1] = if c == SOLIDUS
