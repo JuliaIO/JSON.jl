@@ -98,9 +98,9 @@ function parse_string(ps::MemoryParserState, b)
             c = ps.utf8data[s]
             if c == LATIN_U  # Unicode escape
                 ps.s = s + 1
-                for c in Vector{UInt8}(string(read_unicode_escape!(ps)))
+                for c2 in Vector{UInt8}(string(read_unicode_escape!(ps)))
                     i += 1
-                    b[i] = c
+                    b[i] = c2
                 end
                 s = ps.s
                 continue
