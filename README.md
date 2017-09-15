@@ -44,7 +44,7 @@ JSON.print(io::IO, v::AbstractVector)
 JSON.print{T, N}(io::IO, v::Array{T, N})
 ```
 
-Writes a compact (no extra whitespace or identation) JSON representation
+Writes a compact (no extra whitespace or indentation) JSON representation
 to the supplied IO.
 
 ```julia
@@ -59,7 +59,7 @@ JSON.parse(io::IO; dicttype=Dict)
 JSON.parsefile(filename::AbstractString; dicttype=Dict, use_mmap=true)
 ```
 
-Parses a JSON `AbstractString` or IO stream into a nested Array or Dict.
+Parses a JSON `AbstractString` or IO stream into a nested `Array` or `Dict`.
 
 The `dicttype` indicates the dictionary type (`<: Associative`) that
 JSON objects are parsed to.  It defaults to `Dict` (the built-in Julia
