@@ -52,7 +52,7 @@ for c in 0x00:0xFF
         [c]  # UTF-8 character copied verbatim
     elseif haskey(REVERSE_ESCAPES, c)
         [BACKSLASH, REVERSE_ESCAPES[c]]
-    elseif iscntrl(@compat Char(c)) || !isprint(@compat Char(c))
+    elseif iscntrl(Char(c)) || !isprint(Char(c))
         UInt8[BACKSLASH, LATIN_U, hex(c, 4)...]
     else
         [c]

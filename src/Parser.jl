@@ -2,8 +2,6 @@ module Parser  # JSON
 
 using ..Common
 
-using Compat
-
 """
 Like `isspace`, but work on bytes and includes only the four whitespace
 characters defined by the JSON standard: space, tab, line feed, and carriage
@@ -16,21 +14,19 @@ Like `isdigit`, but for bytes.
 """
 isjsondigit(b::UInt8) = DIGIT_ZERO ≤ b ≤ DIGIT_NINE
 
-@compat abstract type ParserState end
+abstract type ParserState end
 
-eval(Expr(Common.STRUCTHEAD, true, :(MemoryParserState <: ParserState),
-quote
+mutable struct MemoryParserState <: ParserState
     utf8data::Vector{UInt8}
     s::Int
-end))
+end
 
-eval(Expr(Common.STRUCTHEAD, true, :(StreamingParserState{T <: IO} <: ParserState),
-quote
+mutable struct StreamingParserState{T <: IO} <: ParserState
     io::T
     cur::UInt8
     used::Bool
-end))
-StreamingParserState{T <: IO}(io::T) = StreamingParserState{T}(io, 0x00, true)
+end
+StreamingParserState(io::IO) = StreamingParserState(io, 0x00, true)
 
 """
 Return the byte at the current position of the `ParserState`. If there is no
@@ -367,14 +363,14 @@ function parse_number(ps::ParserState)
 end
 
 
-function unparameterize_type{T}(::Type{T})
+function unparameterize_type(T::Type)
     candidate = typeintersect(T, Associative{String, Any})
     candidate <: Union{} ? T : candidate
 end
 
-function parse{T<:Associative}(str::AbstractString; dicttype::Type{T}=Dict{String,Any})
+function parse(str::AbstractString; dicttype::Type{<:Associative}=Dict{String,Any})
     ps = MemoryParserState(Vector{UInt8}(String(str)), 1)
-    v = parse_value(ps, unparameterize_type(T))
+    v = parse_value(ps, unparameterize_type(dicttype))
     chomp_space!(ps)
     if hasmore(ps)
         _error(E_EXPECTED_EOF, ps)
@@ -382,12 +378,12 @@ function parse{T<:Associative}(str::AbstractString; dicttype::Type{T}=Dict{Strin
     v
 end
 
-function parse{T<:Associative}(io::IO; dicttype::Type{T}=Dict{String,Any})
+function parse(io::IO; dicttype::Type{<:Associative}=Dict{String,Any})
     ps = StreamingParserState(io)
-    parse_value(ps, unparameterize_type(T))
+    parse_value(ps, unparameterize_type(dicttype))
 end
 
-function parsefile{T<:Associative}(filename::AbstractString; dicttype::Type{T}=Dict{String, Any}, use_mmap=true)
+function parsefile(filename::AbstractString; dicttype::Type{<:Associative}=Dict{String, Any}, use_mmap=true)
     sz = filesize(filename)
     open(filename) do io
         s = use_mmap ? String(Mmap.mmap(io, Vector{UInt8}, sz)) : read(io, String)

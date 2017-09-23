@@ -2,8 +2,6 @@ __precompile__()
 
 module JSON
 
-using Compat
-
 export json # returns a compact (or indented) JSON representation as a string
 
 include("Common.jl")

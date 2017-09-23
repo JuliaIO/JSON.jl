@@ -2,7 +2,6 @@ module TestSerializer
 
 using JSON
 using Base.Test
-using Compat
 
 # to define a new serialization behaviour, import these first
 import JSON.Serializations: CommonSerialization, StandardSerialization
@@ -20,9 +19,8 @@ function sprint_kwarg(f, args...; kwargs...)
 end
 
 # issue #168: Print NaN and Inf as Julia would
-eval(Expr(JSON.Common.STRUCTHEAD, false, :(NaNSerialization <: CS), quote end))
-JSON.show_json(io::SC, ::NaNSerialization, f::AbstractFloat) =
-    Base.print(io, f)
+struct NaNSerialization <: CS end
+JSON.show_json(io::SC, ::NaNSerialization, f::AbstractFloat) = Base.print(io, f)
 
 @test sprint(JSON.show_json, NaNSerialization(), [NaN, Inf, -Inf, 0.0]) ==
     "[NaN,Inf,-Inf,0.0]"
@@ -42,11 +40,10 @@ JSON.show_json(io::SC, ::NaNSerialization, f::AbstractFloat) =
 """
 
 # issue #170: Print JavaScript functions directly
-eval(Expr(JSON.Common.STRUCTHEAD, false, :(JSSerialization <: CS), quote end))
-eval(Expr(JSON.Common.STRUCTHEAD, false, :JSFunction,
-quote
+struct JSSerialization <: CS end
+struct JSFunction
     data::String
-end))
+end
 
 function JSON.show_json(io::SC, ::JSSerialization, f::JSFunction)
     first = true
@@ -74,7 +71,7 @@ end
 """
 
 # test serializing a type without any fields
-eval(Expr(JSON.Common.STRUCTHEAD, false, :SingletonType, quote end))
+struct SingletonType end
 @test_throws ErrorException json(SingletonType())
 
 # test printing to STDOUT

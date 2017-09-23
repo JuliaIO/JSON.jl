@@ -1,7 +1,6 @@
-eval(Expr(JSON.Common.STRUCTHEAD, true, :t109,
-quote
+mutable struct t109
     i::Int
-end))
+end
 
 let iob = IOBuffer()
     JSON.print(iob, t109(1))
