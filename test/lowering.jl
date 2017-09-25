@@ -2,7 +2,6 @@ module TestLowering
 
 using JSON
 using Base.Test
-using Compat
 using FixedPointNumbers: Fixed
 
 if isdefined(Base, :Dates)
@@ -12,13 +11,13 @@ end
 @test JSON.json(:x) == "\"x\""
 @test_throws ArgumentError JSON.json(Base)
 
-eval(Expr(JSON.Common.STRUCTHEAD, false, :(Type151{T}), quote
+struct Type151{T}
     x::T
-end))
+end
 
 @test JSON.parse(JSON.json(Type151)) == string(Type151)
 
-JSON.lower{T}(v::Type151{T}) = Dict(:type => T, :value => v.x)
+JSON.lower(v::Type151{T}) where {T} = Dict(:type => T, :value => v.x)
 @test JSON.parse(JSON.json(Type151(1.0))) == Dict(
     "type" => "Float64",
     "value" => 1.0)

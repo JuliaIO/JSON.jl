@@ -1,21 +1,20 @@
 module Writer
 
-using Compat
 using ..Common
 using ..Serializations: Serialization, StandardSerialization,
                         CommonSerialization
 
-eval(Expr(Common.STRUCTHEAD, false, :(CompositeTypeWrapper{T}),
-quote
-    wrapped::T
-    fns::Vector{Symbol}
-end))
-@doc """
+"""
 Internal JSON.jl implementation detail; do not depend on this type.
 
 A JSON primitive that wraps around any composite type to enable `Dict`-like
 serialization.
-""" CompositeTypeWrapper
+"""
+struct CompositeTypeWrapper{T}
+    wrapped::T
+    fns::Vector{Symbol}
+end
+
 CompositeTypeWrapper(x) = CompositeTypeWrapper(x, fieldnames(typeof(x)))
 
 """
@@ -60,7 +59,7 @@ lower(x::Base.AbstractSet) = collect(x)
 """
 Abstract supertype of all JSON and JSON-like structural writer contexts.
 """
-@compat abstract type StructuralContext <: IO end
+abstract type StructuralContext <: IO end
 
 """
 Internal implementation detail.
@@ -74,46 +73,43 @@ be written to a JSON context in the usual way, but often higher-level operations
 such as `begin_array` or `begin_object` are preferred to directly writing bytes
 to the stream.
 """
-@compat abstract type JSONContext <: StructuralContext end
+abstract type JSONContext <: StructuralContext end
 
-eval(Expr(Common.STRUCTHEAD, true, :(PrettyContext{T<:IO} <: JSONContext),
-quote
-    io::T
-    step::Int     # number of spaces to step
-    state::Int    # number of steps at present
-    first::Bool   # whether an object/array was just started
-end))
-@doc """
+"""
 Internal implementation detail.
 
 Keeps track of the current location in the array or object, which winds and
 unwinds during serialization.
-""" PrettyContext
+"""
+mutable struct PrettyContext{T<:IO} <: JSONContext
+    io::T
+    step::Int     # number of spaces to step
+    state::Int    # number of steps at present
+    first::Bool   # whether an object/array was just started
+end
 PrettyContext(io::IO, step) = PrettyContext(io, step, 0, false)
 
-eval(Expr(Common.STRUCTHEAD, true, :(CompactContext{T<:IO} <: JSONContext),
-quote
-    io::T
-    first::Bool
-end))
-@doc """
+"""
 Internal implementation detail.
 
 For compact printing, which in JSON is fully recursive.
-""" CompactContext
+"""
+mutable struct CompactContext{T<:IO} <: JSONContext
+    io::T
+    first::Bool
+end
 CompactContext(io::IO) = CompactContext(io, false)
 
-eval(Expr(Common.STRUCTHEAD, false, :(StringContext{T<:IO} <: IO),
-quote
-    io::T
-end))
-@doc """
+"""
 Internal implementation detail.
 
 Implements an IO context safe for printing into JSON strings.
-""" StringContext
+"""
+struct StringContext{T<:IO} <: IO
+    io::T
+end
 
-# These make defining additional methods on `show_json` easier.
+# These aliases make defining additional methods on `show_json` easier.
 const CS = CommonSerialization
 const SC = StructuralContext
 
@@ -123,7 +119,7 @@ Base.write(io::StringContext, byte::UInt8) =
     write(io.io, ESCAPED_ARRAY[byte + 0x01])
 #= turn on if there's a performance benefit
 write(io::StringContext, char::Char) =
-    char <= '\x7f' ? write(io, ESCAPED_ARRAY[@compat UInt8(c) + 0x01]) :
+    char <= '\x7f' ? write(io, ESCAPED_ARRAY[UInt8(c) + 0x01]) :
                      Base.print(io, c)
 =#
 
@@ -312,7 +308,7 @@ end
 Serialize a multidimensional array to JSON in column-major format. That is,
 `json([1 2 3; 4 5 6]) == "[[1,4],[2,5],[3,6]]"`.
 """
-function show_json{T,n}(io::SC, s::CS, A::AbstractArray{T,n})
+function show_json(io::SC, s::CS, A::AbstractArray{<:Any,n}) where n
     begin_array(io)
     newdims = ntuple(_ -> :, n - 1)
     for j in indices(A, n)
@@ -322,7 +318,7 @@ function show_json{T,n}(io::SC, s::CS, A::AbstractArray{T,n})
 end
 
 # special case for 0-dimensional arrays
-show_json{T}(io::SC, s::CS, A::AbstractArray{T,0}) = show_json(io, s, A[])
+show_json(io::SC, s::CS, A::AbstractArray{<:Any,0}) = show_json(io, s, A[])
 
 show_json(io::SC, s::CS, a) = show_json(io, s, lower(a))
 

@@ -1,13 +1,11 @@
 # Specialized functions for increased performance when JSON is in-memory
-using Compat: StringVector
-
 function parse_string(ps::MemoryParserState)
     # "Dry Run": find length of string so we can allocate the right amount of
     # memory from the start. Does not do full error checking.
     fastpath, len = predict_string(ps)
 
     # Now read the string itself
-    b = StringVector(len)
+    b = Base.StringVector(len)
 
     # Fast path occurs when the string has no escaped characters. This is quite
     # often the case in real-world data, especially when keys are short strings.
