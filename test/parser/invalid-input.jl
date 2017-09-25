@@ -5,6 +5,7 @@ const FAILURES = [
     "{\"1\":2, \"2\":3 _ \"4\":5}",
     # Invalid escaped character
     "[\"alpha\\α\"]",
+    "[\"\\u05AG\"]",
     # Invalid 'simple' and 'unknown value'
     "[tXXe]",
     "[fail]",
