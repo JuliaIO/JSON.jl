@@ -1,5 +1,6 @@
 module Parser  # JSON
 
+using Compat
 using ..Common
 
 """
