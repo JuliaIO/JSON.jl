@@ -1,7 +1,7 @@
 module TestLowering
 
 using JSON
-using Base.Test
+using Compat.Test
 using FixedPointNumbers: Fixed
 
 if isdefined(Base, :Dates)
