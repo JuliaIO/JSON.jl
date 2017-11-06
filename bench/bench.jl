@@ -12,14 +12,10 @@ function bench(f, simulate=false)
     end
     gc()  # run gc so it doesn't affect benchmarks
     t = if args["parse"]["parse-file"]
-        tic()
-        JSON.parsefile(fp)
-        toq()
+        @elapsed JSON.parsefile(fp)
     else
         data = read(fp, String)
-        tic()
-        JSON.Parser.parse(data)
-        toq()
+        @elapsed JSON.Parser.parse(data)
     end
 
     if !simulate
