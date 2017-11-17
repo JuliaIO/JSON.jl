@@ -1,4 +1,4 @@
-@testset for T in [Int32, Int64, Int128]
+@testset for T in [Int32, Int64, Int128, BigInt]
     val = JSON.parse("{\"x\": 3}", inttype=T)
     @test isa(val, Dict{String, Any})
     @test length(val) == 1
