@@ -54,9 +54,9 @@ json(a::Any)
 Returns a compact JSON representation as an `AbstractString`.
 
 ```julia
-JSON.parse(s::AbstractString; dicttype=Dict)
-JSON.parse(io::IO; dicttype=Dict)
-JSON.parsefile(filename::AbstractString; dicttype=Dict, use_mmap=true)
+JSON.parse(s::AbstractString; dicttype=Dict, inttype=Int64)
+JSON.parse(io::IO; dicttype=Dict, inttype=Int64)
+JSON.parsefile(filename::AbstractString; dicttype=Dict, inttype=Int64, use_mmap=true)
 ```
 
 Parses a JSON `AbstractString` or IO stream into a nested `Array` or `Dict`.
@@ -69,6 +69,14 @@ provide a desired ordering.  For example, if you `import DataStructures`
 package](https://github.com/JuliaLang/DataStructures.jl) is
 installed), you can pass `dicttype=DataStructures.OrderedDict` to
 maintain the insertion order of the items in the object.
+
+The `inttype` argument controls how integers are parsed.  If a number in a JSON
+file is recognized to be an integer, it is parsed as one; otherwise it is parsed 
+as a `Float64`.  The `inttype` defaults to `Int64`, but, for example, if you know
+that your integer numbers are all small and want to save space, you can pass 
+`inttype=Int32`.  Alternatively, if your JSON input has integers which are too large
+for Int64, you can pass `inttype=Int128` or `inttype=BigInt`.  `inttype` can be any
+subtype of `Real`.
 
 ```julia
 JSON.lower(p::Point2D) = [p.x, p.y]
