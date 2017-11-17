@@ -148,18 +148,18 @@ end
 Given a `ParserState`, after possibly any amount of whitespace, return the next
 parseable value.
 """
-function parse_value(ps::ParserState, pc::ParserContext)
+function parse_value(pc::ParserContext, ps::ParserState)
     chomp_space!(ps)
 
     @inbounds byte = byteat(ps)
     if byte == STRING_DELIM
         parse_string(ps)
     elseif isjsondigit(byte) || byte == MINUS_SIGN
-        parse_number(ps, pc)
+        parse_number(pc, ps)
     elseif byte == OBJECT_BEGIN
-        parse_object(ps, pc)
+        parse_object(pc, ps)
     elseif byte == ARRAY_BEGIN
-        parse_array(ps, pc)
+        parse_array(pc, ps)
     else
         parse_jsconstant(ps::ParserState)
     end
@@ -181,13 +181,13 @@ function parse_jsconstant(ps::ParserState)
     end
 end
 
-function parse_array(ps::ParserState, pc::ParserContext)
+function parse_array(pc::ParserContext, ps::ParserState)
     result = Any[]
     @inbounds incr!(ps)  # Skip over opening '['
     chomp_space!(ps)
     if byteat(ps) ≠ ARRAY_END  # special case for empty array
         @inbounds while true
-            push!(result, parse_value(ps, pc))
+            push!(result, parse_value(pc, ps))
             chomp_space!(ps)
             byteat(ps) == ARRAY_END && break
             skip!(ps, DELIMITER)
@@ -199,7 +199,7 @@ function parse_array(ps::ParserState, pc::ParserContext)
 end
 
 
-function parse_object(ps::ParserState, pc::ParserContext{DictType, <:Real}) where DictType
+function parse_object(pc::ParserContext{DictType, <:Real}, ps::ParserState) where DictType
     obj = DictType()
     keyT = keytype(DictType)
 
@@ -214,7 +214,7 @@ function parse_object(ps::ParserState, pc::ParserContext{DictType, <:Real}) wher
             chomp_space!(ps)
             skip!(ps, SEPARATOR)
             # Read value
-            value = parse_value(ps, pc)
+            value = parse_value(pc, ps)
             chomp_space!(ps)
             obj[convert(keyT, key)] = value
             byteat(ps) == OBJECT_END && break
@@ -315,10 +315,11 @@ end
 Parse an integer from the given bytes vector, starting at `from` and ending at
 the byte before `to`. Bytes enclosed should all be ASCII characters.
 """
-function int_from_bytes(bytes::Vector{UInt8}, 
+function int_from_bytes(pc::ParserContext{<:Associative,IntType}, 
+                        ps::ParserState, 
+                        bytes::Vector{UInt8}, 
                         from::Int, 
-                        to::Int, 
-                        pc::ParserContext{<:Associative,IntType}) where IntType <: Real
+                        to::Int) where IntType <: Real
     @inbounds isnegative = bytes[from] == MINUS_SIGN ? (from += 1; true) : false
     num = IntType(0)
     @inbounds for i in from:to
@@ -327,8 +328,12 @@ function int_from_bytes(bytes::Vector{UInt8},
     ifelse(isnegative, -num, num)
 end
 
-function number_from_bytes(
-        ps::ParserState, isint::Bool, bytes::Vector{UInt8}, from::Int, to::Int, pc::ParserContext)
+function number_from_bytes(pc::ParserContext, 
+                           ps::ParserState, 
+                           isint::Bool, 
+                           bytes::Vector{UInt8}, 
+                           from::Int, 
+                           to::Int)
     @inbounds if hasleadingzero(bytes, from, to)
         _error(E_LEADING_ZERO, ps)
     end
@@ -337,7 +342,7 @@ function number_from_bytes(
         @inbounds if to == from && bytes[from] == MINUS_SIGN
             _error(E_BAD_NUMBER, ps)
         end
-        int_from_bytes(bytes, from, to, pc)
+        int_from_bytes(pc, ps, bytes, from, to)
     else
         res = float_from_bytes(bytes, from, to)
         isnull(res) ? _error(E_BAD_NUMBER, ps) : get(res)
@@ -345,7 +350,7 @@ function number_from_bytes(
 end
 
 
-function parse_number(ps::ParserState, pc::ParserContext)
+function parse_number(pc::ParserContext, ps::ParserState)
     # Determine the end of the floating point by skipping past ASCII values
     # 0-9, +, -, e, E, and .
     number = UInt8[]
@@ -366,7 +371,7 @@ function parse_number(ps::ParserState, pc::ParserContext)
         incr!(ps)
     end
 
-    number_from_bytes(ps, isint, number, 1, length(number), pc)
+    number_from_bytes(pc, ps, isint, number, 1, length(number))
 end
 
 
@@ -376,9 +381,9 @@ function unparameterize_type(T::Type)
 end
 
 function parse(str::AbstractString; dicttype::Type{<:Associative}=Dict{String,Any}, inttype::Type{<:Real}=Int64)
-    ps = MemoryParserState(Vector{UInt8}(String(str)), 1)
     pc = ParserContext{unparameterize_type(dicttype), inttype}()
-    v = parse_value(ps, pc)
+    ps = MemoryParserState(Vector{UInt8}(String(str)), 1)
+    v = parse_value(pc, ps)
     chomp_space!(ps)
     if hasmore(ps)
         _error(E_EXPECTED_EOF, ps)
@@ -387,9 +392,9 @@ function parse(str::AbstractString; dicttype::Type{<:Associative}=Dict{String,An
 end
 
 function parse(io::IO; dicttype::Type{<:Associative}=Dict{String,Any}, inttype::Type{<:Real}=Int64)
-    ps = StreamingParserState(io)
     pc = ParserContext{unparameterize_type(dicttype), inttype}()
-    parse_value(ps, pc)
+    ps = StreamingParserState(io)
+    parse_value(pc, ps)
 end
 
 function parsefile(filename::AbstractString; 
