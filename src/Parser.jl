@@ -201,7 +201,7 @@ end
 
 function parse_object(ps::ParserState, pc::ParserContext{DictType, <:Real}) where DictType
     obj = DictType()
-    keyT = DictType.parameters[1]
+    keyT = keytype(DictType)
 
     incr!(ps)  # Skip over opening '{'
     chomp_space!(ps)
