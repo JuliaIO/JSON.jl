@@ -20,6 +20,10 @@ include("json-samples.jl")
         include("parser/dicttype.jl")
     end
 
+    @testset "inttype" begin
+        include("parser/inttype.jl")
+    end
+
     @testset "Miscellaneous" begin
         # test for single values
         @test JSON.parse("true") == true
