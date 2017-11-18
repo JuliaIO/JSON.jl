@@ -30,6 +30,8 @@ mutable struct StreamingParserState{T <: IO} <: ParserState
 end
 StreamingParserState(io::IO) = StreamingParserState(io, 0x00, true)
 
+struct ParserContext{DictType, IntType} end
+
 """
 Return the byte at the current position of the `ParserState`. If there is no
 byte (that is, the `ParserState` is done), then an error is thrown that the
@@ -146,18 +148,18 @@ end
 Given a `ParserState`, after possibly any amount of whitespace, return the next
 parseable value.
 """
-function parse_value(ps::ParserState, dictT::Type)
+function parse_value(pc::ParserContext, ps::ParserState)
     chomp_space!(ps)
 
     @inbounds byte = byteat(ps)
     if byte == STRING_DELIM
         parse_string(ps)
     elseif isjsondigit(byte) || byte == MINUS_SIGN
-        parse_number(ps)
+        parse_number(pc, ps)
     elseif byte == OBJECT_BEGIN
-        parse_object(ps, dictT)
+        parse_object(pc, ps)
     elseif byte == ARRAY_BEGIN
-        parse_array(ps, dictT)
+        parse_array(pc, ps)
     else
         parse_jsconstant(ps::ParserState)
     end
@@ -179,13 +181,13 @@ function parse_jsconstant(ps::ParserState)
     end
 end
 
-function parse_array(ps::ParserState, dictT::Type)
+function parse_array(pc::ParserContext, ps::ParserState)
     result = Any[]
     @inbounds incr!(ps)  # Skip over opening '['
     chomp_space!(ps)
     if byteat(ps) ≠ ARRAY_END  # special case for empty array
         @inbounds while true
-            push!(result, parse_value(ps, dictT))
+            push!(result, parse_value(pc, ps))
             chomp_space!(ps)
             byteat(ps) == ARRAY_END && break
             skip!(ps, DELIMITER)
@@ -197,9 +199,9 @@ function parse_array(ps::ParserState, dictT::Type)
 end
 
 
-function parse_object(ps::ParserState, dictT::Type)
-    obj = dictT()
-    keyT = dictT.parameters[1]
+function parse_object(pc::ParserContext{DictType, <:Real}, ps::ParserState) where DictType
+    obj = DictType()
+    keyT = keytype(DictType)
 
     incr!(ps)  # Skip over opening '{'
     chomp_space!(ps)
@@ -212,7 +214,7 @@ function parse_object(ps::ParserState, dictT::Type)
             chomp_space!(ps)
             skip!(ps, SEPARATOR)
             # Read value
-            value = parse_value(ps, dictT)
+            value = parse_value(pc, ps)
             chomp_space!(ps)
             obj[convert(keyT, key)] = value
             byteat(ps) == OBJECT_END && break
@@ -313,17 +315,25 @@ end
 Parse an integer from the given bytes vector, starting at `from` and ending at
 the byte before `to`. Bytes enclosed should all be ASCII characters.
 """
-function int_from_bytes(bytes::Vector{UInt8}, from::Int, to::Int)
+function int_from_bytes(pc::ParserContext{<:Associative,IntType}, 
+                        ps::ParserState, 
+                        bytes::Vector{UInt8}, 
+                        from::Int, 
+                        to::Int) where IntType <: Real
     @inbounds isnegative = bytes[from] == MINUS_SIGN ? (from += 1; true) : false
-    num = Int64(0)
+    num = IntType(0)
     @inbounds for i in from:to
-        num = Int64(10) * num + Int64(bytes[i] - DIGIT_ZERO)
+        num = IntType(10) * num + IntType(bytes[i] - DIGIT_ZERO)
     end
     ifelse(isnegative, -num, num)
 end
 
-function number_from_bytes(
-        ps::ParserState, isint::Bool, bytes::Vector{UInt8}, from::Int, to::Int)
+function number_from_bytes(pc::ParserContext, 
+                           ps::ParserState, 
+                           isint::Bool, 
+                           bytes::Vector{UInt8}, 
+                           from::Int, 
+                           to::Int)
     @inbounds if hasleadingzero(bytes, from, to)
         _error(E_LEADING_ZERO, ps)
     end
@@ -332,7 +342,7 @@ function number_from_bytes(
         @inbounds if to == from && bytes[from] == MINUS_SIGN
             _error(E_BAD_NUMBER, ps)
         end
-        int_from_bytes(bytes, from, to)
+        int_from_bytes(pc, ps, bytes, from, to)
     else
         res = float_from_bytes(bytes, from, to)
         isnull(res) ? _error(E_BAD_NUMBER, ps) : get(res)
@@ -340,7 +350,7 @@ function number_from_bytes(
 end
 
 
-function parse_number(ps::ParserState)
+function parse_number(pc::ParserContext, ps::ParserState)
     # Determine the end of the floating point by skipping past ASCII values
     # 0-9, +, -, e, E, and .
     number = UInt8[]
@@ -361,7 +371,7 @@ function parse_number(ps::ParserState)
         incr!(ps)
     end
 
-    number_from_bytes(ps, isint, number, 1, length(number))
+    number_from_bytes(pc, ps, isint, number, 1, length(number))
 end
 
 
@@ -370,9 +380,10 @@ function unparameterize_type(T::Type)
     candidate <: Union{} ? T : candidate
 end
 
-function parse(str::AbstractString; dicttype::Type{<:Associative}=Dict{String,Any})
+function parse(str::AbstractString; dicttype::Type{<:Associative}=Dict{String,Any}, inttype::Type{<:Real}=Int64)
+    pc = ParserContext{unparameterize_type(dicttype), inttype}()
     ps = MemoryParserState(Vector{UInt8}(String(str)), 1)
-    v = parse_value(ps, unparameterize_type(dicttype))
+    v = parse_value(pc, ps)
     chomp_space!(ps)
     if hasmore(ps)
         _error(E_EXPECTED_EOF, ps)
@@ -380,16 +391,20 @@ function parse(str::AbstractString; dicttype::Type{<:Associative}=Dict{String,An
     v
 end
 
-function parse(io::IO; dicttype::Type{<:Associative}=Dict{String,Any})
+function parse(io::IO; dicttype::Type{<:Associative}=Dict{String,Any}, inttype::Type{<:Real}=Int64)
+    pc = ParserContext{unparameterize_type(dicttype), inttype}()
     ps = StreamingParserState(io)
-    parse_value(ps, unparameterize_type(dicttype))
+    parse_value(pc, ps)
 end
 
-function parsefile(filename::AbstractString; dicttype::Type{<:Associative}=Dict{String, Any}, use_mmap=true)
+function parsefile(filename::AbstractString; 
+                   dicttype::Type{<:Associative}=Dict{String, Any}, 
+                   inttype::Type{<:Real}=Int64, 
+                   use_mmap=true)
     sz = filesize(filename)
     open(filename) do io
         s = use_mmap ? String(Mmap.mmap(io, Vector{UInt8}, sz)) : read(io, String)
-        parse(s; dicttype=dicttype)
+        parse(s; dicttype=dicttype, inttype=inttype)
     end
 end
 
