@@ -1,8 +1,6 @@
 module Writer
 
-if VERSION >= v"0.7.0-DEV.2575"
-    import Dates
-end
+using Compat
 using ..Common
 using ..Serializations: Serialization, StandardSerialization,
                         CommonSerialization
