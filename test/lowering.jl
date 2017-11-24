@@ -2,11 +2,10 @@ module TestLowering
 
 using JSON
 using Compat.Test
+using Compat.Dates
 using FixedPointNumbers: Fixed
 
-if isdefined(Base, :Dates)
-    @test JSON.json(Date(2016, 8, 3)) == "\"2016-08-03\""
-end
+@test JSON.json(Date(2016, 8, 3)) == "\"2016-08-03\""
 
 @test JSON.json(:x) == "\"x\""
 @test_throws ArgumentError JSON.json(Base)

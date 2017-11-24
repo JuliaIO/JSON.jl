@@ -1,6 +1,7 @@
 using JSON
 using Compat.Test
 using Compat
+using Compat.Dates
 using OffsetArrays
 
 import DataStructures
