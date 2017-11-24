@@ -1,6 +1,6 @@
 module Writer
 
-using Compat
+using Compat.Dates
 using ..Common
 using ..Serializations: Serialization, StandardSerialization,
                         CommonSerialization
