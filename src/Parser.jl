@@ -2,6 +2,7 @@ module Parser  # JSON
 
 using Compat
 using Compat.Mmap
+using Nullables
 using ..Common
 
 """

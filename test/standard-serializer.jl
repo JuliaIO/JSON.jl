@@ -1,3 +1,5 @@
+using Nullables
+
 @testset "Symbol" begin
     symtest = Dict(:symbolarray => [:apple, :pear], :symbolsingleton => :hello)
     @test (JSON.json(symtest) == "{\"symbolarray\":[\"apple\",\"pear\"],\"symbolsingleton\":\"hello\"}"
