@@ -31,7 +31,7 @@ mutable struct StreamingParserState{T <: IO} <: ParserState
 end
 StreamingParserState(io::IO) = StreamingParserState(io, 0x00, true)
 
-struct ParserContext{DictType, IntType} end
+struct ParserContext{DictType, IntType, FloatType} end
 
 """
 Return the byte at the current position of the `ParserState`. If there is no
@@ -305,21 +305,31 @@ end
 Parse a float from the given bytes vector, starting at `from` and ending at the
 byte before `to`. Bytes enclosed should all be ASCII characters.
 """
-function float_from_bytes(bytes::Vector{UInt8}, from::Int, to::Int)
+function float_from_bytes(pc::ParserContext{<:Any, <:Any, Float64}, bytes::Vector{UInt8}, from::Int, to::Int)
     # The ccall is not ideal (Base.tryparse would be better), but it actually
     # makes an 2× difference to performance
     ccall(:jl_try_substrtod, Nullable{Float64},
             (Ptr{UInt8}, Csize_t, Csize_t), bytes, from - 1, to - from + 1)
 end
 
+# Slow fallback implementation. If you care about the performance of a float type,
+# provide an in-place parsing representation for this function
+function float_from_bytes(pc::ParserContext{<:Any, <:Any, T}, bytes::Vector{UInt8}, from::Int, to::Int) where {T}
+    try
+        Nullable{T}(Base.parse(T, String(bytes[from:to])))
+    catch e
+        Nullable{T}()
+    end
+end
+
 """
 Parse an integer from the given bytes vector, starting at `from` and ending at
 the byte before `to`. Bytes enclosed should all be ASCII characters.
 """
-function int_from_bytes(pc::ParserContext{<:Associative,IntType}, 
-                        ps::ParserState, 
-                        bytes::Vector{UInt8}, 
-                        from::Int, 
+function int_from_bytes(pc::ParserContext{<:Associative,IntType},
+                        ps::ParserState,
+                        bytes::Vector{UInt8},
+                        from::Int,
                         to::Int) where IntType <: Real
     @inbounds isnegative = bytes[from] == MINUS_SIGN ? (from += 1; true) : false
     num = IntType(0)
@@ -329,11 +339,11 @@ function int_from_bytes(pc::ParserContext{<:Associative,IntType},
     ifelse(isnegative, -num, num)
 end
 
-function number_from_bytes(pc::ParserContext, 
-                           ps::ParserState, 
-                           isint::Bool, 
-                           bytes::Vector{UInt8}, 
-                           from::Int, 
+function number_from_bytes(pc::ParserContext,
+                           ps::ParserState,
+                           isint::Bool,
+                           bytes::Vector{UInt8},
+                           from::Int,
                            to::Int)
     @inbounds if hasleadingzero(bytes, from, to)
         _error(E_LEADING_ZERO, ps)
@@ -345,7 +355,7 @@ function number_from_bytes(pc::ParserContext,
         end
         int_from_bytes(pc, ps, bytes, from, to)
     else
-        res = float_from_bytes(bytes, from, to)
+        res = float_from_bytes(pc, bytes, from, to)
         isnull(res) ? _error(E_BAD_NUMBER, ps) : get(res)
     end
 end
@@ -381,8 +391,8 @@ function unparameterize_type(T::Type)
     candidate <: Union{} ? T : candidate
 end
 
-function parse(str::AbstractString; dicttype::Type{<:Associative}=Dict{String,Any}, inttype::Type{<:Real}=Int64)
-    pc = ParserContext{unparameterize_type(dicttype), inttype}()
+function parse(str::AbstractString; dicttype::Type{<:Associative}=Dict{String,Any}, inttype::Type{<:Real}=Int64, floattype::Type{<:Real}=Float64)
+    pc = ParserContext{unparameterize_type(dicttype), inttype, floattype}()
     ps = MemoryParserState(Vector{UInt8}(String(str)), 1)
     v = parse_value(pc, ps)
     chomp_space!(ps)
@@ -392,20 +402,21 @@ function parse(str::AbstractString; dicttype::Type{<:Associative}=Dict{String,An
     v
 end
 
-function parse(io::IO; dicttype::Type{<:Associative}=Dict{String,Any}, inttype::Type{<:Real}=Int64)
-    pc = ParserContext{unparameterize_type(dicttype), inttype}()
+function parse(io::IO; dicttype::Type{<:Associative}=Dict{String,Any}, inttype::Type{<:Real}=Int64, floattype::Type{<:Real}=Float64)
+    pc = ParserContext{unparameterize_type(dicttype), inttype, floattype}()
     ps = StreamingParserState(io)
     parse_value(pc, ps)
 end
 
-function parsefile(filename::AbstractString; 
-                   dicttype::Type{<:Associative}=Dict{String, Any}, 
-                   inttype::Type{<:Real}=Int64, 
+function parsefile(filename::AbstractString;
+                   dicttype::Type{<:Associative}=Dict{String, Any},
+                   inttype::Type{<:Real}=Int64,
+                   floattype::Type{<:Real}=Float64,
                    use_mmap=true)
     sz = filesize(filename)
     open(filename) do io
         s = use_mmap ? String(Mmap.mmap(io, Vector{UInt8}, sz)) : read(io, String)
-        parse(s; dicttype=dicttype, inttype=inttype)
+        parse(s; dicttype=dicttype, inttype=inttype, floattype=floattype)
     end
 end
 
