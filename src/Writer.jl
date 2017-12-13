@@ -6,6 +6,10 @@ using ..Common
 using ..Serializations: Serialization, StandardSerialization,
                         CommonSerialization
 
+if VERSION >= v"0.7.0-DEV.2915"
+    using Unicode
+end
+
 """
 Internal JSON.jl implementation detail; do not depend on this type.
 
