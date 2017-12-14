@@ -44,7 +44,7 @@ const ESCAPES = Dict(
     LATIN_T      => TAB)
 
 const REVERSE_ESCAPES = Dict(reverse(p) for p in ESCAPES)
-const ESCAPED_ARRAY = Vector{Vector{UInt8}}(256)
+const ESCAPED_ARRAY = Vector{Vector{UInt8}}(uninitialized, 256)
 for c in 0x00:0xFF
     ESCAPED_ARRAY[c + 1] = if c == SOLIDUS
         [SOLIDUS]  # don't escape this one
