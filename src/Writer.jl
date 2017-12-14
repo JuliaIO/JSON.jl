@@ -1,5 +1,6 @@
 module Writer
 
+using Compat
 using Compat.Dates
 using Nullables
 using ..Common
@@ -9,6 +10,7 @@ using ..Serializations: Serialization, StandardSerialization,
 if VERSION >= v"0.7.0-DEV.2915"
     using Unicode
 end
+
 
 """
 Internal JSON.jl implementation detail; do not depend on this type.
@@ -27,7 +29,7 @@ CompositeTypeWrapper(x) = CompositeTypeWrapper(x, fieldnames(typeof(x)))
     lower(x)
 
 Return a value of a JSON-encodable primitive type that `x` should be lowered
-into before encoding as JSON. Supported types are: `Associative` to JSON
+into before encoding as JSON. Supported types are: `AbstractDict` to JSON
 objects, `Tuple` and `AbstractVector` to JSON arrays, `AbstractArray` to nested
 JSON arrays, `AbstractString`, `Symbol`, `Enum`, or `Char` to JSON string,
 `Integer` and `AbstractFloat` to JSON number, `Bool` to JSON boolean, and
@@ -273,7 +275,7 @@ function show_json(io::SC, s::CS, a::Nullable)
     end
 end
 
-function show_json(io::SC, s::CS, a::Associative)
+function show_json(io::SC, s::CS, a::AbstractDict)
     begin_object(io)
     for kv in a
         show_pair(io, s, kv)
