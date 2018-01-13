@@ -52,7 +52,7 @@ end
 end
 
 @testset "Integration" begin
-    # ::Void values should be encoded as null
+    # ::Nothing values should be encoded as null
     testDict = Dict("a" => nothing)
     nothingJson = JSON.json(testDict)
     nothingDict = JSON.parse(nothingJson)

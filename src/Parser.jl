@@ -129,7 +129,7 @@ function _error(message::AbstractString, ps::MemoryParserState)
     orig = String(ps.utf8data)
     lines = _count_before(orig, '\n', ps.s)
     # Replace all special multi-line/multi-space characters with a space.
-    strnl = replace(orig, r"[\b\f\n\r\t\s]", " ")
+    strnl = replace(orig, r"[\b\f\n\r\t\s]" => " ")
     li = (ps.s > 20) ? ps.s - 9 : 1 # Left index
     ri = min(endof(orig), ps.s + 20)       # Right index
     error(message *
