@@ -129,7 +129,7 @@ function _error(message::AbstractString, ps::MemoryParserState)
     orig = String(ps.utf8data)
     lines = _count_before(orig, '\n', ps.s)
     # Replace all special multi-line/multi-space characters with a space.
-    strnl = replace(orig, r"[\b\f\n\r\t\s]", " ")
+    strnl = replace(orig, r"[\b\f\n\r\t\s]" => " ")
     li = (ps.s > 20) ? ps.s - 9 : 1 # Left index
     ri = min(endof(orig), ps.s + 20)       # Right index
     error(message *
@@ -316,7 +316,7 @@ end
 Parse an integer from the given bytes vector, starting at `from` and ending at
 the byte before `to`. Bytes enclosed should all be ASCII characters.
 """
-function int_from_bytes(pc::ParserContext{<:Associative,IntType}, 
+function int_from_bytes(pc::ParserContext{<:AbstractDict,IntType}, 
                         ps::ParserState, 
                         bytes::Vector{UInt8}, 
                         from::Int, 
@@ -377,11 +377,11 @@ end
 
 
 function unparameterize_type(T::Type)
-    candidate = typeintersect(T, Associative{String, Any})
+    candidate = typeintersect(T, AbstractDict{String, Any})
     candidate <: Union{} ? T : candidate
 end
 
-function parse(str::AbstractString; dicttype::Type{<:Associative}=Dict{String,Any}, inttype::Type{<:Real}=Int64)
+function parse(str::AbstractString; dicttype::Type{<:AbstractDict}=Dict{String,Any}, inttype::Type{<:Real}=Int64)
     pc = ParserContext{unparameterize_type(dicttype), inttype}()
     ps = MemoryParserState(Vector{UInt8}(String(str)), 1)
     v = parse_value(pc, ps)
@@ -392,15 +392,15 @@ function parse(str::AbstractString; dicttype::Type{<:Associative}=Dict{String,An
     v
 end
 
-function parse(io::IO; dicttype::Type{<:Associative}=Dict{String,Any}, inttype::Type{<:Real}=Int64)
+function parse(io::IO; dicttype::Type{<:AbstractDict}=Dict{String,Any}, inttype::Type{<:Real}=Int64)
     pc = ParserContext{unparameterize_type(dicttype), inttype}()
     ps = StreamingParserState(io)
     parse_value(pc, ps)
 end
 
-function parsefile(filename::AbstractString; 
-                   dicttype::Type{<:Associative}=Dict{String, Any}, 
-                   inttype::Type{<:Real}=Int64, 
+function parsefile(filename::AbstractString;
+                   dicttype::Type{<:AbstractDict}=Dict{String, Any},
+                   inttype::Type{<:Real}=Int64,
                    use_mmap=true)
     sz = filesize(filename)
     open(filename) do io

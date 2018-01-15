@@ -1,5 +1,6 @@
 module Writer
 
+using Compat
 using Compat.Dates
 using Nullables
 using ..Common
@@ -9,6 +10,7 @@ using ..Serializations: Serialization, StandardSerialization,
 if VERSION >= v"0.7.0-DEV.2915"
     using Unicode
 end
+
 
 """
 Internal JSON.jl implementation detail; do not depend on this type.
@@ -27,11 +29,11 @@ CompositeTypeWrapper(x) = CompositeTypeWrapper(x, fieldnames(typeof(x)))
     lower(x)
 
 Return a value of a JSON-encodable primitive type that `x` should be lowered
-into before encoding as JSON. Supported types are: `Associative` to JSON
+into before encoding as JSON. Supported types are: `AbstractDict` to JSON
 objects, `Tuple` and `AbstractVector` to JSON arrays, `AbstractArray` to nested
 JSON arrays, `AbstractString`, `Symbol`, `Enum`, or `Char` to JSON string,
 `Integer` and `AbstractFloat` to JSON number, `Bool` to JSON boolean, and
-`Void` to JSON null, or any other types with a `show_json` method defined.
+`Nothing` to JSON null, or any other types with a `show_json` method defined.
 
 Extensions of this method should preserve the property that the return value is
 one of the aforementioned types. If first lowering to some intermediate type is
@@ -263,7 +265,7 @@ function show_json(io::SC, s::CS, x::Union{Integer, AbstractFloat})
     end
 end
 
-show_json(io::SC, ::CS, ::Void) = show_null(io)
+show_json(io::SC, ::CS, ::Nothing) = show_null(io)
 
 function show_json(io::SC, s::CS, a::Nullable)
     if isnull(a)
@@ -273,7 +275,7 @@ function show_json(io::SC, s::CS, a::Nullable)
     end
 end
 
-function show_json(io::SC, s::CS, a::Associative)
+function show_json(io::SC, s::CS, a::AbstractDict)
     begin_object(io)
     for kv in a
         show_pair(io, s, kv)
@@ -310,7 +312,7 @@ Serialize a multidimensional array to JSON in column-major format. That is,
 function show_json(io::SC, s::CS, A::AbstractArray{<:Any,n}) where n
     begin_array(io)
     newdims = ntuple(_ -> :, n - 1)
-    for j in indices(A, n)
+    for j in Compat.axes(A, n)
         show_element(io, s, view(A, newdims..., j))
     end
     end_array(io)

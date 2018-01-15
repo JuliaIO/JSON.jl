@@ -12,13 +12,13 @@ suite["pretty-print"] = BenchmarkGroup(["serialize"])
 struct CustomListType
     x::Int
     y::Float64
-    z::Union{CustomListType, Void}
+    z::Union{CustomListType, Nothing}
 end
 
 struct CustomTreeType
     x::String
-    y::Union{CustomTreeType, Void}
-    z::Union{CustomTreeType, Void}
+    y::Union{CustomTreeType, Nothing}
+    z::Union{CustomTreeType, Nothing}
 end
 
 list(x) = x == 0 ? nothing : CustomListType(1, 1.0, list(x - 1))
