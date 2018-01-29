@@ -262,6 +262,7 @@ function read_unicode_escape!(ps)
     end
 end
 
+get_bytes(str) = Vector{UInt8}(@static isdefined(Base, :codeunits) ? codeunits(str) : str)
 
 function parse_string(ps::ParserState)
     b = UInt8[]
@@ -272,7 +273,7 @@ function parse_string(ps::ParserState)
         if c == BACKSLASH
             c = advance!(ps)
             if c == LATIN_U  # Unicode escape
-                append!(b, Vector{UInt8}(string(read_unicode_escape!(ps))))
+                append!(b, get_bytes(string(read_unicode_escape!(ps))))
             else
                 c = get(ESCAPES, c, 0x00)
                 c == 0x00 && _error(E_BAD_ESCAPE, ps)
@@ -381,9 +382,11 @@ function unparameterize_type(T::Type)
     candidate <: Union{} ? T : candidate
 end
 
-function parse(str::AbstractString; dicttype::Type{<:AbstractDict}=Dict{String,Any}, inttype::Type{<:Real}=Int64)
+function parse(str::AbstractString;
+               dicttype::Type{<:AbstractDict}=Dict{String,Any},
+               inttype::Type{<:Real}=Int64)
     pc = ParserContext{unparameterize_type(dicttype), inttype}()
-    ps = MemoryParserState(Vector{UInt8}(String(str)), 1)
+    ps = MemoryParserState(get_bytes(str), 1)
     v = parse_value(pc, ps)
     chomp_space!(ps)
     if hasmore(ps)
@@ -392,7 +395,9 @@ function parse(str::AbstractString; dicttype::Type{<:AbstractDict}=Dict{String,A
     v
 end
 
-function parse(io::IO; dicttype::Type{<:AbstractDict}=Dict{String,Any}, inttype::Type{<:Real}=Int64)
+function parse(io::IO;
+               dicttype::Type{<:AbstractDict}=Dict{String,Any},
+               inttype::Type{<:Real}=Int64)
     pc = ParserContext{unparameterize_type(dicttype), inttype}()
     ps = StreamingParserState(io)
     parse_value(pc, ps)

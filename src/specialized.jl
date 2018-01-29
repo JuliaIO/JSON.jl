@@ -12,7 +12,7 @@ function parse_string(ps::MemoryParserState)
     # We can just copy the data from the buffer in this case.
     if fastpath
         s = ps.s
-        unsafe_copy!(b, 1, ps.utf8data, s + 1, len)
+        unsafe_copyto!(b, 1, ps.utf8data, s + 1, len)
         ps.s = s + len + 2
     else
         parse_string(ps, b)
@@ -96,7 +96,7 @@ function parse_string(ps::MemoryParserState, b)
             c = ps.utf8data[s]
             if c == LATIN_U  # Unicode escape
                 ps.s = s + 1
-                for c2 in Vector{UInt8}(string(read_unicode_escape!(ps)))
+                for c2 in get_bytes(string(read_unicode_escape!(ps)))
                     i += 1
                     b[i] = c2
                 end
