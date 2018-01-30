@@ -7,11 +7,6 @@ using ..Common
 using ..Serializations: Serialization, StandardSerialization,
                         CommonSerialization
 
-if VERSION >= v"0.7.0-DEV.2915"
-    using Unicode
-end
-
-
 """
 Internal JSON.jl implementation detail; do not depend on this type.
 
@@ -56,8 +51,8 @@ end
 # allocate). However, the `show_json` method does call `lower` so as to allow
 # users to change the lowering of their `Enum` or even `AbstractString`
 # subtypes if necessary.
-const IsPrintedAsString = Union{
-    Dates.TimeType, Char, Type, AbstractString, Enum, Symbol}
+const IsPrintedAsString = Union{Dates.TimeType, Char, Type, AbstractString, Enum, Symbol}
+
 lower(x::IsPrintedAsString) = x
 
 lower(m::Module) = throw(ArgumentError("cannot serialize Module $m as JSON"))
@@ -123,13 +118,23 @@ const SC = StructuralContext
 
 # Low-level direct access
 Base.write(io::JSONContext, byte::UInt8) = write(io.io, byte)
-Base.write(io::StringContext, byte::UInt8) =
-    write(io.io, ESCAPED_ARRAY[byte + 0x01])
-#= turn on if there's a performance benefit
-write(io::StringContext, char::Char) =
-    char <= '\x7f' ? write(io, ESCAPED_ARRAY[UInt8(c) + 0x01]) :
-                     Base.print(io, c)
-=#
+
+_hex_digit(c) = c + ifelse(c < 0xa, DIGIT_ZERO, LATIN_A - 0x9)
+const ESC_CHARS = (LATIN_B, LATIN_T, LATIN_N, 0x00, LATIN_F, LATIN_R)
+
+function Base.write(sc::StringContext, c::UInt8)
+    io = sc.io
+    if (c == STRING_DELIM) | (c == BACKSLASH)
+        write(io, BACKSLASH, c)
+    elseif (c > 0x1f) & (c != 0x7f)
+        write(io, c)
+    elseif ((c - 0x8) < 6) & (c != 0xb)
+        write(io, BACKSLASH, ESC_CHARS[c - 0x7])
+    else
+        write(io, BACKSLASH, LATIN_U, DIGIT_ZERO, DIGIT_ZERO,
+              _hex_digit(c>>>4), _hex_digit(c&0xf))
+    end
+end
 
 """
     indent(io::StructuralContext)

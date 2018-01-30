@@ -18,13 +18,10 @@ const FAILURES = [
     # Control character
     "\"\0\"",
     # Issue #99
-    "[\"🍕\"_\"🍕\""
+    "[\"🍕\"_\"🍕\"",
+    "-0-5"
 ]
 
 @testset for fail in FAILURES
-    # Test memory parser
-    @test_throws ErrorException JSON.parse(fail)
-
-    # Test streaming parser
-    @test_throws ErrorException JSON.parse(IOBuffer(fail))
+    @test_throws ErrorException JSON.parse(Typ(fail))
 end

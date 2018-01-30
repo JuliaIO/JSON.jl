@@ -10,414 +10,137 @@ Like `isspace`, but work on bytes and includes only the four whitespace
 characters defined by the JSON standard: space, tab, line feed, and carriage
 return.
 """
-isjsonspace(b::UInt8) = b == SPACE || b == TAB || b == NEWLINE || b == RETURN
+is_json_space(ch::UInt8) = ch == SPACE || ch == TAB || ch == NEWLINE || ch == RETURN
 
-"""
-Like `isdigit`, but for bytes.
-"""
-isjsondigit(b::UInt8) = DIGIT_ZERO ≤ b ≤ DIGIT_NINE
+is_json_exp(ch::UInt8) =  ch == LATIN_E || ch == LATIN_UPPER_E
+
+is_json_float(ch::UInt8) = ch == DECIMAL_POINT || is_json_exp(ch)
+
+is_json_digit(ch::UInt8) = (ch - DIGIT_ZERO) < 0xa
 
 abstract type ParserState end
 
-mutable struct MemoryParserState <: ParserState
-    utf8::String
-    s::Int
-end
+struct ParserContext{DictType, IntType, FloatType} end
 
-# it is convenient to access MemoryParserState like a Vector{UInt8} to avoid copies
-Base.@propagate_inbounds Base.getindex(state::MemoryParserState, i::Int) = codeunit(state.utf8, i)
-Base.length(state::MemoryParserState) = sizeof(state.utf8)
-Base.unsafe_convert(::Type{Ptr{UInt8}}, state::MemoryParserState) = unsafe_convert(Ptr{UInt8}, state.utf8)
+get_dict_type(::ParserContext{T,<:Any,<:Any}) where {T} = T
+get_int_type(::ParserContext{<:Any,T,<:Any}) where {T<:Real} = T
+get_float_type(::ParserContext{<:Any,<:Any,T}) where {T<:Real} = T
 
-mutable struct StreamingParserState{T <: IO} <: ParserState
-    io::T
-    cur::UInt8
-    used::Bool
-end
-StreamingParserState(io::IO) = StreamingParserState(io, 0x00, true)
-
-struct ParserContext{DictType, IntType} end
-
-"""
-Return the byte at the current position of the `ParserState`. If there is no
-byte (that is, the `ParserState` is done), then an error is thrown that the
-input ended unexpectedly.
-"""
-@inline function byteat(ps::MemoryParserState)
-    @inbounds if hasmore(ps)
-        return ps[ps.s]
-    else
-        _error(E_UNEXPECTED_EOF, ps)
-    end
-end
-
-@inline function byteat(ps::StreamingParserState)
-    if ps.used
-        ps.used = false
-        if eof(ps.io)
-            _error(E_UNEXPECTED_EOF, ps)
-        else
-            ps.cur = read(ps.io, UInt8)
-        end
-    end
-    ps.cur
-end
-
-"""
-Like `byteat`, but with no special bounds check and error message. Useful when
-a current byte is known to exist.
-"""
-@inline current(ps::MemoryParserState) = ps[ps.s]
-@inline current(ps::StreamingParserState) = byteat(ps)
-
-"""
-Require the current byte of the `ParserState` to be the given byte, and then
-skip past that byte. Otherwise, an error is thrown.
-"""
-@inline function skip!(ps::ParserState, c::UInt8)
-    if byteat(ps) == c
-        incr!(ps)
-    else
-        _error("Expected '$(Char(c))' here", ps)
-    end
-end
-
-function skip!(ps::ParserState, cs::UInt8...)
-    for c in cs
-        skip!(ps, c)
-    end
-end
-
-"""
-Move the `ParserState` to the next byte.
-"""
-@inline incr!(ps::MemoryParserState) = (ps.s += 1)
-@inline incr!(ps::StreamingParserState) = (ps.used = true)
-
-"""
-Move the `ParserState` to the next byte, and return the value at the byte before
-the advancement. If the `ParserState` is already done, then throw an error.
-"""
-@inline advance!(ps::ParserState) = (b = byteat(ps); incr!(ps); b)
-
-"""
-Return `true` if there is a current byte, and `false` if all bytes have been
-exausted.
-"""
-@inline hasmore(ps::MemoryParserState) = ps.s ≤ length(ps)
-@inline hasmore(ps::StreamingParserState) = true  # no more now ≠ no more ever
-
-"""
-Remove as many whitespace bytes as possible from the `ParserState` starting from
-the current byte.
-"""
-@inline function chomp_space!(ps::ParserState)
-    @inbounds while hasmore(ps) && isjsonspace(current(ps))
-        incr!(ps)
-    end
-end
-
-
-# Used for line counts
-function _count_before(haystack::AbstractString, needle::Char, _end::Int)
-    count = 0
-    for (i,c) in enumerate(haystack)
-        i >= _end && return count
-        count += c == needle
-    end
-    return count
-end
-
-
-# Throws an error message with an indicator to the source
-function _error(message::AbstractString, ps::MemoryParserState)
-    orig = ps.utf8
-    lines = _count_before(orig, '\n', ps.s)
-    # Replace all special multi-line/multi-space characters with a space.
-    strnl = replace(orig, r"[\b\f\n\r\t\s]" => " ")
-    li = (ps.s > 20) ? ps.s - 9 : 1 # Left index
-    ri = min(lastindex(orig), ps.s + 20)       # Right index
-    error(message *
-      "\nLine: " * string(lines) *
-      "\nAround: ..." * strnl[li:ri] * "..." *
-      "\n           " * (" " ^ (ps.s - li)) * "^\n"
-    )
-end
-
-function _error(message::AbstractString, ps::StreamingParserState)
-    error("$message\n ...when parsing byte with value '$(current(ps))'")
-end
-
-# PARSING
-
-"""
-Given a `ParserState`, after possibly any amount of whitespace, return the next
-parseable value.
-"""
-function parse_value(pc::ParserContext, ps::ParserState)
-    chomp_space!(ps)
-
-    @inbounds byte = byteat(ps)
-    if byte == STRING_DELIM
-        parse_string(ps)
-    elseif isjsondigit(byte) || byte == MINUS_SIGN
-        parse_number(pc, ps)
-    elseif byte == OBJECT_BEGIN
-        parse_object(pc, ps)
-    elseif byte == ARRAY_BEGIN
-        parse_array(pc, ps)
-    else
-        parse_jsconstant(ps::ParserState)
-    end
-end
-
-function parse_jsconstant(ps::ParserState)
-    c = advance!(ps)
-    if c == LATIN_T      # true
-        skip!(ps, LATIN_R, LATIN_U, LATIN_E)
-        true
-    elseif c == LATIN_F  # false
-        skip!(ps, LATIN_A, LATIN_L, LATIN_S, LATIN_E)
-        false
-    elseif c == LATIN_N  # null
-        skip!(ps, LATIN_U, LATIN_L, LATIN_L)
-        nothing
-    else
-        _error(E_UNEXPECTED_CHAR, ps)
-    end
-end
-
-function parse_array(pc::ParserContext, ps::ParserState)
-    result = Any[]
-    @inbounds incr!(ps)  # Skip over opening '['
-    chomp_space!(ps)
-    if byteat(ps) ≠ ARRAY_END  # special case for empty array
-        @inbounds while true
-            push!(result, parse_value(pc, ps))
-            chomp_space!(ps)
-            byteat(ps) == ARRAY_END && break
-            skip!(ps, DELIMITER)
-        end
-    end
-
-    @inbounds incr!(ps)
-    result
-end
-
-
-function parse_object(pc::ParserContext{DictType, <:Real}, ps::ParserState) where DictType
-    obj = DictType()
-    keyT = keytype(DictType)
-
-    incr!(ps)  # Skip over opening '{'
-    chomp_space!(ps)
-    if byteat(ps) ≠ OBJECT_END  # special case for empty object
-        @inbounds while true
-            # Read key
-            chomp_space!(ps)
-            byteat(ps) == STRING_DELIM || _error(E_BAD_KEY, ps)
-            key = parse_string(ps)
-            chomp_space!(ps)
-            skip!(ps, SEPARATOR)
-            # Read value
-            value = parse_value(pc, ps)
-            chomp_space!(ps)
-            obj[convert(keyT, key)] = value
-            byteat(ps) == OBJECT_END && break
-            skip!(ps, DELIMITER)
-        end
-    end
-
-    incr!(ps)
-    obj
-end
-
-
-utf16_is_surrogate(c::UInt16) = (c & 0xf800) == 0xd800
-utf16_get_supplementary(lead::UInt16, trail::UInt16) = Char(UInt32(lead-0xd7f7)<<10 + trail)
-
-function read_four_hex_digits!(ps::ParserState)
-    local n::UInt16 = 0
-
-    for _ in 1:4
-        b = advance!(ps)
-        n = n << 4 + if isjsondigit(b)
-            b - DIGIT_ZERO
-        elseif LATIN_A ≤ b ≤ LATIN_F
-            b - (LATIN_A - UInt8(10))
-        elseif LATIN_UPPER_A ≤ b ≤ LATIN_UPPER_F
-            b - (LATIN_UPPER_A - UInt8(10))
-        else
-            _error(E_BAD_ESCAPE, ps)
-        end
-    end
-
-    n
-end
-
-function read_unicode_escape!(ps)
-    u1 = read_four_hex_digits!(ps)
-    if utf16_is_surrogate(u1)
-        skip!(ps, BACKSLASH)
-        skip!(ps, LATIN_U)
-        u2 = read_four_hex_digits!(ps)
-        utf16_get_supplementary(u1, u2)
-    else
-        Char(u1)
-    end
-end
-
-function parse_string(ps::ParserState)
-    b = IOBuffer()
-    incr!(ps)  # skip opening quote
-    while true
-        c = advance!(ps)
-
-        if c == BACKSLASH
-            c = advance!(ps)
-            if c == LATIN_U  # Unicode escape
-                write(b, read_unicode_escape!(ps))
-            else
-                c = get(ESCAPES, c, 0x00)
-                c == 0x00 && _error(E_BAD_ESCAPE, ps)
-                write(b, c)
-            end
-            continue
-        elseif c < SPACE
-            _error(E_BAD_CONTROL, ps)
-        elseif c == STRING_DELIM
-            return String(take!(b))
-        end
-
-        write(b, c)
-    end
-end
-
-"""
-Return `true` if the given bytes vector, starting at `from` and ending at `to`,
-has a leading zero.
-"""
-function hasleadingzero(bytes, from::Int, to::Int)
-    c = bytes[from]
-    from + 1 < to && c == UInt8('-') &&
-            bytes[from + 1] == DIGIT_ZERO && isjsondigit(bytes[from + 2]) ||
-    from < to && to > from + 1 && c == DIGIT_ZERO &&
-            isjsondigit(bytes[from + 1])
-end
-
-"""
-Parse a float from the given bytes vector, starting at `from` and ending at the
-byte before `to`. Bytes enclosed should all be ASCII characters.
-"""
-function float_from_bytes(bytes, from::Int, to::Int)
-    # The ccall is not ideal (Base.tryparse would be better), but it actually
-    # makes an 2× difference to performance
-    ccall(:jl_try_substrtod, Nullable{Float64},
-            (Ptr{UInt8}, Csize_t, Csize_t), bytes, from - 1, to - from + 1)
-end
-
-"""
-Parse an integer from the given bytes vector, starting at `from` and ending at
-the byte before `to`. Bytes enclosed should all be ASCII characters.
-"""
-function int_from_bytes(pc::ParserContext{<:AbstractDict,IntType},
-                        ps::ParserState,
-                        bytes,
-                        from::Int,
-                        to::Int) where IntType <: Real
-    @inbounds isnegative = bytes[from] == MINUS_SIGN ? (from += 1; true) : false
-    num = IntType(0)
-    @inbounds for i in from:to
-        num = IntType(10) * num + IntType(bytes[i] - DIGIT_ZERO)
-    end
-    ifelse(isnegative, -num, num)
-end
-
-function number_from_bytes(pc::ParserContext,
-                           ps::ParserState,
-                           isint::Bool,
-                           bytes,
-                           from::Int,
-                           to::Int)
-    @inbounds if hasleadingzero(bytes, from, to)
-        _error(E_LEADING_ZERO, ps)
-    end
-
-    if isint
-        @inbounds if to == from && bytes[from] == MINUS_SIGN
-            _error(E_BAD_NUMBER, ps)
-        end
-        int_from_bytes(pc, ps, bytes, from, to)
-    else
-        res = float_from_bytes(bytes, from, to)
-        isnull(res) ? _error(E_BAD_NUMBER, ps) : get(res)
-    end
-end
-
-
-function parse_number(pc::ParserContext, ps::ParserState)
-    # Determine the end of the floating point by skipping past ASCII values
-    # 0-9, +, -, e, E, and .
-    number = UInt8[]
-    isint = true
-
-    @inbounds while hasmore(ps)
-        c = current(ps)
-
-        if isjsondigit(c) || c == MINUS_SIGN
-            push!(number, UInt8(c))
-        elseif c in (PLUS_SIGN, LATIN_E, LATIN_UPPER_E, DECIMAL_POINT)
-            push!(number, UInt8(c))
-            isint = false
-        else
-            break
-        end
-
-        incr!(ps)
-    end
-
-    number_from_bytes(pc, ps, isint, number, 1, length(number))
-end
-
+utf16_is_surrogate(ch::UInt16) = (ch & 0xf800) == 0xd800
+utf16_get_supplementary(lead::UInt16, trail::Unsigned) = (lead-0xd7f7)%UInt32<<10 + trail
 
 function unparameterize_type(T::Type)
     candidate = typeintersect(T, AbstractDict{String, Any})
     candidate <: Union{} ? T : candidate
 end
 
-function parse(str::AbstractString;
-               dicttype::Type{<:AbstractDict}=Dict{String,Any},
-               inttype::Type{<:Real}=Int64)
-    pc = ParserContext{unparameterize_type(dicttype), inttype}()
-    ps = MemoryParserState(str, 1)
-    v = parse_value(pc, ps)
-    chomp_space!(ps)
-    if hasmore(ps)
-        _error(E_EXPECTED_EOF, ps)
+# Support functions for handling parsing numbers more generically
+
+@static isdefined(Base, :codeunits) ||
+    (Base.codeunit(str::AbstractString) = eltype(codeunits(str)))
+
+"""
+Parse a float from the given bytes vector, starting at `from` and ending at the
+byte before `to`. Bytes enclosed should all be ASCII characters.
+"""
+function parse_float end
+
+@noinline numerror(bytes, from, to, msg) =
+    error("Unable to parse \"$(bytes[from:to])\"$msg")
+@noinline numerror(io::IO, ch) =
+    error("Unable to parse \"$(String(take!(io)))$(Char(ch))\"")
+
+
+function _parse_float64(::Type{UInt8}, bytes, from::Int, to::Int)
+    # The ccall is not ideal (Base.tryparse would be better), but it actually
+    # makes an 2× difference to performance
+    res = ccall(:jl_try_substrtod, Nullable{Float64},
+                (Ptr{UInt8}, Csize_t, Csize_t),
+                bytes, from - 1, to - from + 1)
+    isnull(res) && numerror(bytes, from, to, " as a Float64")
+    get(res)
+end
+
+function _parse_float64(::Type{Union{UInt16,UInt32}}, str, from::Int, to::Int)
+    str = convert(String, SubString(str, from, to))
+    _parse_float64(UInt8, str, 1, sizeof(str))
+end
+
+parse_float(::Type{T}, isneg, str::AbstractString) where {T<:AbstractFloat} =
+    Base.parse(T, str)
+parse_float(::Type{T}, isneg, str::AbstractString,
+            from::Int64, to::Int64) where {T<:AbstractFloat} =
+    Base.parse(T, SubString(str, from, to))
+
+parse_float(::Type{Float64}, isneg, str::AbstractString, from::Int, to::Int) =
+    _parse_float64(codeunit(str), str, from, to)
+parse_float(::Type{Float16}, isneg, str::AbstractString, from::Int, to::Int) =
+    convert(Float16, _parse_float64(codeunit(str), str, from, to))
+parse_float(::Type{Float32}, isneg, str::AbstractString, from::Int, to::Int) =
+    convert(Float32, _parse_float64(codeunit(str), str, from, to))
+
+"""
+Parse an integer, starting at `from` and ending at `to`
+Bytes enclosed should all be ASCII characters.
+"""
+function parse_int end
+
+# Todo: There is no reason that you should ever have an overflow in Julia, or lose precision
+# Also, parsing numbers can be faster by having a "JSON" number type, that can be converted
+# to whatever types wanted by the user (it would probably be 2 types, one primitive bits type,
+# with 64 bits, that can hold 53 bits of unsigned integer, 1 bit of sign, and 10 bits of
+# *decimal* exponent (i.e. -512..511), if that overflows, use a BigInt/Int, or BigInt/BigInt.
+
+# Have to test how this compares as a fallback
+# Also want to see about optionally promoting to a larger type if there is any overflow
+function parse_int(::Type{T}, isneg, str::AbstractString,
+                    from::Int=1, to::Int=ncodeunits(str)) where {T<:Integer}
+    from += isneg
+    num = T(codeunit(str, from) - DIGIT_ZERO)
+    ten = T(10)
+    @inbounds for i = from+1:to
+        num = muladd(num, ten, T(codeunit(str, i) - DIGIT_ZERO))
     end
-    v
+    isneg ? -num : num
 end
 
-function parse(io::IO;
-               dicttype::Type{<:AbstractDict}=Dict{String,Any},
-               inttype::Type{<:Real}=Int64)
-    pc = ParserContext{unparameterize_type(dicttype), inttype}()
-    ps = StreamingParserState(io)
-    parse_value(pc, ps)
+const _BuiltInSigned   = Union{Int8, Int16, Int32, Int64, Int128}
+const _BuiltInUnsigned = Union{UInt8, UInt16, UInt32, UInt64, UInt128}
+const _BuiltInInteger  = Union{_BuiltInSigned, _BuiltInUnsigned, BigInt}
+
+parse_int(::Type{T}, isneg, str::AbstractString,
+                   from::Int, to::Int) where {T<:_BuiltInInteger} =
+    Base.parse(T, SubString(str, from, to))
+parse_int(::Type{T}, isneg, str::AbstractString) where {T<:_BuiltInInteger} =
+    Base.parse(T, str)
+
+parse(input;
+#      dicttype::Type{<:AbstractDict}=Dict{SubString{String},Any},
+      dicttype::Type{<:AbstractDict}=Dict{String,Any},
+      inttype::Type{<:Real}=Int64,
+      floattype::Type{<:Real}=Float64) =
+    _parse(input, ParserContext{unparameterize_type(dicttype), inttype, floattype}())
+
+@static if VERSION < v"0.7.0-DEV"
+    function check_mmap(kwargs)
+        for x in kwargs
+            x[1] == :use_mmap && return x[2]
+        end
+        false
+    end
+else
+    check_mmap(kwargs) = kwargs[:use_mmap]
 end
 
-function parsefile(filename::AbstractString;
-                   dicttype::Type{<:AbstractDict}=Dict{String, Any},
-                   inttype::Type{<:Real}=Int64,
-                   use_mmap=true)
-    sz = filesize(filename)
+function parsefile(filename::AbstractString; kwargs...)
     open(filename) do io
-        s = use_mmap ? String(Mmap.mmap(io, Vector{UInt8}, sz)) : read(io, String)
-        parse(s; dicttype=dicttype, inttype=inttype)
+        parse((check_mmap(kwargs)
+               ? String(Mmap.mmap(io, Vector{UInt8}, filesize(filename)))
+               : read(io, String)); kwargs...)
     end
 end
 
-# Efficient implementations of some of the above for in-memory parsing
-include("specialized.jl")
+include("StreamParser.jl") # More generic implementations, can work on IO stream
+include("MemoryParser.jl") # Efficient implementations for in-memory parsing
 
 end  # module Parser

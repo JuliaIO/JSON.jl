@@ -2,7 +2,7 @@
     DataStructures.OrderedDict,
     Dict{Symbol, Int32}
 ]
-    val = JSON.parse("{\"x\": 3}", dicttype=T)
+    val = JSON.parse(Typ("{\"x\": 3}"), dicttype=T)
     @test isa(val, T)
     @test length(val) == 1
     key = collect(keys(val))[1]

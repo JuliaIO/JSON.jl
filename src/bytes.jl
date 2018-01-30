@@ -33,35 +33,22 @@ const LATIN_U        = UInt8('u')
 const OBJECT_BEGIN   = UInt8('{')
 const OBJECT_END     = UInt8('}')
 
-const ESCAPES = Dict(
-    STRING_DELIM => STRING_DELIM,
-    BACKSLASH    => BACKSLASH,
-    SOLIDUS      => SOLIDUS,
-    LATIN_B      => BACKSPACE,
-    LATIN_F      => FORM_FEED,
-    LATIN_N      => NEWLINE,
-    LATIN_R      => RETURN,
-    LATIN_T      => TAB)
+const CONTROL_ESCAPE = "bfnrt"
+const CONTROL_CHARS  = "\b\f\n\r\t"
 
-const REVERSE_ESCAPES = Dict(reverse(p) for p in ESCAPES)
-const ESCAPED_ARRAY = Vector{Vector{UInt8}}(uninitialized, 256)
-for c in 0x00:0xFF
-    ESCAPED_ARRAY[c + 1] = if c == SOLIDUS
-        [SOLIDUS]  # don't escape this one
-    elseif c ≥ 0x80
-        [c]  # UTF-8 character copied verbatim
-    elseif haskey(REVERSE_ESCAPES, c)
-        [BACKSLASH, REVERSE_ESCAPES[c]]
-    elseif iscntrl(Char(c)) || !isprint(Char(c))
-        UInt8[BACKSLASH, LATIN_U, hex(c, 4)...]
-    else
-        [c]
+function create_tab()
+    tab = zeros(UInt8, 't' - 'b' + 1)
+    for i = 1:5
+        tab[CONTROL_ESCAPE[i]%UInt8-LATIN_A] = CONTROL_CHARS[i]%UInt8
     end
+    tab
 end
+
+const ESCAPE_TAB = create_tab()
 
 export BACKSPACE, TAB, NEWLINE, FORM_FEED, RETURN, SPACE, STRING_DELIM,
        PLUS_SIGN, DELIMITER, MINUS_SIGN, DECIMAL_POINT, SOLIDUS, DIGIT_ZERO,
        DIGIT_NINE, SEPARATOR, LATIN_UPPER_A, LATIN_UPPER_E, LATIN_UPPER_F,
        ARRAY_BEGIN, BACKSLASH, ARRAY_END, LATIN_A, LATIN_B, LATIN_E, LATIN_F,
        LATIN_L, LATIN_N, LATIN_R, LATIN_S, LATIN_T, LATIN_U, OBJECT_BEGIN,
-       OBJECT_END, ESCAPES, REVERSE_ESCAPES, ESCAPED_ARRAY
+       OBJECT_END, ESCAPE_TAB

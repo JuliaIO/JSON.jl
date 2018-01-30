@@ -8,33 +8,11 @@ import DataStructures
 
 include("json-samples.jl")
 
-@testset "Parser" begin
-    @testset "Parser Failures" begin
-        include("parser/invalid-input.jl")
-    end
+include("parser.jl")
 
-    @testset "parsefile" begin
-        include("parser/parsefile.jl")
-    end
-
-    @testset "dicttype" begin
-        include("parser/dicttype.jl")
-    end
-
-    @testset "inttype" begin
-        include("parser/inttype.jl")
-    end
-
-    @testset "Miscellaneous" begin
-        # test for single values
-        @test JSON.parse("true") == true
-        @test JSON.parse("null") == nothing
-        @test JSON.parse("\"hello\"") == "hello"
-        @test JSON.parse("\"a\"") == "a"
-        @test JSON.parse("1") == 1
-        @test JSON.parse("1.5") == 1.5
-        @test JSON.parse("[true]") == [true]
-    end
+@testset "Issue #152" begin
+    @test json([Int64[] Int64[]]) == "[[],[]]"
+    @test json([Int64[] Int64[]]') == "[]"
 end
 
 @testset "Serializer" begin
@@ -55,7 +33,7 @@ end
     # ::Nothing values should be encoded as null
     testDict = Dict("a" => nothing)
     nothingJson = JSON.json(testDict)
-    nothingDict = JSON.parse(nothingJson)
+    nothingDict = JSON.parse(Typ(nothingJson))
     @test testDict == nothingDict
 
     @testset "async" begin
@@ -75,6 +53,7 @@ end
     @testset "for issue #$i" for i in [21, 26, 57, 109, 152, 163]
         include("regression/issue$(lpad(i, 3, '0')).jl")
     end
+end
 end
 
 # Check that printing to the default STDOUT doesn't fail
