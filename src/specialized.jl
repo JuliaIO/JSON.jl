@@ -11,10 +11,8 @@ function parse_string(ps::MemoryParserState)
     # We can just copy the data from the buffer in this case.
     if fastpath
         s = ps.s
-        e = s + len
-        ps.s = e + 2 # byte after closing quote
-        while !isvalid(ps.utf8,e) & (e > s); e -= 1; end # find last char index
-        return ps.utf8[s+1:e] # slicing a String returns a String
+        ps.s = s + len + 2 # byte after closing quote
+        return unsafe_string(pointer(ps.utf8)+s, len)
     else
         String(take!(parse_string(ps, IOBuffer(len))))
     end
