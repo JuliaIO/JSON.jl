@@ -136,7 +136,7 @@ function _error(message::AbstractString, ps::MemoryParserState)
     # Replace all special multi-line/multi-space characters with a space.
     strnl = replace(orig, r"[\b\f\n\r\t\s]" => " ")
     li = (ps.s > 20) ? ps.s - 9 : 1 # Left index
-    ri = min(sizeof(orig), ps.s + 20)       # Right index
+    ri = min(lastindex(orig), ps.s + 20)       # Right index
     error(message *
       "\nLine: " * string(lines) *
       "\nAround: ..." * strnl[li:ri] * "..." *
