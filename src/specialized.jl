@@ -18,7 +18,6 @@ function parse_string(ps::MemoryParserState)
     else
         String(take!(parse_string(ps, IOBuffer(len))))
     end
-
 end
 
 """
