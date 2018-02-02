@@ -20,9 +20,14 @@ isjsondigit(b::UInt8) = DIGIT_ZERO ≤ b ≤ DIGIT_NINE
 abstract type ParserState end
 
 mutable struct MemoryParserState <: ParserState
-    utf8data::Vector{UInt8}
+    utf8::String
     s::Int
 end
+
+# it is convenient to access MemoryParserState like a Vector{UInt8} to avoid copies
+Base.@propagate_inbounds Base.getindex(state::MemoryParserState, i::Int) = codeunit(state.utf8, i)
+Base.length(state::MemoryParserState) = sizeof(state.utf8)
+Base.unsafe_convert(::Type{Ptr{UInt8}}, state::MemoryParserState) = unsafe_convert(Ptr{UInt8}, state.utf8)
 
 mutable struct StreamingParserState{T <: IO} <: ParserState
     io::T
@@ -40,7 +45,7 @@ input ended unexpectedly.
 """
 @inline function byteat(ps::MemoryParserState)
     @inbounds if hasmore(ps)
-        return ps.utf8data[ps.s]
+        return ps[ps.s]
     else
         _error(E_UNEXPECTED_EOF, ps)
     end
@@ -62,7 +67,7 @@ end
 Like `byteat`, but with no special bounds check and error message. Useful when
 a current byte is known to exist.
 """
-@inline current(ps::MemoryParserState) = ps.utf8data[ps.s]
+@inline current(ps::MemoryParserState) = ps[ps.s]
 @inline current(ps::StreamingParserState) = byteat(ps)
 
 """
@@ -99,7 +104,7 @@ the advancement. If the `ParserState` is already done, then throw an error.
 Return `true` if there is a current byte, and `false` if all bytes have been
 exausted.
 """
-@inline hasmore(ps::MemoryParserState) = ps.s ≤ endof(ps.utf8data)
+@inline hasmore(ps::MemoryParserState) = ps.s ≤ length(ps)
 @inline hasmore(ps::StreamingParserState) = true  # no more now ≠ no more ever
 
 """
@@ -126,12 +131,12 @@ end
 
 # Throws an error message with an indicator to the source
 function _error(message::AbstractString, ps::MemoryParserState)
-    orig = String(ps.utf8data)
+    orig = ps.utf8
     lines = _count_before(orig, '\n', ps.s)
     # Replace all special multi-line/multi-space characters with a space.
     strnl = replace(orig, r"[\b\f\n\r\t\s]" => " ")
     li = (ps.s > 20) ? ps.s - 9 : 1 # Left index
-    ri = min(endof(orig), ps.s + 20)       # Right index
+    ri = min(lastindex(orig), ps.s + 20)       # Right index
     error(message *
       "\nLine: " * string(lines) *
       "\nAround: ..." * strnl[li:ri] * "..." *
@@ -262,10 +267,8 @@ function read_unicode_escape!(ps)
     end
 end
 
-get_bytes(str) = Vector{UInt8}(@static isdefined(Base, :codeunits) ? codeunits(str) : str)
-
 function parse_string(ps::ParserState)
-    b = UInt8[]
+    b = IOBuffer()
     incr!(ps)  # skip opening quote
     while true
         c = advance!(ps)
@@ -273,20 +276,20 @@ function parse_string(ps::ParserState)
         if c == BACKSLASH
             c = advance!(ps)
             if c == LATIN_U  # Unicode escape
-                append!(b, get_bytes(string(read_unicode_escape!(ps))))
+                write(b, read_unicode_escape!(ps))
             else
                 c = get(ESCAPES, c, 0x00)
                 c == 0x00 && _error(E_BAD_ESCAPE, ps)
-                push!(b, c)
+                write(b, c)
             end
             continue
         elseif c < SPACE
             _error(E_BAD_CONTROL, ps)
         elseif c == STRING_DELIM
-            return String(b)
+            return String(take!(b))
         end
 
-        push!(b, c)
+        write(b, c)
     end
 end
 
@@ -294,7 +297,7 @@ end
 Return `true` if the given bytes vector, starting at `from` and ending at `to`,
 has a leading zero.
 """
-function hasleadingzero(bytes::Vector{UInt8}, from::Int, to::Int)
+function hasleadingzero(bytes, from::Int, to::Int)
     c = bytes[from]
     from + 1 < to && c == UInt8('-') &&
             bytes[from + 1] == DIGIT_ZERO && isjsondigit(bytes[from + 2]) ||
@@ -306,7 +309,7 @@ end
 Parse a float from the given bytes vector, starting at `from` and ending at the
 byte before `to`. Bytes enclosed should all be ASCII characters.
 """
-function float_from_bytes(bytes::Vector{UInt8}, from::Int, to::Int)
+function float_from_bytes(bytes, from::Int, to::Int)
     # The ccall is not ideal (Base.tryparse would be better), but it actually
     # makes an 2× difference to performance
     ccall(:jl_try_substrtod, Nullable{Float64},
@@ -317,10 +320,10 @@ end
 Parse an integer from the given bytes vector, starting at `from` and ending at
 the byte before `to`. Bytes enclosed should all be ASCII characters.
 """
-function int_from_bytes(pc::ParserContext{<:AbstractDict,IntType}, 
-                        ps::ParserState, 
-                        bytes::Vector{UInt8}, 
-                        from::Int, 
+function int_from_bytes(pc::ParserContext{<:AbstractDict,IntType},
+                        ps::ParserState,
+                        bytes,
+                        from::Int,
                         to::Int) where IntType <: Real
     @inbounds isnegative = bytes[from] == MINUS_SIGN ? (from += 1; true) : false
     num = IntType(0)
@@ -330,11 +333,11 @@ function int_from_bytes(pc::ParserContext{<:AbstractDict,IntType},
     ifelse(isnegative, -num, num)
 end
 
-function number_from_bytes(pc::ParserContext, 
-                           ps::ParserState, 
-                           isint::Bool, 
-                           bytes::Vector{UInt8}, 
-                           from::Int, 
+function number_from_bytes(pc::ParserContext,
+                           ps::ParserState,
+                           isint::Bool,
+                           bytes,
+                           from::Int,
                            to::Int)
     @inbounds if hasleadingzero(bytes, from, to)
         _error(E_LEADING_ZERO, ps)
@@ -386,7 +389,7 @@ function parse(str::AbstractString;
                dicttype::Type{<:AbstractDict}=Dict{String,Any},
                inttype::Type{<:Real}=Int64)
     pc = ParserContext{unparameterize_type(dicttype), inttype}()
-    ps = MemoryParserState(get_bytes(str), 1)
+    ps = MemoryParserState(str, 1)
     v = parse_value(pc, ps)
     chomp_space!(ps)
     if hasmore(ps)
