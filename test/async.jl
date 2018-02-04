@@ -6,10 +6,10 @@ finished_async_tests = RemoteChannel()
 
     Base.start_reading(s)
 
-    @test JSON.parse(s) != nothing  # a
-    @test JSON.parse(s) != nothing  # b
-    validate_c(s)                   # c
-    @test JSON.parse(s) != nothing  # d
+    @test JSON.parse(s) != nothing  # sample_a
+    @test JSON.parse(s) != nothing  # sample_b
+    validate_c(s)                   # sample_c
+    @test JSON.parse(s) != nothing  # sample_d
     validate_svg_tviewer_menu(s)    # svg_tviewer_menu
     @test JSON.parse(s) != nothing  # gmaps
     @test JSON.parse(s) != nothing  # colors1
@@ -33,17 +33,17 @@ end
 
 w = connect("localhost", 7777)
 
-@test JSON.parse(a) != nothing
-write(w, a)
+@test JSON.parse(sample_a) != nothing
+write(w, sample_a)
 
-@test JSON.parse(b) != nothing
-write(w, b)
+@test JSON.parse(sample_b) != nothing
+write(w, sample_b)
 
-validate_c(c)
-write(w, c)
+validate_c(sample_c)
+write(w, sample_c)
 
-@test JSON.parse(d) != nothing
-write(w, d)
+@test JSON.parse(sample_d) != nothing
+write(w, sample_d)
 
 validate_svg_tviewer_menu(svg_tviewer_menu)
 write(w, svg_tviewer_menu)

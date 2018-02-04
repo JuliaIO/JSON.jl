@@ -48,7 +48,9 @@ end
     json_zeros = json(zeros)
     @test contains(json_zeros, "\\u0000")
     @test !contains(json_zeros, "\\0")
-    @test JSON.parse(Typ(json_zeros)) == zeros
+    for Typ in (String, IOBuffer)
+        @test JSON.parse(Typ(json_zeros)) == zeros
+    end
 end
 
 @testset "Arrays" begin
