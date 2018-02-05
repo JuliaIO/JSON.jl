@@ -25,4 +25,7 @@ using .Writer: show_json, json, lower, print, StructuralContext, show_element,
 using .Serializations: Serialization, CommonSerialization,
                        StandardSerialization
 
+# for pretty-printed (non-compact) output, JSONText must be re-parsed:
+Writer.lower(json::JSONText) = parse(json.s)
+
 end # module
