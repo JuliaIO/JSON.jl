@@ -338,6 +338,22 @@ function show_json(io::IO, s::Serialization, obj; indent=nothing)
     end
 end
 
+"""
+    JSONText(s::AbstractString)
+
+`JSONText` is a wrapper around a Julia string representing JSON-formatted
+text, which is inserted *as-is* in the JSON output of `JSON.print` and `JSON.json`
+for compact output, and is otherwise re-parsed for pretty-printed output.
+
+`s` *must* contain valid JSON text.  Otherwise compact output will contain
+the malformed `s` and other serialization output will throw a parsing exception.
+"""
+struct JSONText
+    s::String
+end
+show_json(io::CompactContext, s::CS, json::JSONText) = write(io, json.s)
+# other contexts for JSONText are handled by lower(json) = parse(json.s)
+
 print(io::IO, obj, indent) =
     show_json(io, StandardSerialization(), obj; indent=indent)
 print(io::IO, obj) = show_json(io, StandardSerialization(), obj)

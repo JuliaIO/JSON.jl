@@ -3,6 +3,7 @@ __precompile__()
 module JSON
 
 export json # returns a compact (or indented) JSON representation as a string
+export JSONText # string wrapper to insert raw JSON into JSON output
 
 include("Common.jl")
 
@@ -19,8 +20,12 @@ include("Writer.jl")
 using .Parser: parse, parsefile
 using .Writer: show_json, json, lower, print, StructuralContext, show_element,
                show_string, show_key, show_pair, show_null, begin_array,
-               end_array, begin_object, end_object, indent, delimit, separate
+               end_array, begin_object, end_object, indent, delimit, separate,
+               JSONText
 using .Serializations: Serialization, CommonSerialization,
                        StandardSerialization
+
+# for pretty-printed (non-compact) output, JSONText must be re-parsed:
+Writer.lower(json::JSONText) = parse(json.s)
 
 end # module

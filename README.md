@@ -71,12 +71,18 @@ installed), you can pass `dicttype=DataStructures.OrderedDict` to
 maintain the insertion order of the items in the object.
 
 The `inttype` argument controls how integers are parsed.  If a number in a JSON
-file is recognized to be an integer, it is parsed as one; otherwise it is parsed 
+file is recognized to be an integer, it is parsed as one; otherwise it is parsed
 as a `Float64`.  The `inttype` defaults to `Int64`, but, for example, if you know
-that your integer numbers are all small and want to save space, you can pass 
+that your integer numbers are all small and want to save space, you can pass
 `inttype=Int32`.  Alternatively, if your JSON input has integers which are too large
 for Int64, you can pass `inttype=Int128` or `inttype=BigInt`.  `inttype` can be any
 subtype of `Real`.
+
+```julia
+JSONText(s::AbstractString)
+```
+A wrapper around a Julia string representing JSON-formatted text,
+which is inserted *as-is* in the JSON output of `JSON.print` and `JSON.json`.
 
 ```julia
 JSON.lower(p::Point2D) = [p.x, p.y]

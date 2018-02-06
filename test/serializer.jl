@@ -88,4 +88,8 @@ end
 # issue #184: serializing a 0-dimensional array
 @test sprint(JSON.show_json, JSON.StandardSerialization(), view([184], 1)) == "184"
 
+# test serializing with a JSONText object
+@test json([JSONText("{\"bar\":  [3,4,5]}"),314159]) == "[{\"bar\":  [3,4,5]},314159]"
+@test json([JSONText("{\"bar\":  [3,4,5]}"),314159], 1) == "[\n {\n  \"bar\": [\n   3,\n   4,\n   5\n  ]\n },\n 314159\n]\n"
+
 end
