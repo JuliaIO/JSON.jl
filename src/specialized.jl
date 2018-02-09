@@ -14,7 +14,7 @@ function parse_string(ps::MemoryParserState)
         ps.s = s + len + 2 # byte after closing quote
         return unsafe_string(pointer(ps.utf8)+s, len)
     else
-        String(take!(parse_string(ps, IOBuffer(len))))
+        String(take!(parse_string(ps, IOBuffer(maxsize=len))))
     end
 end
 
