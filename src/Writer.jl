@@ -2,7 +2,6 @@ module Writer
 
 using Compat
 using Compat.Dates
-using Nullables
 using ..Common
 using ..Serializations: Serialization, StandardSerialization,
                         CommonSerialization
@@ -13,9 +12,9 @@ Internal JSON.jl implementation detail; do not depend on this type.
 A JSON primitive that wraps around any composite type to enable `Dict`-like
 serialization.
 """
-struct CompositeTypeWrapper{T}
+struct CompositeTypeWrapper{T,V}
     wrapped::T
-    fns::Vector{Symbol}
+    fns::V
 end
 
 CompositeTypeWrapper(x) = CompositeTypeWrapper(x, fieldnames(typeof(x)))
@@ -35,15 +34,12 @@ one of the aforementioned types. If first lowering to some intermediate type is
 required, then extensions should call `lower` before returning a value.
 
 Note that the return value need not be *recursively* lowered—this function may
-for instance return an `AbstractArray{Any, 1}` whose elements are not JSON
+for instance return an `AbstractVector{Any}` whose elements are not JSON
 primitives.
 """
 function lower(a)
-    if nfields(typeof(a)) > 0
-        CompositeTypeWrapper(a)
-    else
-        error("Cannot serialize type $(typeof(a))")
-    end
+    nfields(typeof(a)) <= 0 && error("Cannot serialize type $(typeof(a))")
+    CompositeTypeWrapper(a)
 end
 
 # To avoid allocating an intermediate string, we directly define `show_json`
@@ -272,12 +268,16 @@ end
 
 show_json(io::SC, ::CS, ::Nothing) = show_null(io)
 
+# Only support Nullable if v0.6.x, don't want dependency
+@static if VERSION < v"0.7.0-DEV"
+using Nullables
 function show_json(io::SC, s::CS, a::Nullable)
     if isnull(a)
         Base.print(io, "null")
     else
         show_json(io, s, get(a))
     end
+end
 end
 
 function show_json(io::SC, s::CS, a::AbstractDict)

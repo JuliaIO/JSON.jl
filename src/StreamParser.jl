@@ -117,7 +117,7 @@ function parse_object(pc::ParserContext, io::IO)
             val, ch = parse_number(pc, io, ch)
             obj[keyT(key)] = val
         else
-            obj[convert(keyT, key)] = parse_value(pc, io, ch)
+            obj[keyT(key)] = parse_value(pc, io, ch)
             ch = next_byte(io)
         end
         ch == DELIMITER && continue

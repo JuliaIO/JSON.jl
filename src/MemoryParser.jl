@@ -10,6 +10,8 @@ check_end(str, pos, fin) = pos > fin && _error(E_UNEXPECTED_EOF, str, pos)
     get_byte(str, pos), pos
 end
 
+@static VERSION < v"0.7.0-DEV" ? (substr_index(str, pos) = pos) : (const substr_index = thisind)
+
 function _parse(str::String, pc::ParserContext)
     fin = sizeof(str)
     v, pos = parse_value(pc, str, 1, fin)
@@ -86,8 +88,8 @@ end
     lines = _count_before(str, '\n', pos)
     # Replace all special multi-line/multi-space characters with a space.
     strnl = replace(str, r"[\b\f\n\r\t\s]" => " ")
-    li = (pos > 20) ? pos - 9 : 1 # Left index
-    ri = min(sizeof(str), pos + 20)       # Right index
+    li = substr_index(strnl, (pos > 20) ? pos - 9 : 1)    # Left index
+    ri = substr_index(strnl, min(sizeof(str), pos + 20))  # Right index
     error("$message\nLine: $lines\nAround: ...$(strnl[li:ri])...\n$(" " ^ (11 + pos - li))^\n")
 end
 
@@ -127,7 +129,7 @@ function parse_object(pc::ParserContext, str, pos, fin)
         ch == SEPARATOR || _expecterr(SEPARATOR, ch, str, pos)
         # Read value
         value, pos = parse_value(pc, str, pos + 1, fin)
-        obj[convert(KeyType, key)] = value
+        obj[KeyType(key)] = value
         ch, pos = skip_space(str, pos, fin)
         ch == OBJECT_END && break
         ch == DELIMITER || _expecterr(OBJECT_END, DELIMITER, ch, str, pos)

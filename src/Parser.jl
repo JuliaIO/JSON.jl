@@ -2,7 +2,6 @@ module Parser  # JSON
 
 using Compat
 using Compat.Mmap
-using Nullables
 using ..Common
 
 """
@@ -50,15 +49,32 @@ function parse_float end
 @noinline numerror(io::IO, ch) =
     error("Unable to parse \"$(String(take!(io)))$(Char(ch))\"")
 
+# Handle removal of Nullables from Base
+@static if VERSION < v"0.7.0-DEV"
+
+using Nullables
 
 function _parse_float64(::Type{UInt8}, bytes, from::Int, to::Int)
     # The ccall is not ideal (Base.tryparse would be better), but it actually
     # makes an 2× difference to performance
+    # Handle differences in return values from tryparse
     res = ccall(:jl_try_substrtod, Nullable{Float64},
                 (Ptr{UInt8}, Csize_t, Csize_t),
                 bytes, from - 1, to - from + 1)
     isnull(res) && numerror(bytes, from, to, " as a Float64")
     get(res)
+end
+
+else
+
+function _parse_float64(::Type{UInt8}, bytes, from::Int, to::Int)
+    hasvalue, val = ccall(:jl_try_substrtod, Tuple{Bool, Float64},
+                          (Ptr{UInt8}, Csize_t, Csize_t),
+                          bytes, from - 1, to - from + 1)
+    hasvalue || numerror(bytes, from, to, " as a Float64")
+    val
+end
+
 end
 
 function _parse_float64(::Type{Union{UInt16,UInt32}}, str, from::Int, to::Int)
@@ -121,20 +137,9 @@ parse(input;
       floattype::Type{<:Real}=Float64) =
     _parse(input, ParserContext{unparameterize_type(dicttype), inttype, floattype}())
 
-@static if VERSION < v"0.7.0-DEV"
-    function check_mmap(kwargs)
-        for x in kwargs
-            x[1] == :use_mmap && return x[2]
-        end
-        false
-    end
-else
-    check_mmap(kwargs) = kwargs[:use_mmap]
-end
-
-function parsefile(filename::AbstractString; kwargs...)
+function parsefile(filename::AbstractString; use_mmap=false, kwargs...)
     open(filename) do io
-        parse((check_mmap(kwargs)
+        parse((use_mmap
                ? String(Mmap.mmap(io, Vector{UInt8}, filesize(filename)))
                : read(io, String)); kwargs...)
     end

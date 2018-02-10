@@ -1,3 +1,5 @@
+using Compat # for RemoteChannel, moved to Distributed
+
 finished_async_tests = RemoteChannel()
 
 @async begin

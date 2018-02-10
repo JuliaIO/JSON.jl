@@ -85,7 +85,8 @@ for t in (String, IOBuffer)
                     post in ("", "    ", "   \t", "\t", "\r", "\n", "    \r", "    \n")
 
                     str = string(pref, frac, expo)
-                    isnull(tryparse(T, str)) && continue
+                    res = tryparse(T, str)
+                    (VERSION < v"0.7.0-DEV" ? isnull(res) : res == nothing) && continue
                     val = JSON.parse(InputType[]("{\"x\": $str$post}"), floattype=T)
                     @test isa(val, Dict{String, Any})
                     @test length(val) == 1
