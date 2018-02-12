@@ -11,10 +11,8 @@ input ended unexpectedly.
 @noinline _error(message::AbstractString, ch) =
     error("$message\n ...when parsing byte with value '\\x$(hex(ch,2))'")
 
-@inline eat_byte(ps::StreamingParserState) = ps.used ? next_byte(ps) : (ps.used = true; ps.cur)
-
-@noinline _error(message::AbstractString, ps::StreamingParserState) =
-    error("$message\n ...when parsing byte with value '\\x$(hex(ps.cur,2))'")
+_expecterr(expected, ch) =
+    _error("Expected '$(Char(expected))' here", ch)
 
 _expecterr(exp1, exp2, ch) =
     _error("Expected '$(Char(exp1))' or '$(Char(exp2))' here", ch)
@@ -132,14 +130,14 @@ function parse_object(pc::ParserContext, io::IO)
     obj
 end
 
-@inline function _get_hex_digit!(ps::ParserState)
-    byt = eat_byte(ps)
-    if (byt - DIGIT_ZERO) < 10
-        byt - DIGIT_ZERO
-    elseif (byt - LATIN_A) < 6
-        byt - LATIN_A + 0x0a
-    elseif (byt - LATIN_UPPER_A) < 6
-        byt - LATIN_UPPER_A + 0x0a
+@inline function _get_hex_digit!(io::IO)
+    ch = next_byte(io)
+    if (ch - DIGIT_ZERO) < 0xa
+        ch - DIGIT_ZERO
+    elseif (ch - LATIN_A) < 0x6
+        ch - LATIN_A + 0x0a
+    elseif (ch - LATIN_UPPER_A) < 0x6
+        ch - LATIN_UPPER_A + 0x0a
     else
         _error(E_BAD_ESCAPE, ch)
     end
@@ -155,9 +153,9 @@ read_four_hex_digits!(io::IO) =
 function parse_string(io::IO)
     buf = IOBuffer()
     while true
-        ch = eat_byte(ps)
+        ch = next_byte(io)
         if ch == BACKSLASH
-            ch = eat_byte(ps)
+            ch = next_byte(io)
             if ch == LATIN_U  # Unicode escape
                 u1 = read_four_hex_digits!(io)
                 if u1 < 0x80
