@@ -1,4 +1,5 @@
 using Compat # for RemoteChannel, moved to Distributed
+using Distributed
 
 finished_async_tests = RemoteChannel()
 
