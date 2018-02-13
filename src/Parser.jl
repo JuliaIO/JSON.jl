@@ -84,8 +84,7 @@ end
 
 parse_float(::Type{T}, isneg, str::AbstractString) where {T<:AbstractFloat} =
     Base.parse(T, str)
-parse_float(::Type{T}, isneg, str::AbstractString,
-            from::Int64, to::Int64) where {T<:AbstractFloat} =
+parse_float(::Type{T}, isneg, str::AbstractString, from::Int, to::Int) where {T<:AbstractFloat} =
     Base.parse(T, SubString(str, from, to))
 
 parse_float(::Type{Float64}, isneg, str::AbstractString, from::Int, to::Int) =
