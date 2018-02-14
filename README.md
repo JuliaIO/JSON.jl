@@ -48,6 +48,14 @@ Writes a compact (no extra whitespace or indentation) JSON representation
 to the supplied IO.
 
 ```julia
+JSON.print(a::Associative, indent)
+JSON.print(io::IO, a::Associative, indent)
+```
+
+Writes a JSON representation with newlines, and indentation if specified. Non-zero `indent` will be applied recursively to nested elements.
+
+
+```julia
 json(a::Any)
 ```
 
