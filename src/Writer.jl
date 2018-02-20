@@ -61,7 +61,7 @@ const IsPrintedAsString = Union{
 lower(x::IsPrintedAsString) = x
 
 lower(m::Module) = throw(ArgumentError("cannot serialize Module $m as JSON"))
-lower(x::Real) = Float64(x)
+lower(x::Real) = convert(Float64, x)
 lower(x::Base.AbstractSet) = collect(x)
 
 """

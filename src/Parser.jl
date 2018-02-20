@@ -222,7 +222,7 @@ function parse_object(pc::ParserContext{DictType, <:Real}, ps::ParserState) wher
             # Read value
             value = parse_value(pc, ps)
             chomp_space!(ps)
-            obj[convert(keyT, key)] = value
+            obj[keyT === Symbol ? Symbol(key) : convert(keyT, key)] = value
             byteat(ps) == OBJECT_END && break
             skip!(ps, DELIMITER)
         end

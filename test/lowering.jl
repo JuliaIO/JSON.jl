@@ -22,7 +22,7 @@ JSON.lower(v::Type151{T}) where {T} = Dict(:type => T, :value => v.x)
     "value" => 1.0)
 
 fixednum = Fixed{Int16, 15}(0.1234)
-@test JSON.parse(JSON.json(fixednum)) == Float64(fixednum)
+@test JSON.parse(JSON.json(fixednum)) == convert(Float64, fixednum)
 
 # test that the default string-serialization of enums can be overriden by
 # `lower` if needed
