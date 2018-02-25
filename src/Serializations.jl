@@ -4,7 +4,6 @@ JSON writer serialization contexts.
 This module defines the `Serialization` abstract type and several concrete
 implementations, as they relate to JSON.
 """
-
 module Serializations
 
 using ..Common

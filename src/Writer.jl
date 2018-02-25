@@ -23,6 +23,7 @@ struct CompositeTypeWrapper{T}
     fns::Vector{Symbol}
 end
 
+CompositeTypeWrapper(x, syms) = CompositeTypeWrapper(x, collect(syms))
 CompositeTypeWrapper(x) = CompositeTypeWrapper(x, fieldnames(typeof(x)))
 
 """
