@@ -1,3 +1,11 @@
+function maxsize_buffer(maxsize::Int)
+    @static if VERSION < v"0.7.0-DEV.3734"
+        IOBuffer(maxsize)
+    else
+        IOBuffer(maxsize=maxsize)
+    end
+end
+
 # Specialized functions for increased performance when JSON is in-memory
 function parse_string(ps::MemoryParserState)
     # "Dry Run": find length of string so we can allocate the right amount of
@@ -14,7 +22,7 @@ function parse_string(ps::MemoryParserState)
         ps.s = s + len + 2 # byte after closing quote
         return unsafe_string(pointer(ps.utf8)+s, len)
     else
-        String(take!(parse_string(ps, IOBuffer(maxsize=len))))
+        String(take!(parse_string(ps, maxsize_buffer(len))))
     end
 end
 
