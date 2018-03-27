@@ -46,8 +46,8 @@ end
 @testset "Null bytes" begin
     zeros = Dict("\0" => "\0")
     json_zeros = json(zeros)
-    @test contains(json_zeros,"\\u0000")
-    @test !contains(json_zeros,"\\0")
+    @test occursin("\\u0000", json_zeros)
+    @test !occursin("\\0", json_zeros)
     @test JSON.parse(json_zeros) == zeros
 end
 

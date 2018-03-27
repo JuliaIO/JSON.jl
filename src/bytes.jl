@@ -44,7 +44,7 @@ const ESCAPES = Dict(
     LATIN_T      => TAB)
 
 const REVERSE_ESCAPES = Dict(reverse(p) for p in ESCAPES)
-const ESCAPED_ARRAY = Vector{Vector{UInt8}}(uninitialized, 256)
+const ESCAPED_ARRAY = Vector{Vector{UInt8}}(undef, 256)
 for c in 0x00:0xFF
     ESCAPED_ARRAY[c + 1] = if c == SOLIDUS
         [SOLIDUS]  # don't escape this one
@@ -53,7 +53,11 @@ for c in 0x00:0xFF
     elseif haskey(REVERSE_ESCAPES, c)
         [BACKSLASH, REVERSE_ESCAPES[c]]
     elseif iscntrl(Char(c)) || !isprint(Char(c))
-        UInt8[BACKSLASH, LATIN_U, hex(c, 4)...]
+        if VERSION < v"0.7.0-DEV.4446"
+            UInt8[BACKSLASH, LATIN_U, hex(c, 4)...]
+        else
+            UInt8[BACKSLASH, LATIN_U, string(c, base=16, pad=4)...]
+        end
     else
         [c]
     end

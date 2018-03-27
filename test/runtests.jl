@@ -78,5 +78,4 @@ end
     end
 end
 
-# Check that printing to the default STDOUT doesn't fail
-JSON.print(["JSON.jl tests pass!"], 1)
+# Check that printing to the default stdout doesn't fail

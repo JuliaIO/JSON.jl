@@ -1,5 +1,9 @@
 finished_async_tests = RemoteChannel()
 
+if VERSION >= v"0.7.0-DEV.4442"
+    using Sockets
+end
+
 @async begin
     s = listen(7777)
     s = accept(s)

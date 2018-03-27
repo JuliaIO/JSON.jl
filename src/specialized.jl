@@ -62,7 +62,7 @@ function predict_string(ps::MemoryParserState)
             if ps[s] == LATIN_U  # Unicode escape
                 t = ps.s
                 ps.s = s + 1
-                len += write(DevNull, read_unicode_escape!(ps))
+                len += write(devnull, read_unicode_escape!(ps))
                 s = ps.s
                 ps.s = t
                 continue
