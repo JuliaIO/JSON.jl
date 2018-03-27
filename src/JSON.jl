@@ -1,4 +1,4 @@
-# __precompile__() rene
+__precompile__()
 
 module JSON
 
