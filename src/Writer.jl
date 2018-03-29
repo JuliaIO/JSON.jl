@@ -359,8 +359,8 @@ print(io::IO, obj, indent) =
     show_json(io, StandardSerialization(), obj; indent=indent)
 print(io::IO, obj) = show_json(io, StandardSerialization(), obj)
 
-print(a, indent) = print(STDOUT, a, indent)
-print(a) = print(STDOUT, a)
+print(a, indent) = print(stdout, a, indent)
+print(a) = print(stdout, a)
 
 json(a) = sprint(print, a)
 json(a, indent) = sprint(print, a, indent)

@@ -74,7 +74,7 @@ end
 struct SingletonType end
 @test_throws ErrorException json(SingletonType())
 
-# test printing to STDOUT
+# test printing to stdout
 let filename = tempname()
     open(filename, "w") do f
         redirect_stdout(f) do
