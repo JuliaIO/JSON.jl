@@ -2,7 +2,6 @@ module Writer
 
 using Compat
 using Compat.Dates
-using Nullables
 using ..Common
 using ..Serializations: Serialization, StandardSerialization,
                         CommonSerialization
@@ -267,14 +266,6 @@ function show_json(io::SC, s::CS, x::Union{Integer, AbstractFloat})
 end
 
 show_json(io::SC, ::CS, ::Nothing) = show_null(io)
-
-function show_json(io::SC, s::CS, a::Nullable)
-    if isnull(a)
-        Base.print(io, "null")
-    else
-        show_json(io, s, get(a))
-    end
-end
 
 function show_json(io::SC, s::CS, a::AbstractDict)
     begin_object(io)
