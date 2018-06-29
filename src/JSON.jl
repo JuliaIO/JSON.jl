@@ -2,8 +2,6 @@ __precompile__()
 
 module JSON
 
-using Compat
-
 export json # returns a compact (or indented) JSON representation as a string
 export JSONText # string wrapper to insert raw JSON into JSON output
 

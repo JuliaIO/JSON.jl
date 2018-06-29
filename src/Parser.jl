@@ -1,6 +1,5 @@
 module Parser  # JSON
 
-using Compat
 using Mmap
 using ..Common
 

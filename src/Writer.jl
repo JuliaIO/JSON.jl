@@ -1,6 +1,5 @@
 module Writer
 
-using Compat
 using Dates
 using ..Common
 using ..Serializations: Serialization, StandardSerialization,
@@ -302,7 +301,7 @@ Serialize a multidimensional array to JSON in column-major format. That is,
 function show_json(io::SC, s::CS, A::AbstractArray{<:Any,n}) where n
     begin_array(io)
     newdims = ntuple(_ -> :, n - 1)
-    for j in Compat.axes(A, n)
+    for j in axes(A, n)
         show_element(io, s, view(A, newdims..., j))
     end
     end_array(io)

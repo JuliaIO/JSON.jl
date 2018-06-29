@@ -1,8 +1,7 @@
 using JSON
 using Test
-using Compat
 using Dates
-using Compat.Distributed: RemoteChannel
+using Distributed: RemoteChannel
 using OffsetArrays
 
 import DataStructures
