@@ -1,8 +1,8 @@
 module TestLowering
 
 using JSON
-using Compat.Test
-using Compat.Dates
+using Test
+using Dates
 using FixedPointNumbers: Fixed
 
 @test JSON.json(Date(2016, 8, 3)) == "\"2016-08-03\""

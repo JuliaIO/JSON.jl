@@ -1,9 +1,5 @@
 function maxsize_buffer(maxsize::Int)
-    @static if VERSION < v"0.7.0-DEV.3734"
-        IOBuffer(maxsize)
-    else
-        IOBuffer(maxsize=maxsize)
-    end
+    IOBuffer(maxsize=maxsize)
 end
 
 # Specialized functions for increased performance when JSON is in-memory

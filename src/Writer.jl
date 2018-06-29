@@ -1,14 +1,12 @@
 module Writer
 
 using Compat
-using Compat.Dates
+using Dates
 using ..Common
 using ..Serializations: Serialization, StandardSerialization,
                         CommonSerialization
 
-if VERSION >= v"0.7.0-DEV.2915"
-    using Unicode
-end
+using Unicode
 
 
 """

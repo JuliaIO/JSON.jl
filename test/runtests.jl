@@ -1,7 +1,7 @@
 using JSON
-using Compat.Test
+using Test
 using Compat
-using Compat.Dates
+using Dates
 using Compat.Distributed: RemoteChannel
 using OffsetArrays
 
