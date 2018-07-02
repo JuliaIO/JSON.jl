@@ -1,15 +1,11 @@
 module Writer
 
-using Compat
-using Compat.Dates
-using Nullables
+using Dates
 using ..Common
 using ..Serializations: Serialization, StandardSerialization,
                         CommonSerialization
 
-if VERSION >= v"0.7.0-DEV.2915"
-    using Unicode
-end
+using Unicode
 
 
 """
@@ -268,14 +264,6 @@ end
 
 show_json(io::SC, ::CS, ::Nothing) = show_null(io)
 
-function show_json(io::SC, s::CS, a::Nullable)
-    if isnull(a)
-        Base.print(io, "null")
-    else
-        show_json(io, s, get(a))
-    end
-end
-
 function show_json(io::SC, s::CS, a::AbstractDict)
     begin_object(io)
     for kv in a
@@ -313,7 +301,7 @@ Serialize a multidimensional array to JSON in column-major format. That is,
 function show_json(io::SC, s::CS, A::AbstractArray{<:Any,n}) where n
     begin_array(io)
     newdims = ntuple(_ -> :, n - 1)
-    for j in Compat.axes(A, n)
+    for j in axes(A, n)
         show_element(io, s, view(A, newdims..., j))
     end
     end_array(io)

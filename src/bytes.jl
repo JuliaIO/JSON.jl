@@ -53,11 +53,7 @@ for c in 0x00:0xFF
     elseif haskey(REVERSE_ESCAPES, c)
         [BACKSLASH, REVERSE_ESCAPES[c]]
     elseif iscntrl(Char(c)) || !isprint(Char(c))
-        if VERSION < v"0.7.0-DEV.4446"
-            UInt8[BACKSLASH, LATIN_U, hex(c, 4)...]
-        else
-            UInt8[BACKSLASH, LATIN_U, string(c, base=16, pad=4)...]
-        end
+        UInt8[BACKSLASH, LATIN_U, string(c, base=16, pad=4)...]
     else
         [c]
     end

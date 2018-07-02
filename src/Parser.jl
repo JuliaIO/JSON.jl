@@ -1,8 +1,6 @@
 module Parser  # JSON
 
-using Compat
-using Compat.Mmap
-using Nullables
+using Mmap
 using ..Common
 
 """
@@ -312,8 +310,9 @@ byte before `to`. Bytes enclosed should all be ASCII characters.
 function float_from_bytes(bytes, from::Int, to::Int)
     # The ccall is not ideal (Base.tryparse would be better), but it actually
     # makes an 2× difference to performance
-    ccall(:jl_try_substrtod, Nullable{Float64},
+    hasvalue, val = ccall(:jl_try_substrtod, Tuple{Bool, Float64},
             (Ptr{UInt8}, Csize_t, Csize_t), bytes, from - 1, to - from + 1)
+    hasvalue ? val : nothing
 end
 
 """
@@ -350,7 +349,7 @@ function number_from_bytes(pc::ParserContext,
         int_from_bytes(pc, ps, bytes, from, to)
     else
         res = float_from_bytes(bytes, from, to)
-        isnull(res) ? _error(E_BAD_NUMBER, ps) : get(res)
+        res === nothing ? _error(E_BAD_NUMBER, ps) : res
     end
 end
 

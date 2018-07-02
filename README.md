@@ -39,7 +39,7 @@ JSON.print(io::IO, s::AbstractString)
 JSON.print(io::IO, s::Union{Integer, AbstractFloat})
 JSON.print(io::IO, n::Nothing)
 JSON.print(io::IO, b::Bool)
-JSON.print(io::IO, a::Associative)
+JSON.print(io::IO, a::AbstractDict)
 JSON.print(io::IO, v::AbstractVector)
 JSON.print{T, N}(io::IO, v::Array{T, N})
 ```
@@ -48,8 +48,8 @@ Writes a compact (no extra whitespace or indentation) JSON representation
 to the supplied IO.
 
 ```julia
-JSON.print(a::Associative, indent)
-JSON.print(io::IO, a::Associative, indent)
+JSON.print(a::AbstractDict, indent)
+JSON.print(io::IO, a::AbstractDict, indent)
 ```
 
 Writes a JSON representation with newlines, and indentation if specified. Non-zero `indent` will be applied recursively to nested elements.

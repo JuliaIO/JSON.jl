@@ -1,5 +1,3 @@
-using Nullables
-
 @testset "Symbol" begin
     symtest = Dict(:symbolarray => [:apple, :pear], :symbolsingleton => :hello)
     @test (JSON.json(symtest) == "{\"symbolarray\":[\"apple\",\"pear\"],\"symbolsingleton\":\"hello\"}"
@@ -11,10 +9,10 @@ end
     @test sprint(JSON.print, [Inf]) == "[null]"
 end
 
-@testset "Nullable" begin
-    @test sprint(JSON.print, [Nullable()]) == "[null]"
-    @test sprint(JSON.print, [Nullable{Int64}()]) == "[null]"
-    @test sprint(JSON.print, [Nullable{Int64}(Int64(1))]) == "[1]"
+@testset "Union{Nothing,T} (old Nullable)" begin
+    @test sprint(JSON.print, Union{Any,Nothing}[nothing]) == "[null]"
+    @test sprint(JSON.print, Union{Int64,Nothing}[nothing]) == "[null]"
+    @test sprint(JSON.print, Union{Int64,Nothing}[1]) == "[1]"
 end
 
 @testset "Char" begin

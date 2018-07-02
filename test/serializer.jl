@@ -1,7 +1,7 @@
 module TestSerializer
 
 using JSON
-using Compat.Test
+using Test
 
 # to define a new serialization behaviour, import these first
 import JSON.Serializations: CommonSerialization, StandardSerialization
