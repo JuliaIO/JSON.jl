@@ -85,9 +85,6 @@ installed)
  - or you can pass `()->DefaultDict{String,Any}(Missing)` to having any non-found keys
    return `missing` when you index the result.
 
-Setting the key-type of the `dicttype` can also be useful. For example 
-you can pass `dicttype=Dict{Symbol, Any}` to use `Symbol`s rather than `String`s as keys
-
 
 The `inttype` argument controls how integers are parsed.  If a number in a JSON
 file is recognized to be an integer, it is parsed as one; otherwise it is parsed
