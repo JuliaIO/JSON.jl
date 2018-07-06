@@ -6,15 +6,16 @@ MissingDict() = DataStructures.DefaultDict{String,Any}(Missing)
     MissingDict
 ]
     val = JSON.parse("{\"x\": 3}", dicttype=T)
-    @test isa(val, T)
     @test length(val) == 1
     key = collect(keys(val))[1]
     @test string(key) == "x"
     @test val[key] == 3
 
     if T == MissingDict
+        @test val isa DataStructures.DefaultDict{String}
         @test val["y"] === missing
     else
+        @test val isa  T
         @test_throws KeyError val["y"]
     end
 end
