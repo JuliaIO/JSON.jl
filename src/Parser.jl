@@ -205,7 +205,7 @@ end
 
 function parse_object(pc::ParserContext{DictType, <:Real}, ps::ParserState) where DictType
     obj = DictType()
-    keyT = keytype(DictType)
+    keyT = keytype(typeof(obj))
 
     incr!(ps)  # Skip over opening '{'
     chomp_space!(ps)
@@ -319,7 +319,7 @@ end
 Parse an integer from the given bytes vector, starting at `from` and ending at
 the byte before `to`. Bytes enclosed should all be ASCII characters.
 """
-function int_from_bytes(pc::ParserContext{<:AbstractDict,IntType},
+function int_from_bytes(pc::ParserContext{<:Any,IntType},
                         ps::ParserState,
                         bytes,
                         from::Int,
@@ -378,14 +378,14 @@ function parse_number(pc::ParserContext, ps::ParserState)
     number_from_bytes(pc, ps, isint, number, 1, length(number))
 end
 
-
+unparameterize_type(x) = x # Fallback for nontypes -- functions etc
 function unparameterize_type(T::Type)
     candidate = typeintersect(T, AbstractDict{String, Any})
     candidate <: Union{} ? T : candidate
 end
 
 function parse(str::AbstractString;
-               dicttype::Type{<:AbstractDict}=Dict{String,Any},
+               dicttype=Dict{String,Any},
                inttype::Type{<:Real}=Int64)
     pc = ParserContext{unparameterize_type(dicttype), inttype}()
     ps = MemoryParserState(str, 1)
@@ -398,7 +398,7 @@ function parse(str::AbstractString;
 end
 
 function parse(io::IO;
-               dicttype::Type{<:AbstractDict}=Dict{String,Any},
+               dicttype=Dict{String,Any},
                inttype::Type{<:Real}=Int64)
     pc = ParserContext{unparameterize_type(dicttype), inttype}()
     ps = StreamingParserState(io)
@@ -406,7 +406,7 @@ function parse(io::IO;
 end
 
 function parsefile(filename::AbstractString;
-                   dicttype::Type{<:AbstractDict}=Dict{String, Any},
+                   dicttype=Dict{String, Any},
                    inttype::Type{<:Real}=Int64,
                    use_mmap=true)
     sz = filesize(filename)
