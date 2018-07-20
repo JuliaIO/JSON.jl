@@ -15,6 +15,7 @@
 
 ## Basic Usage
 
+
 ```julia
 import JSON
 
@@ -33,6 +34,7 @@ JSON.json(j)
 ```
 
 ## Documentation
+
 
 ```julia
 JSON.print(io::IO, s::AbstractString)
@@ -69,14 +71,20 @@ JSON.parsefile(filename::AbstractString; dicttype=Dict, inttype=Int64, use_mmap=
 
 Parses a JSON `AbstractString` or IO stream into a nested `Array` or `Dict`.
 
-The `dicttype` indicates the dictionary type (`<: Associative`) that
-JSON objects are parsed to.  It defaults to `Dict` (the built-in Julia
-dictionary), but a different type can be passed to, for example,
-provide a desired ordering.  For example, if you `import DataStructures`
+The `dicttype` indicates the dictionary type (`<: Associative`), or a function that
+returns an instance of a dictionary type,
+that JSON objects are parsed to.  It defaults to `Dict` (the built-in Julia
+dictionary), but a different type can be passed for additional functionality.
+For example, if you `import DataStructures`
 (assuming the [DataStructures
 package](https://github.com/JuliaLang/DataStructures.jl) is
-installed), you can pass `dicttype=DataStructures.OrderedDict` to
-maintain the insertion order of the items in the object.
+installed)
+
+ - you can pass `dicttype=DataStructures.OrderedDict` to maintain the insertion order
+   of the items in the object;
+ - or you can pass `()->DefaultDict{String,Any}(Missing)` to having any non-found keys
+   return `missing` when you index the result.
+
 
 The `inttype` argument controls how integers are parsed.  If a number in a JSON
 file is recognized to be an integer, it is parsed as one; otherwise it is parsed
