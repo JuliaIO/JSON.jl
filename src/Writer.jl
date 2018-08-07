@@ -41,7 +41,7 @@ for instance return an `AbstractArray{Any, 1}` whose elements are not JSON
 primitives.
 """
 function lower(a)
-    if nfields(typeof(a)) > 0
+    if nfields(a) > 0
         CompositeTypeWrapper(a)
     else
         error("Cannot serialize type $(typeof(a))")

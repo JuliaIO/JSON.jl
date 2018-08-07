@@ -9,8 +9,6 @@ notifications:
     email: false
 sudo: false
 script:
-    - if [[ -a .git/shallow ]]; then git fetch --unshallow; fi
-    - julia -e 'Pkg.clone(pwd()); Pkg.build("JSON"); Pkg.test("JSON"; coverage=true)';
-    - julia -e 'using JSON' # loading after precompiled, but without DataStructures present
+    - julia -e 'import Pkg; Pkg.clone(pwd()); Pkg.build("JSON"); Pkg.test("JSON"; coverage=true)';
 after_success:
     - julia -e 'cd(Pkg.dir("JSON")); Pkg.add("Coverage"); using Coverage; Codecov.submit(process_folder())';
