@@ -263,6 +263,7 @@ function show_json(io::SC, s::CS, x::Union{Integer, AbstractFloat})
 end
 
 show_json(io::SC, ::CS, ::Nothing) = show_null(io)
+show_json(io::SC, ::CS, ::Missing) = show_null(io)
 
 function show_json(io::SC, s::CS, a::AbstractDict)
     begin_object(io)
