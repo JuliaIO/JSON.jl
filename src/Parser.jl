@@ -128,7 +128,7 @@ end
 
 
 # Throws an error message with an indicator to the source
-function _error(message::AbstractString, ps::MemoryParserState)
+@noinline function _error(message::AbstractString, ps::MemoryParserState)
     orig = ps.utf8
     lines = _count_before(orig, '\n', ps.s)
     # Replace all special multi-line/multi-space characters with a space.
@@ -142,7 +142,7 @@ function _error(message::AbstractString, ps::MemoryParserState)
     )
 end
 
-function _error(message::AbstractString, ps::StreamingParserState)
+@noinline function _error(message::AbstractString, ps::StreamingParserState)
     error("$message\n ...when parsing byte with value '$(current(ps))'")
 end
 
@@ -327,7 +327,12 @@ function int_from_bytes(pc::ParserContext{<:Any,IntType},
     @inbounds isnegative = bytes[from] == MINUS_SIGN ? (from += 1; true) : false
     num = IntType(0)
     @inbounds for i in from:to
-        num = IntType(10) * num + IntType(bytes[i] - DIGIT_ZERO)
+        c = bytes[i]
+        if isjsondigit(c)
+            num = IntType(10) * num + IntType(c - DIGIT_ZERO)
+        else
+            _error(E_BAD_NUMBER, ps)
+        end
     end
     ifelse(isnegative, -num, num)
 end

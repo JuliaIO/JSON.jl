@@ -18,7 +18,10 @@ const FAILURES = [
     # Control character
     "\"\0\"",
     # Issue #99
-    "[\"🍕\"_\"🍕\""
+    "[\"🍕\"_\"🍕\"",
+    # Issue #260
+    "1997-03-03",
+    "1997.1-",
 ]
 
 @testset for fail in FAILURES
