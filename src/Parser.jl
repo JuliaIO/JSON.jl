@@ -78,9 +78,10 @@ skip past that byte. Otherwise, an error is thrown.
     if byteat(ps) == c
         incr!(ps)
     else
-        _error("Expected '$(Char(c))' here", ps)
+        _error_expected_char(c, ps)
     end
 end
+@noinline _error_expected_char(c, ps) = _error("Expected '$(Char(c))' here", ps)
 
 function skip!(ps::ParserState, cs::UInt8...)
     for c in cs
