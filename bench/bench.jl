@@ -10,7 +10,7 @@ function bench(f, simulate=false)
         println("Downloading benchmark file...")
         download(DATA_SOURCES[f], fp)
     end
-    gc()  # run gc so it doesn't affect benchmarks
+    GC.gc()  # run gc so it doesn't affect benchmarks
     t = if args["parse"]["parse-file"]
         @elapsed JSON.parsefile(fp)
     else
@@ -19,7 +19,7 @@ function bench(f, simulate=false)
     end
 
     if !simulate
-        print_with_color(:yellow, " [Bench$FLAGS] ")
+        printstyled(" [Bench$FLAGS] "; color=:yellow)
         println(f, " ", t, " seconds")
     end
     t
