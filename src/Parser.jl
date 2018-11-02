@@ -20,6 +20,7 @@ abstract type ParserState end
 mutable struct MemoryParserState <: ParserState
     utf8::String
     s::Int
+    utf8array::Vector{UInt8}
 end
 
 # it is convenient to access MemoryParserState like a Vector{UInt8} to avoid copies
@@ -31,8 +32,9 @@ mutable struct StreamingParserState{T <: IO} <: ParserState
     io::T
     cur::UInt8
     used::Bool
+    utf8array::Vector{UInt8}
 end
-StreamingParserState(io::IO) = StreamingParserState(io, 0x00, true)
+StreamingParserState(io::IO) = StreamingParserState(io, 0x00, true, UInt8[])
 
 struct ParserContext{DictType, IntType} end
 
@@ -362,7 +364,7 @@ end
 function parse_number(pc::ParserContext, ps::ParserState)
     # Determine the end of the floating point by skipping past ASCII values
     # 0-9, +, -, e, E, and .
-    number = UInt8[]
+    number = ps.utf8array
     isint = true
 
     @inbounds while hasmore(ps)
@@ -380,7 +382,9 @@ function parse_number(pc::ParserContext, ps::ParserState)
         incr!(ps)
     end
 
-    number_from_bytes(pc, ps, isint, number, 1, length(number))
+    v = number_from_bytes(pc, ps, isint, number, 1, length(number))
+    resize!(number, 0)
+    return v
 end
 
 unparameterize_type(x) = x # Fallback for nontypes -- functions etc
@@ -403,7 +407,7 @@ function parse(str::AbstractString;
                dicttype=Dict{String,Any},
                inttype::Type{<:Real}=Int64)
     pc = _get_parsercontext(dicttype, inttype)
-    ps = MemoryParserState(str, 1)
+    ps = MemoryParserState(str, 1, UInt8[])
     v = parse_value(pc, ps)
     chomp_space!(ps)
     if hasmore(ps)
