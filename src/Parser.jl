@@ -389,10 +389,20 @@ function unparameterize_type(T::Type)
     candidate <: Union{} ? T : candidate
 end
 
+# Workaround for slow dynamic dispatch for creating objects
+const DEFAULT_PARSERCONTEXT = ParserContext{Dict{String, Any}, Int64}()
+function _get_parsercontext(dicttype, inttype)
+    if dicttype == Dict{String, Any} && inttype == Int64
+        DEFAULT_PARSERCONTEXT
+    else
+        ParserContext{unparameterize_type(dicttype), inttype}.instance
+    end
+end
+
 function parse(str::AbstractString;
                dicttype=Dict{String,Any},
                inttype::Type{<:Real}=Int64)
-    pc = ParserContext{unparameterize_type(dicttype), inttype}()
+    pc = _get_parsercontext(dicttype, inttype)
     ps = MemoryParserState(str, 1)
     v = parse_value(pc, ps)
     chomp_space!(ps)
@@ -405,7 +415,7 @@ end
 function parse(io::IO;
                dicttype=Dict{String,Any},
                inttype::Type{<:Real}=Int64)
-    pc = ParserContext{unparameterize_type(dicttype), inttype}()
+    pc = _get_parsercontext(dicttype, inttype)
     ps = StreamingParserState(io)
     parse_value(pc, ps)
 end
