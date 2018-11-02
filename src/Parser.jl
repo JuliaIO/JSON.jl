@@ -330,8 +330,9 @@ function int_from_bytes(pc::ParserContext{<:Any,IntType},
     num = IntType(0)
     @inbounds for i in from:to
         c = bytes[i]
-        if isjsondigit(c)
-            num = IntType(10) * num + IntType(c - DIGIT_ZERO)
+        dig = c - DIGIT_ZERO
+        if dig < 0x10
+            num = IntType(10) * num + IntType(dig)
         else
             _error(E_BAD_NUMBER, ps)
         end
