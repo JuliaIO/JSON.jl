@@ -4,11 +4,9 @@ os:
     - linux
 julia:
     - 0.7
+    - 1.0
     - nightly
 notifications:
     email: false
-sudo: false
-script:
-    - julia -e 'import Pkg; Pkg.clone(pwd()); Pkg.build("JSON"); Pkg.test("JSON"; coverage=true)';
 after_success:
-    - julia -e 'cd(Pkg.dir("JSON")); Pkg.add("Coverage"); using Coverage; Codecov.submit(process_folder())';
+    - julia -e 'import Pkg; Pkg.add("Coverage"); using Coverage; Codecov.submit(process_folder())';
