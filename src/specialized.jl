@@ -120,7 +120,7 @@ function parse_string(ps::MemoryParserState, b::IOBuffer)
     b
 end
 
-function parse_number(ps::MemoryParserState)
+function parse_number(pc::ParserContext, ps::MemoryParserState)
     s = p = ps.s
     e = length(ps)
     isint = true
@@ -140,5 +140,5 @@ function parse_number(ps::MemoryParserState)
     end
     ps.s = p
 
-    number_from_bytes(ps, isint, ps, s, p - 1)
+    number_from_bytes(pc, ps, isint, ps, s, p - 1)
 end
