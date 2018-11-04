@@ -3,6 +3,7 @@
 
 using JSON
 using BenchmarkTools
+using Dates
 
 const suite = BenchmarkGroup()
 
@@ -43,7 +44,7 @@ const micros = Dict(
         :a => :b, :c => "💙💙💙💙💙💙", :e => 10, :f => Dict(:a => :b)),
     "flat-dict-128" => Dict(zip(collect(1:128), collect(1:128))),
     "date" => Date(2016, 08, 09),
-    "matrix-16" => eye(16),
+    "matrix-16" => [i == j ? 1.0 : 0.0 for i in 1:16, j in 1:16],
     "custom-list-128" => list(128),
     "custom-tree-8" => tree(8))
 
