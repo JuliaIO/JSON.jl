@@ -20,6 +20,7 @@ abstract type ParserState end
 mutable struct MemoryParserState <: ParserState
     utf8::String
     s::Int
+    utf8array::Vector{UInt8}
 end
 
 # it is convenient to access MemoryParserState like a Vector{UInt8} to avoid copies
@@ -31,8 +32,9 @@ mutable struct StreamingParserState{T <: IO} <: ParserState
     io::T
     cur::UInt8
     used::Bool
+    utf8array::Vector{UInt8}
 end
-StreamingParserState(io::IO) = StreamingParserState(io, 0x00, true)
+StreamingParserState(io::IO) = StreamingParserState(io, 0x00, true, UInt8[])
 
 struct ParserContext{DictType, IntType} end
 
@@ -76,9 +78,10 @@ skip past that byte. Otherwise, an error is thrown.
     if byteat(ps) == c
         incr!(ps)
     else
-        _error("Expected '$(Char(c))' here", ps)
+        _error_expected_char(c, ps)
     end
 end
+@noinline _error_expected_char(c, ps) = _error("Expected '$(Char(c))' here", ps)
 
 function skip!(ps::ParserState, cs::UInt8...)
     for c in cs
@@ -328,8 +331,9 @@ function int_from_bytes(pc::ParserContext{<:Any,IntType},
     num = IntType(0)
     @inbounds for i in from:to
         c = bytes[i]
-        if isjsondigit(c)
-            num = IntType(10) * num + IntType(c - DIGIT_ZERO)
+        dig = c - DIGIT_ZERO
+        if dig < 0x10
+            num = IntType(10) * num + IntType(dig)
         else
             _error(E_BAD_NUMBER, ps)
         end
@@ -362,7 +366,7 @@ end
 function parse_number(pc::ParserContext, ps::ParserState)
     # Determine the end of the floating point by skipping past ASCII values
     # 0-9, +, -, e, E, and .
-    number = UInt8[]
+    number = ps.utf8array
     isint = true
 
     @inbounds while hasmore(ps)
@@ -380,7 +384,9 @@ function parse_number(pc::ParserContext, ps::ParserState)
         incr!(ps)
     end
 
-    number_from_bytes(pc, ps, isint, number, 1, length(number))
+    v = number_from_bytes(pc, ps, isint, number, 1, length(number))
+    resize!(number, 0)
+    return v
 end
 
 unparameterize_type(x) = x # Fallback for nontypes -- functions etc
@@ -389,11 +395,21 @@ function unparameterize_type(T::Type)
     candidate <: Union{} ? T : candidate
 end
 
+# Workaround for slow dynamic dispatch for creating objects
+const DEFAULT_PARSERCONTEXT = ParserContext{Dict{String, Any}, Int64}()
+function _get_parsercontext(dicttype, inttype)
+    if dicttype == Dict{String, Any} && inttype == Int64
+        DEFAULT_PARSERCONTEXT
+    else
+        ParserContext{unparameterize_type(dicttype), inttype}.instance
+    end
+end
+
 function parse(str::AbstractString;
                dicttype=Dict{String,Any},
                inttype::Type{<:Real}=Int64)
-    pc = ParserContext{unparameterize_type(dicttype), inttype}()
-    ps = MemoryParserState(str, 1)
+    pc = _get_parsercontext(dicttype, inttype)
+    ps = MemoryParserState(str, 1, UInt8[])
     v = parse_value(pc, ps)
     chomp_space!(ps)
     if hasmore(ps)
@@ -405,7 +421,7 @@ end
 function parse(io::IO;
                dicttype=Dict{String,Any},
                inttype::Type{<:Real}=Int64)
-    pc = ParserContext{unparameterize_type(dicttype), inttype}()
+    pc = _get_parsercontext(dicttype, inttype)
     ps = StreamingParserState(io)
     parse_value(pc, ps)
 end
