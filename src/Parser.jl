@@ -3,6 +3,8 @@ module Parser  # JSON
 using Mmap
 using ..Common
 
+include("pushvector.jl")
+
 """
 Like `isspace`, but work on bytes and includes only the four whitespace
 characters defined by the JSON standard: space, tab, line feed, and carriage
@@ -31,9 +33,9 @@ mutable struct StreamingParserState{T <: IO} <: ParserState
     io::T
     cur::UInt8
     used::Bool
-    utf8array::Vector{UInt8}
+    utf8array::PushVector{UInt8, Vector{UInt8}}
 end
-StreamingParserState(io::IO) = StreamingParserState(io, 0x00, true, UInt8[])
+StreamingParserState(io::IO) = StreamingParserState(io, 0x00, true, PushVector{UInt8}())
 
 struct ParserContext{DictType, IntType} end
 
