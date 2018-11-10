@@ -20,13 +20,12 @@ abstract type ParserState end
 mutable struct MemoryParserState <: ParserState
     utf8::String
     s::Int
-    utf8array::Vector{UInt8}
 end
 
 # it is convenient to access MemoryParserState like a Vector{UInt8} to avoid copies
 Base.@propagate_inbounds Base.getindex(state::MemoryParserState, i::Int) = codeunit(state.utf8, i)
 Base.length(state::MemoryParserState) = sizeof(state.utf8)
-Base.unsafe_convert(::Type{Ptr{UInt8}}, state::MemoryParserState) = unsafe_convert(Ptr{UInt8}, state.utf8)
+Base.unsafe_convert(::Type{Ptr{UInt8}}, state::MemoryParserState) = Base.unsafe_convert(Ptr{UInt8}, state.utf8)
 
 mutable struct StreamingParserState{T <: IO} <: ParserState
     io::T
@@ -409,7 +408,7 @@ function parse(str::AbstractString;
                dicttype=Dict{String,Any},
                inttype::Type{<:Real}=Int64)
     pc = _get_parsercontext(dicttype, inttype)
-    ps = MemoryParserState(str, 1, UInt8[])
+    ps = MemoryParserState(str, 1)
     v = parse_value(pc, ps)
     chomp_space!(ps)
     if hasmore(ps)
