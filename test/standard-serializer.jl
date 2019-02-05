@@ -49,6 +49,13 @@ end
     @test JSON.parse(json_zeros) == zeros
 end
 
+@testset "All bytes" begin
+    str = String(collect(0x00:0xff))
+    bytes = Dict(str => str)
+    json_bytes = json(bytes)
+    @test JSON.parse(json_bytes) == bytes
+end
+
 @testset "Arrays" begin
     # Printing an empty array or Dict shouldn't cause a BoundsError
     @test json(String[]) == "[]"
