@@ -37,7 +37,7 @@ mutable struct StreamingParserState{T <: IO} <: ParserState
 end
 StreamingParserState(io::IO) = StreamingParserState(io, 0x00, true, PushVector{UInt8}())
 
-struct ParserContext{DictType, IntType} end
+struct ParserContext{DictType, IntType, AllowNanInf} end
 
 """
 Return the byte at the current position of the `ParserState`. If there is no
@@ -169,11 +169,11 @@ function parse_value(pc::ParserContext, ps::ParserState)
     elseif byte == ARRAY_BEGIN
         parse_array(pc, ps)
     else
-        parse_jsconstant(ps::ParserState)
+        parse_jsconstant(pc, ps)
     end
 end
 
-function parse_jsconstant(ps::ParserState)
+function parse_jsconstant(::ParserContext{<:Any,<:Any,AllowNanInf}, ps::ParserState) where AllowNanInf
     c = advance!(ps)
     if c == LATIN_T      # true
         skip!(ps, LATIN_R, LATIN_U, LATIN_E)
@@ -184,6 +184,12 @@ function parse_jsconstant(ps::ParserState)
     elseif c == LATIN_N  # null
         skip!(ps, LATIN_U, LATIN_L, LATIN_L)
         nothing
+    elseif AllowNanInf && c == LATIN_UPPER_N
+        skip!(ps, LATIN_A, LATIN_UPPER_N)
+        NaN
+    elseif AllowNanInf && c == LATIN_UPPER_I
+        skip!(ps, LATIN_N, LATIN_F, LATIN_I, LATIN_N, LATIN_I, LATIN_T, LATIN_Y)
+        Inf
     else
         _error(E_UNEXPECTED_CHAR, ps)
     end
@@ -207,7 +213,7 @@ function parse_array(pc::ParserContext, ps::ParserState)
 end
 
 
-function parse_object(pc::ParserContext{DictType, <:Real}, ps::ParserState) where DictType
+function parse_object(pc::ParserContext{DictType,<:Real,<:Any}, ps::ParserState) where DictType
     obj = DictType()
     keyT = keytype(typeof(obj))
 
@@ -323,7 +329,7 @@ end
 Parse an integer from the given bytes vector, starting at `from` and ending at
 the byte before `to`. Bytes enclosed should all be ASCII characters.
 """
-function int_from_bytes(pc::ParserContext{<:Any,IntType},
+function int_from_bytes(pc::ParserContext{<:Any,IntType,<:Any},
                         ps::ParserState,
                         bytes,
                         from::Int,
@@ -364,11 +370,21 @@ function number_from_bytes(pc::ParserContext,
 end
 
 
-function parse_number(pc::ParserContext, ps::ParserState)
+function parse_number(pc::ParserContext{<:Any,<:Any,AllowNanInf}, ps::ParserState) where AllowNanInf
     # Determine the end of the floating point by skipping past ASCII values
     # 0-9, +, -, e, E, and .
     number = ps.utf8array
     isint = true
+    negative = false
+
+    c = current(ps)
+
+    # Parse and keep track of initial minus sign (for parsing -Infinity)
+    if AllowNanInf && c == MINUS_SIGN
+        push!(number, UInt8(c)) # save in case the next character is a number
+        negative = true
+        incr!(ps)
+    end
 
     @inbounds while hasmore(ps)
         c = current(ps)
@@ -378,6 +394,10 @@ function parse_number(pc::ParserContext, ps::ParserState)
         elseif c in (PLUS_SIGN, LATIN_E, LATIN_UPPER_E, DECIMAL_POINT)
             push!(number, UInt8(c))
             isint = false
+        elseif AllowNanInf && c == LATIN_UPPER_I
+            infinity = parse_jsconstant(pc, ps)
+            resize!(number, 0)
+            return (negative ? -infinity : infinity)
         else
             break
         end
@@ -390,6 +410,7 @@ function parse_number(pc::ParserContext, ps::ParserState)
     return v
 end
 
+
 unparameterize_type(x) = x # Fallback for nontypes -- functions etc
 function unparameterize_type(T::Type)
     candidate = typeintersect(T, AbstractDict{String, Any})
@@ -397,19 +418,20 @@ function unparameterize_type(T::Type)
 end
 
 # Workaround for slow dynamic dispatch for creating objects
-const DEFAULT_PARSERCONTEXT = ParserContext{Dict{String, Any}, Int64}()
-function _get_parsercontext(dicttype, inttype)
-    if dicttype == Dict{String, Any} && inttype == Int64
+const DEFAULT_PARSERCONTEXT = ParserContext{Dict{String, Any}, Int64, false}()
+function _get_parsercontext(dicttype, inttype, allownan)
+    if dicttype == Dict{String, Any} && inttype == Int64 && !allownan
         DEFAULT_PARSERCONTEXT
     else
-        ParserContext{unparameterize_type(dicttype), inttype}.instance
+        ParserContext{unparameterize_type(dicttype), inttype, allownan}.instance
     end
 end
 
 function parse(str::AbstractString;
                dicttype=Dict{String,Any},
-               inttype::Type{<:Real}=Int64)
-    pc = _get_parsercontext(dicttype, inttype)
+               inttype::Type{<:Real}=Int64,
+               allownan=false)
+    pc = _get_parsercontext(dicttype, inttype, allownan)
     ps = MemoryParserState(str, 1)
     v = parse_value(pc, ps)
     chomp_space!(ps)
@@ -421,8 +443,9 @@ end
 
 function parse(io::IO;
                dicttype=Dict{String,Any},
-               inttype::Type{<:Real}=Int64)
-    pc = _get_parsercontext(dicttype, inttype)
+               inttype::Type{<:Real}=Int64,
+               allownan=false)
+    pc = _get_parsercontext(dicttype, inttype, allownan)
     ps = StreamingParserState(io)
     parse_value(pc, ps)
 end
@@ -430,11 +453,12 @@ end
 function parsefile(filename::AbstractString;
                    dicttype=Dict{String, Any},
                    inttype::Type{<:Real}=Int64,
+                   allownan=false,
                    use_mmap=true)
     sz = filesize(filename)
     open(filename) do io
         s = use_mmap ? String(Mmap.mmap(io, Vector{UInt8}, sz)) : read(io, String)
-        parse(s; dicttype=dicttype, inttype=inttype)
+        parse(s; dicttype=dicttype, inttype=inttype, allownan=allownan)
     end
 end
 

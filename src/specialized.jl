@@ -120,10 +120,19 @@ function parse_string(ps::MemoryParserState, b::IOBuffer)
     b
 end
 
-function parse_number(pc::ParserContext, ps::MemoryParserState)
+function parse_number(pc::ParserContext{<:Any,<:Any,AllowNanInf}, ps::MemoryParserState) where AllowNanInf
     s = p = ps.s
     e = length(ps)
     isint = true
+    negative = false
+
+    @inbounds c = ps[p]
+
+    # Parse and keep track of initial minus sign (for parsing -Infinity)
+    if AllowNanInf && c == MINUS_SIGN
+        negative = true
+        p += 1
+    end
 
     # Determine the end of the floating point by skipping past ASCII values
     # 0-9, +, -, e, E, and .
@@ -133,6 +142,10 @@ function parse_number(pc::ParserContext, ps::MemoryParserState)
         elseif PLUS_SIGN == c || LATIN_E == c || LATIN_UPPER_E == c ||
                 DECIMAL_POINT == c
             isint = false
+        elseif AllowNanInf && LATIN_UPPER_I == c
+            ps.s = p
+            infinity = parse_jsconstant(pc, ps)
+            return (negative ? -infinity : infinity)
         else
             break
         end
