@@ -430,7 +430,7 @@ end
 function parse(str::AbstractString;
                dicttype=Dict{String,Any},
                inttype::Type{<:Real}=Int64,
-               allownan=false)
+               allownan=true)
     pc = _get_parsercontext(dicttype, inttype, allownan)
     ps = MemoryParserState(str, 1)
     v = parse_value(pc, ps)
@@ -444,7 +444,7 @@ end
 function parse(io::IO;
                dicttype=Dict{String,Any},
                inttype::Type{<:Real}=Int64,
-               allownan=false)
+               allownan=true)
     pc = _get_parsercontext(dicttype, inttype, allownan)
     ps = StreamingParserState(io)
     parse_value(pc, ps)
@@ -453,7 +453,7 @@ end
 function parsefile(filename::AbstractString;
                    dicttype=Dict{String, Any},
                    inttype::Type{<:Real}=Int64,
-                   allownan=false,
+                   allownan=true,
                    use_mmap=true)
     sz = filesize(filename)
     open(filename) do io
