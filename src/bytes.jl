@@ -17,6 +17,8 @@ const SEPARATOR      = UInt8(':')
 const LATIN_UPPER_A  = UInt8('A')
 const LATIN_UPPER_E  = UInt8('E')
 const LATIN_UPPER_F  = UInt8('F')
+const LATIN_UPPER_I  = UInt8('I')
+const LATIN_UPPER_N  = UInt8('N')
 const ARRAY_BEGIN    = UInt8('[')
 const BACKSLASH      = UInt8('\\')
 const ARRAY_END      = UInt8(']')
@@ -24,12 +26,14 @@ const LATIN_A        = UInt8('a')
 const LATIN_B        = UInt8('b')
 const LATIN_E        = UInt8('e')
 const LATIN_F        = UInt8('f')
+const LATIN_I        = UInt8('i')
 const LATIN_L        = UInt8('l')
 const LATIN_N        = UInt8('n')
 const LATIN_R        = UInt8('r')
 const LATIN_S        = UInt8('s')
 const LATIN_T        = UInt8('t')
 const LATIN_U        = UInt8('u')
+const LATIN_Y        = UInt8('y')
 const OBJECT_BEGIN   = UInt8('{')
 const OBJECT_END     = UInt8('}')
 
@@ -62,6 +66,7 @@ end
 export BACKSPACE, TAB, NEWLINE, FORM_FEED, RETURN, SPACE, STRING_DELIM,
        PLUS_SIGN, DELIMITER, MINUS_SIGN, DECIMAL_POINT, SOLIDUS, DIGIT_ZERO,
        DIGIT_NINE, SEPARATOR, LATIN_UPPER_A, LATIN_UPPER_E, LATIN_UPPER_F,
-       ARRAY_BEGIN, BACKSLASH, ARRAY_END, LATIN_A, LATIN_B, LATIN_E, LATIN_F,
-       LATIN_L, LATIN_N, LATIN_R, LATIN_S, LATIN_T, LATIN_U, OBJECT_BEGIN,
-       OBJECT_END, ESCAPES, REVERSE_ESCAPES, ESCAPED_ARRAY
+       LATIN_UPPER_I, LATIN_UPPER_N, ARRAY_BEGIN, BACKSLASH, ARRAY_END,
+       LATIN_A, LATIN_B, LATIN_E, LATIN_F, LATIN_I, LATIN_L, LATIN_N, LATIN_R,
+       LATIN_S, LATIN_T, LATIN_U, LATIN_Y, OBJECT_BEGIN, OBJECT_END, ESCAPES,
+       REVERSE_ESCAPES, ESCAPED_ARRAY
