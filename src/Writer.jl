@@ -359,7 +359,8 @@ Creates a JSON string from a Julia object or value.
 
 Arguments:
   • a: the Julia object or value to encode
-  • indent: pretty-print array elements and object members with the given indent
+  • indent (optional number): if provided, pretty-print array and object
+    substructures by indenting with the provided number of spaces
 """
 json(a) = sprint(print, a)
 json(a, indent) = sprint(print, a, indent)
