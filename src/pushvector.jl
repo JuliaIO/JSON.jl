@@ -9,7 +9,6 @@ end
 # Default length of 20 should be enough to never need to grow in most cases
 PushVector{T}() where {T} = PushVector(Vector{T}(undef, 20), 0)
 
-Base.unsafe_convert(::Type{Ptr{UInt8}}, v::PushVector) = pointer(v.v)
 Base.length(v::PushVector) = v.l
 Base.size(v::PushVector) = (v.l,)
 @inline function Base.getindex(v::PushVector, i)
