@@ -2,6 +2,7 @@ module Parser  # JSON
 
 using Mmap
 using ..Common
+import Parsers
 
 include("pushvector.jl")
 
@@ -27,7 +28,6 @@ end
 # it is convenient to access MemoryParserState like a Vector{UInt8} to avoid copies
 Base.@propagate_inbounds Base.getindex(state::MemoryParserState, i::Int) = codeunit(state.utf8, i)
 Base.length(state::MemoryParserState) = sizeof(state.utf8)
-Base.unsafe_convert(::Type{Ptr{UInt8}}, state::MemoryParserState) = Base.unsafe_convert(Ptr{UInt8}, state.utf8)
 
 mutable struct StreamingParserState{T <: IO} <: ParserState
     io::T
@@ -317,12 +317,21 @@ end
 Parse a float from the given bytes vector, starting at `from` and ending at the
 byte before `to`. Bytes enclosed should all be ASCII characters.
 """
-function float_from_bytes(bytes, from::Int, to::Int)
-    # The ccall is not ideal (Base.tryparse would be better), but it actually
-    # makes an 2× difference to performance
-    hasvalue, val = ccall(:jl_try_substrtod, Tuple{Bool, Float64},
-            (Ptr{UInt8}, Csize_t, Csize_t), bytes, from - 1, to - from + 1)
-    hasvalue ? val : nothing
+float_from_bytes(bytes::PushVector, from::Int, to::Int) = _float_from_bytes(bytes.v, from, to)
+float_from_bytes(bytes::MemoryParserState, from::Int, to::Int) = _float_from_bytes(bytes.utf8, from, to)
+
+function _float_from_bytes(bytes, from::Int, to::Int)::Union{Float64,Nothing}
+    # Would like to use tryparse, but we want it to consume the full input,
+    # and the version in Parsers does not do this.
+
+    # return Parsers.tryparse(Float64, @view bytes.utf8[from:to])
+
+    len = to - from + 1
+    x, code, vpos, vlen, tlen = Parsers.xparse(Float64, bytes, from, to, Parsers.OPTIONS)
+    if !Parsers.ok(code) || vlen < len
+        return nothing
+    end
+    return x::Float64
 end
 
 """
