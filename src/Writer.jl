@@ -20,7 +20,7 @@ struct CompositeTypeWrapper{T}
 end
 
 CompositeTypeWrapper(x, syms) = CompositeTypeWrapper(x, collect(syms))
-CompositeTypeWrapper(x) = CompositeTypeWrapper(x, fieldnames(typeof(x)))
+CompositeTypeWrapper(x) = CompositeTypeWrapper(x, propertynames(x))
 
 """
     lower(x)
@@ -282,7 +282,7 @@ end
 function show_json(io::SC, s::CS, x::CompositeTypeWrapper)
     begin_object(io)
     for fn in x.fns
-        show_pair(io, s, fn, getfield(x.wrapped, fn))
+        show_pair(io, s, fn, getproperty(x.wrapped, fn))
     end
     end_object(io)
 end
