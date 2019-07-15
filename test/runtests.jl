@@ -29,6 +29,10 @@ include("json-samples.jl")
         include("parser/nan-inf.jl")
     end
 
+    @testset "null" begin
+        include("parser/null.jl")
+    end
+
     @testset "Miscellaneous" begin
         # test for single values
         @test JSON.parse("true") == true

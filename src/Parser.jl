@@ -37,7 +37,7 @@ mutable struct StreamingParserState{T <: IO} <: ParserState
 end
 StreamingParserState(io::IO) = StreamingParserState(io, 0x00, true, PushVector{UInt8}())
 
-struct ParserContext{DictType, IntType, AllowNanInf} end
+struct ParserContext{DictType, IntType, AllowNanInf, NullValue} end
 
 """
 Return the byte at the current position of the `ParserState`. If there is no
@@ -173,7 +173,8 @@ function parse_value(pc::ParserContext, ps::ParserState)
     end
 end
 
-function parse_jsconstant(::ParserContext{<:Any,<:Any,AllowNanInf}, ps::ParserState) where AllowNanInf
+function parse_jsconstant(::ParserContext{<:Any,<:Any,AllowNanInf,NullValue},
+                          ps::ParserState) where {AllowNanInf,NullValue}
     c = advance!(ps)
     if c == LATIN_T      # true
         skip!(ps, LATIN_R, LATIN_U, LATIN_E)
@@ -183,7 +184,7 @@ function parse_jsconstant(::ParserContext{<:Any,<:Any,AllowNanInf}, ps::ParserSt
         false
     elseif c == LATIN_N  # null
         skip!(ps, LATIN_U, LATIN_L, LATIN_L)
-        nothing
+        NullValue
     elseif AllowNanInf && c == LATIN_UPPER_N
         skip!(ps, LATIN_A, LATIN_UPPER_N)
         NaN
@@ -427,12 +428,12 @@ function unparameterize_type(T::Type)
 end
 
 # Workaround for slow dynamic dispatch for creating objects
-const DEFAULT_PARSERCONTEXT = ParserContext{Dict{String, Any}, Int64, false}()
-function _get_parsercontext(dicttype, inttype, allownan)
+const DEFAULT_PARSERCONTEXT = ParserContext{Dict{String, Any}, Int64, false, nothing}()
+function _get_parsercontext(dicttype, inttype, allownan, null)
     if dicttype == Dict{String, Any} && inttype == Int64 && !allownan
         DEFAULT_PARSERCONTEXT
     else
-        ParserContext{unparameterize_type(dicttype), inttype, allownan}.instance
+        ParserContext{unparameterize_type(dicttype), inttype, allownan, null}.instance
     end
 end
 
@@ -440,7 +441,8 @@ end
     parse{T<:Associative}(str::AbstractString;
                           dicttype::Type{T}=Dict,
                           inttype::Type{<:Real}=Int64,
-                          allownan::Bool=true)
+                          allownan::Bool=true,
+                          null=nothing)
 
 Parses the given JSON string into corresponding Julia types.
 
@@ -449,12 +451,14 @@ Keyword arguments:
   • inttype: Real number type to use when parsing JSON numbers that can be parsed
              as integers (default: Int64)
   • allownan: allow parsing of NaN, Infinity, and -Infinity (default: true)
+  • null: value to use for parsed JSON `null` values (default: `nothing`)
 """
 function parse(str::AbstractString;
                dicttype=Dict{String,Any},
                inttype::Type{<:Real}=Int64,
-               allownan::Bool=true)
-    pc = _get_parsercontext(dicttype, inttype, allownan)
+               allownan::Bool=true,
+               null=nothing)
+    pc = _get_parsercontext(dicttype, inttype, allownan, null)
     ps = MemoryParserState(str, 1)
     v = parse_value(pc, ps)
     chomp_space!(ps)
@@ -468,7 +472,8 @@ end
     parse{T<:Associative}(io::IO;
                           dicttype::Type{T}=Dict,
                           inttype::Type{<:Real}=Int64,
-                          allownan=true)
+                          allownan=true,
+                          null=nothing)
 
 Parses JSON from the given IO stream into corresponding Julia types.
 
@@ -477,12 +482,14 @@ Keyword arguments:
   • inttype: Real number type to use when parsing JSON numbers that can be parsed
              as integers (default: Int64)
   • allownan: allow parsing of NaN, Infinity, and -Infinity (default: true)
+  • null: value to use for parsed JSON `null` values (default: `nothing`)
 """
 function parse(io::IO;
                dicttype=Dict{String,Any},
                inttype::Type{<:Real}=Int64,
-               allownan::Bool=true)
-    pc = _get_parsercontext(dicttype, inttype, allownan)
+               allownan::Bool=true,
+               null=nothing)
+    pc = _get_parsercontext(dicttype, inttype, allownan, null)
     ps = StreamingParserState(io)
     parse_value(pc, ps)
 end
@@ -492,6 +499,7 @@ end
               dicttype=Dict{String, Any},
               inttype::Type{<:Real}=Int64,
               allownan::Bool=true,
+              null=nothing,
               use_mmap::Bool=true)
 
 Convenience function to parse JSON from the given file into corresponding Julia types.
@@ -501,17 +509,19 @@ Keyword arguments:
   • inttype: Real number type to use when parsing JSON numbers that can be parsed
              as integers (default: Int64)
   • allownan: allow parsing of NaN, Infinity, and -Infinity (default: true)
+  • null: value to use for parsed JSON `null` values (default: `nothing`)
   • use_mmap: use mmap when opening the file (default: true)
 """
 function parsefile(filename::AbstractString;
                    dicttype=Dict{String, Any},
                    inttype::Type{<:Real}=Int64,
+                   null=nothing,
                    allownan::Bool=true,
                    use_mmap::Bool=true)
     sz = filesize(filename)
     open(filename) do io
         s = use_mmap ? String(Mmap.mmap(io, Vector{UInt8}, sz)) : read(io, String)
-        parse(s; dicttype=dicttype, inttype=inttype, allownan=allownan)
+        parse(s; dicttype=dicttype, inttype=inttype, allownan=allownan, null=null)
     end
 end
 
