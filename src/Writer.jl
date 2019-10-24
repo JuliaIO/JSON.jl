@@ -26,9 +26,9 @@ CompositeTypeWrapper(x) = CompositeTypeWrapper(x, propertynames(x))
     lower(x)
 
 Return a value of a JSON-encodable primitive type that `x` should be lowered
-into before encoding as JSON. Supported types are: `AbstractDict` to JSON
-objects, `Tuple` and `AbstractVector` to JSON arrays, `AbstractArray` to nested
-JSON arrays, `AbstractString`, `Symbol`, `Enum`, or `Char` to JSON string,
+into before encoding as JSON. Supported types are: `AbstractDict` and `NamedTuple`
+to JSON objects, `Tuple` and `AbstractVector` to JSON arrays, `AbstractArray` to
+nested JSON arrays, `AbstractString`, `Symbol`, `Enum`, or `Char` to JSON string,
 `Integer` and `AbstractFloat` to JSON number, `Bool` to JSON boolean, and
 `Nothing` to JSON null, or any other types with a `show_json` method defined.
 
@@ -265,9 +265,9 @@ end
 show_json(io::SC, ::CS, ::Nothing) = show_null(io)
 show_json(io::SC, ::CS, ::Missing) = show_null(io)
 
-function show_json(io::SC, s::CS, a::AbstractDict)
+function show_json(io::SC, s::CS, x::Union{AbstractDict, NamedTuple})
     begin_object(io)
-    for kv in a
+    for kv in pairs(x)
         show_pair(io, s, kv)
     end
     end_object(io)
