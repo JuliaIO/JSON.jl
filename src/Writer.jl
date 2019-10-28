@@ -254,9 +254,21 @@ function show_json(io::SC, s::CS, x::IsPrintedAsString)
     end
 end
 
-function show_json(io::SC, s::CS, x::Union{Integer, AbstractFloat})
-    if isfinite(x)
-        Base.print(io, x)
+function show_json(io::SC, s::CS, i::Integer)
+    Base.print(io, i)
+end
+
+function show_json(io::SC, s::CS, f::AbstractFloat)
+    if isfinite(f)
+        str = string(f)
+        # use 'f' for exponent is not allowed in JSON
+        for i in 1:lastindex(str)
+            if str[i] == 'f'
+                Base.print(io, join([str[1:i-1], "e", str[i+1:lastindex(str)]]))
+                return
+            end
+        end
+        Base.print(io, str)
     else
         show_null(io)
     end
