@@ -158,7 +158,6 @@ contexts, it is also possible to instead subtype the abstract subtype
 `JSONContext` of `StructuralContext`. If this is the case, an `io::IO` field (as
 above) is preferred, although the default implementation will only use this
 for `write`, so replacing that method is enough to avoid this requirement.
-The default implementations will also use an internal 
 
 The following methods should be defined for your context, regardless of whether it
 subtypes `JSONContext` or `StructuralContext` directly. If some of these methods
