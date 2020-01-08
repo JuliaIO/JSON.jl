@@ -24,7 +24,7 @@ JSON.lower(v::Type151{T}) where {T} = Dict(:type => T, :value => v.x)
 fixednum = Fixed{Int16, 15}(0.1234)
 @test JSON.parse(JSON.json(fixednum)) == convert(Float64, fixednum)
 
-# test that the default string-serialization of enums can be overriden by
+# test that the default string-serialization of enums can be overridden by
 # `lower` if needed
 @enum Fruit apple orange banana
 JSON.lower(x::Fruit) = string("Fruit: ", x)
@@ -33,5 +33,14 @@ JSON.lower(x::Fruit) = string("Fruit: ", x)
 @enum Vegetable carrot tomato potato
 JSON.lower(x::Vegetable) = Dict(string(x) => Int(x))
 @test JSON.json(potato) == "{\"potato\":2}"
+
+# test that the default lowering for compound types can be overridden by `propertynames` and
+# `getproperty` if needed
+struct Type152
+    x::Int
+end
+Base.propertynames(v::Type152) = (:type, fieldnames(Type152)...)
+Base.getproperty(v::Type152, s::Symbol) = s == :type ? :Type152 : getfield(v, s)
+@test JSON.json(Type152(152)) == "{\"type\":\"Type152\",\"x\":152}"
 
 end
