@@ -269,3 +269,78 @@ julia> pyonprint(stdout, [1, 2, nothing])
 julia> sprint(pyonprint, missing)
 "None"
 ```
+
+#### Serialization
+
+For cases where the JSON cosmetics are unimportant, but how objects are converted into their
+JSON equivalents (arrays, objects, numbers, etc.) need to be changed, the appropriate
+abstraction is `Serialization`. A `Serialization` instance is used as the second argument in
+`show_json`. Thus, specializing `show_json` for custom `Serialization` instances enables
+either creating more restrictive or different ways to convert objects into JSON.
+
+The default serialization is called `JSON.Serializations.StandardSerialization`, which is a
+subtype of `CommonSerialization`. Methods of `show_json` are not added to
+`StandardSerialization`, but rather to `CommonSerialization`, by both `JSON` and by
+other packages for their own types. The `lower` functionality is also specific to
+`CommonSerialization`. Therefore, to create a serialization instance that inherits from and
+may extend or override parts of the standard serialization, it suffices to define a new
+serialization subtyping `CommonSerialization`. In the example below, the new serialization
+is the same as `StandardSerialization` except that numbers are serialized with an additional
+type tag.
+
+```julia
+import JSON.Serializations: CommonSerialization, StandardSerialization
+import JSON.Writer: StructuralContext, show_json
+struct TaggedNumberSerialization <: CommonSerialization end
+
+tag(f::Real) = Dict(:type => string(typeof(f)), :value => f)
+show_json(io::StructuralContext,
+            ::TaggedNumberSerialization,
+           f::Union{Integer, AbstractFloat}) =
+    show_json(io, StandardSerialization(), tag(f))
+```
+
+Note that the recursive call constructs a `StandardSerialization()`, as otherwise this would
+result in a stack overflow, and serializes a `Dict` using that. In this toy example, this is
+fine (with only the overhead of constructing a `Dict`), but this is not always possible.
+(For instance, if the constructed `Dict` could have other numbers within its values that
+need to be tagged.)
+
+To deal with these more complex cases, or simply to eliminate the overhead of constructing
+the intermediate `Dict`, the `show_json` method can be implemented more carefully by
+explicitly calling the context’s `begin_object`, `show_pair`, and `end_object` methods, as
+documented above, and use the `StandardSerialization()` only for the `show_pair` call for
+`f`.
+
+```julia
+# More careful implementation
+# No difference in this case, but could be needed if recursive data structures are to be
+# serialized in more complex cases.
+import JSON.Writer: begin_object, show_pair, end_object
+function show_json(io::StructuralContext,
+                    s::TaggedNumberSerialization,
+                    f::Union{Integer, AbstractFloat})
+    begin_object(io)
+    show_pair(io, s, :tag => string(typeof(f)))
+    show_pair(io, StandardSerialization(), :value => f)
+    end_object(io)
+end
+```
+
+To use the custom serialization, `sprint` can be used (and this can be encapsulated by a
+convenient user-defined inteface):
+
+```julia
+julia> JSON.parse(sprint(show_json, TaggedNumberSerialization(), Any[1, 2.0, "hi"]))
+3-element Array{Any,1}:
+ Dict{String,Any}("value" => 1,"type" => "Int64")
+ Dict{String,Any}("value" => 2.0,"type" => "Float64")
+ "hi"
+```
+
+If it is not desired to inherit all the functionality of `StandardSerialization`, users may
+also choose to start from scratch by directly subtyping `JSON.Serializations.Serialization`.
+This is useful if the user wishes to enforce a strict JSON which throws errors when
+attempting to serialize objects that aren’t explicitly supported. Note that this means you
+will need to define a method to support serializing any kind of object, including the
+standard JSON objects like booleans, integers, strings, etc.!
