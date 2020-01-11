@@ -1,20 +1,16 @@
 # JSON.jl
-### Parsing and printing JSON in pure Julia.
+
+This package provides for parsing and printing JSON in pure Julia.
 
 [![Build Status](https://travis-ci.org/JuliaIO/JSON.jl.svg)](https://travis-ci.org/JuliaIO/JSON.jl)
 [![Build status](https://ci.appveyor.com/api/projects/status/2sfomjwl29k6y6oy)](https://ci.appveyor.com/project/staticfloat/json-jl)
 [![codecov.io](http://codecov.io/github/JuliaIO/JSON.jl/coverage.svg?branch=master)](http://codecov.io/github/JuliaIO/JSON.jl?branch=master)
 
-[![JSON](http://pkg.julialang.org/badges/JSON_0.3.svg)](http://pkg.julialang.org/?pkg=JSON&ver=0.3)
-[![JSON](http://pkg.julialang.org/badges/JSON_0.4.svg)](http://pkg.julialang.org/?pkg=JSON&ver=0.4)
-[![JSON](http://pkg.julialang.org/badges/JSON_0.5.svg)](http://pkg.julialang.org/?pkg=JSON&ver=0.5)
-[![JSON](http://pkg.julialang.org/badges/JSON_0.6.svg)](http://pkg.julialang.org/?pkg=JSON&ver=0.6)
+## Installation
 
-**Installation**: `julia> Pkg.add("JSON")`
-
+Type `] add JSON` and then hit ⏎ Return at the REPL. You should see `pkg> add JSON`.
 
 ## Basic Usage
-
 
 ```julia
 import JSON
@@ -34,7 +30,6 @@ JSON.json(j)
 ```
 
 ## Documentation
-
 
 ```julia
 JSON.print(io::IO, s::AbstractString)
