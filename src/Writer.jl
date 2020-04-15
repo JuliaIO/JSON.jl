@@ -129,18 +129,18 @@ write(io::StringContext, char::Char) =
 =#
 
 """
-    indent(io::StructuralContext; newline = true)
+    indent(io::StructuralContext)
 
 If appropriate, write a newline to the given context, then indent it by the
 appropriate number of spaces. Otherwise, do nothing.
 """
-@inline function indent(io::PrettyContext; newline = true)
-    newline && write(io, NEWLINE)
+@inline function indent(io::PrettyContext)
+    write(io, NEWLINE)
     for _ in 1:io.state
         write(io, SPACE)
     end
 end
-@inline indent(io::CompactContext; newline = true) = nothing
+@inline indent(io::CompactContext) = nothing
 
 """
     separate(io::StructuralContext)
@@ -176,15 +176,15 @@ for kind in ("object", "array")
         io.first = true
     end
     @eval $beginfn(io::CompactContext) = (write(io, $beginsym); io.first = true)
-    @eval function $endfn(io::PrettyContext)
+    @eval function $endfn(io::PrettyContext; newline = true)
         io.state -= io.step
-        if !io.first
+        if newline && !io.first
             indent(io)
         end
         write(io, $endsym)
         io.first = false
     end
-    @eval $endfn(io::CompactContext) = (write(io, $endsym); io.first = false)
+    @eval $endfn(io::CompactContext; newline = true) = (write(io, $endsym); io.first = false)
 end
 
 """
@@ -214,7 +214,7 @@ defined by serialization `s`.
 """
 function show_element(io::JSONContext, s, x; newline = true)
     delimit(io)
-    indent(io, newline = newline)
+    newline && indent(io)
     show_json(io, s, x)
 end
 
@@ -287,13 +287,12 @@ function show_json(io::SC, s::CS, x::CompositeTypeWrapper)
     end_object(io)
 end
 
-function show_json(io::SC, s::CS, x::Union{AbstractVector, Tuple})
+function show_json(io::SC, s::CS, x::Union{AbstractVector, Tuple}; do_newlines = length(x) <= 5)
     begin_array(io)
-    do_newlines = length(x) <= 5
     for elt in x
         show_element(io, s, elt, newline = do_newlines)
     end
-    end_array(io)
+    end_array(io, newline = do_newlines)
 end
 
 """
