@@ -129,18 +129,18 @@ write(io::StringContext, char::Char) =
 =#
 
 """
-    indent(io::StructuralContext)
+    indent(io::StructuralContext; newline = true)
 
 If appropriate, write a newline to the given context, then indent it by the
 appropriate number of spaces. Otherwise, do nothing.
 """
-@inline function indent(io::PrettyContext)
-    write(io, NEWLINE)
+@inline function indent(io::PrettyContext; newline = true)
+    newline && write(io, NEWLINE)
     for _ in 1:io.state
         write(io, SPACE)
     end
 end
-@inline indent(io::CompactContext) = nothing
+@inline indent(io::CompactContext; newline = true) = nothing
 
 """
     separate(io::StructuralContext)
@@ -212,9 +212,9 @@ show_null(io::IO) = Base.print(io, "null")
 Print object `x` as an element of a JSON array to context `io` using rules
 defined by serialization `s`.
 """
-function show_element(io::JSONContext, s, x)
+function show_element(io::JSONContext, s, x; newline = true)
     delimit(io)
-    indent(io)
+    indent(io, newline = newline)
     show_json(io, s, x)
 end
 
@@ -289,8 +289,9 @@ end
 
 function show_json(io::SC, s::CS, x::Union{AbstractVector, Tuple})
     begin_array(io)
+    do_newlines = length(x) <= 5
     for elt in x
-        show_element(io, s, elt)
+        show_element(io, s, elt, newline = do_newlines)
     end
     end_array(io)
 end
