@@ -287,12 +287,12 @@ function show_json(io::SC, s::CS, x::CompositeTypeWrapper)
     end_object(io)
 end
 
-function show_json(io::SC, s::CS, x::Union{AbstractVector, Tuple}; do_newlines = length(x) <= 5)
+function show_json(io::SC, s::CS, x::Union{AbstractVector, Tuple}; newline::Bool = true)
     begin_array(io)
     for elt in x
-        show_element(io, s, elt, newline = do_newlines)
+        show_element(io, s, elt, newline = newline)
     end
-    end_array(io, newline = do_newlines)
+    end_array(io, newline = newline)
 end
 
 """
@@ -327,6 +327,14 @@ function show_json(io::IO, s::Serialization, obj; indent=nothing)
         println(io)
     end
 end
+function show_json(io::IO, s::Serialization, obj::Union{AbstractVector, Tuple}; indent=nothing, newline=true)
+    ctx = indent === nothing ? CompactContext(io) : PrettyContext(io, indent)
+    show_json(ctx, s, obj, newline=newline)
+    if indent !== nothing
+        println(io)
+    end
+end
+
 
 """
     JSONText(s::AbstractString)
@@ -347,6 +355,12 @@ show_json(io::CompactContext, s::CS, json::JSONText) = write(io, json.s)
 print(io::IO, obj, indent) =
     show_json(io, StandardSerialization(), obj; indent=indent)
 print(io::IO, obj) = show_json(io, StandardSerialization(), obj)
+
+print(io::IO, obj::Union{AbstractVector, Tuple}, indent; newline::Bool = length(obj) <= 5) =
+    show_json(io, StandardSerialization(), obj; indent=indent, newline=newline)
+print(io::IO, obj::Union{AbstractVector, Tuple}; newline::Bool = length(obj) <= 5) = 
+    show_json(io, StandardSerialization(), obj, newline=newline)
+
 
 print(a, indent) = print(stdout, a, indent)
 print(a) = print(stdout, a)
