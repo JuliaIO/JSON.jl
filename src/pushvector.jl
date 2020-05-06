@@ -29,4 +29,5 @@ function Base.resize!(v::PushVector, l::Integer)
     # Only support shrinking for now, since that is all we need
     @assert l <= v.l
     v.l = l
+    return v
 end
