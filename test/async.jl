@@ -2,12 +2,12 @@ finished_async_tests = RemoteChannel()
 
 using Sockets
 
+s = listen(7777)
+s = accept(s)
+
+Base.start_reading(s)
+
 @async begin
-    s = listen(7777)
-    s = accept(s)
-
-    Base.start_reading(s)
-
     @test JSON.parse(s) != nothing  # a
     @test JSON.parse(s) != nothing  # b
     validate_c(s)                   # c
