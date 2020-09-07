@@ -4,8 +4,6 @@ using Mmap
 using ..Common
 import Parsers
 
-include("pushvector.jl")
-
 """
 Like `isspace`, but work on bytes and includes only the four whitespace
 characters defined by the JSON standard: space, tab, line feed, and carriage
@@ -33,9 +31,9 @@ mutable struct StreamingParserState{T <: IO} <: ParserState
     io::T
     cur::UInt8
     used::Bool
-    utf8array::PushVector{UInt8, Vector{UInt8}}
+    utf8array::Vector{UInt8}
 end
-StreamingParserState(io::IO) = StreamingParserState(io, 0x00, true, PushVector{UInt8}())
+StreamingParserState(io::IO) = StreamingParserState(io, 0x00, true, UInt8[])
 
 struct ParserContext{DictType, IntType, AllowNanInf, NullValue} end
 
@@ -318,10 +316,9 @@ end
 Parse a float from the given bytes vector, starting at `from` and ending at the
 byte before `to`. Bytes enclosed should all be ASCII characters.
 """
-float_from_bytes(bytes::PushVector, from::Int, to::Int) = _float_from_bytes(bytes.v, from, to)
-float_from_bytes(bytes::MemoryParserState, from::Int, to::Int) = _float_from_bytes(bytes.utf8, from, to)
+float_from_bytes(bytes::MemoryParserState, from::Int, to::Int) = float_from_bytes(bytes.utf8, from, to)
 
-function _float_from_bytes(bytes, from::Int, to::Int)::Union{Float64,Nothing}
+function float_from_bytes(bytes::Union{String, Vector{UInt8}}, from::Int, to::Int)::Union{Float64,Nothing}
     # Would like to use tryparse, but we want it to consume the full input,
     # and the version in Parsers does not do this.
 
