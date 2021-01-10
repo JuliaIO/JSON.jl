@@ -8,3 +8,7 @@ ev = JSON.parse(svg_tviewer_menu)
 ejson1 = json(ev, 2)
 ejson2 = json(ev)
 @test JSON.parse(ejson1) == JSON.parse(ejson2)
+
+# check `indent` keyword argument works as same as second  positional argument (ref: gh-193
+@test json(fb, 2) == json(fb, indent=2)
+

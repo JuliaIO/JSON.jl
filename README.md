@@ -27,6 +27,16 @@ JSON.json([2,3])
 #  "[2,3]"
 JSON.json(j)
 #  "{\"an_array\":[\"string\",9],\"a_number\":5.0}"
+
+# indenting pretty-print 
+print(JSON.json(j, indent=4))
+#{
+#    "an_array": [
+#        "string",
+#        9
+#    ],
+#    "a_number": 5.0
+#}
 ```
 
 ## Documentation
