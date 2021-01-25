@@ -40,31 +40,27 @@ JSON.print(io::IO, a::AbstractDict)
 JSON.print(io::IO, v::AbstractVector)
 JSON.print{T, N}(io::IO, v::Array{T, N})
 ```
-
-Writes a compact (no extra whitespace or indentation) JSON representation
+would write a compact (no extra whitespace or indentation) JSON representation
 to the supplied IO.
 
 ```julia
-JSON.print(a::AbstractDict, indent)
-JSON.print(io::IO, a::AbstractDict, indent)
+JSON.print(a::AbstractDict, indent::Int)
+JSON.print(io::IO, a::AbstractDict, indent::Int)
 ```
-
-Writes a JSON representation with newlines, and indentation if specified. Non-zero `indent` will be applied recursively to nested elements.
+would write a JSON representation with newlines, and number of indentation if specified. Non-zero `indent` will be applied recursively to nested elements.
 
 
 ```julia
 json(a::Any)
 ```
-
-Returns a compact JSON representation as an `AbstractString`.
+would return a compact JSON representation as an `AbstractString`.
 
 ```julia
 JSON.parse(s::AbstractString; dicttype=Dict, inttype=Int64)
 JSON.parse(io::IO; dicttype=Dict, inttype=Int64)
 JSON.parsefile(filename::AbstractString; dicttype=Dict, inttype=Int64, use_mmap=true)
 ```
-
-Parses a JSON `AbstractString` or IO stream into a nested `Array` or `Dict`.
+parses a JSON `AbstractString` or IO stream into a nested `Array` or `Dict`.
 
 The `dicttype` indicates the dictionary type (`<: Associative`), or a function that
 returns an instance of a dictionary type,
