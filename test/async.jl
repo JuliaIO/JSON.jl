@@ -1,39 +1,49 @@
+using JSON
+using Test
+using Distributed: RemoteChannel
+
+@isdefined(a) || include("json-samples.jl")
+
 finished_async_tests = RemoteChannel()
 
 using Sockets
 
-@async begin
-    s = listen(7777)
-    s = accept(s)
+let serv = listen(7777)
+    @async let s; try
+        s = accept(serv)
+        close(serv)
+        @test JSON.parse(s) != nothing  # a
+        @test JSON.parse(s) != nothing  # b
+        validate_c(s)                   # c
+        @test JSON.parse(s) != nothing  # d
+        validate_svg_tviewer_menu(s)    # svg_tviewer_menu
+        @test JSON.parse(s) != nothing  # gmaps
+        @test JSON.parse(s) != nothing  # colors1
+        @test JSON.parse(s) != nothing  # colors2
+        @test JSON.parse(s) != nothing  # colors3
+        @test JSON.parse(s) != nothing  # twitter
+        @test JSON.parse(s) != nothing  # facebook
+        validate_flickr(s)              # flickr
+        @test JSON.parse(s) != nothing  # youtube
+        @test JSON.parse(s) != nothing  # iphone
+        @test JSON.parse(s) != nothing  # customer
+        @test JSON.parse(s) != nothing  # product
+        @test JSON.parse(s) != nothing  # interop
+        validate_unicode(s)             # unicode
+        @test JSON.parse(s) != nothing  # issue5
+        @test JSON.parse(s) != nothing  # dollars
+        @test JSON.parse(s) != nothing  # brackets
 
-    Base.start_reading(s)
-
-    @test JSON.parse(s) != nothing  # a
-    @test JSON.parse(s) != nothing  # b
-    validate_c(s)                   # c
-    @test JSON.parse(s) != nothing  # d
-    validate_svg_tviewer_menu(s)    # svg_tviewer_menu
-    @test JSON.parse(s) != nothing  # gmaps
-    @test JSON.parse(s) != nothing  # colors1
-    @test JSON.parse(s) != nothing  # colors2
-    @test JSON.parse(s) != nothing  # colors3
-    @test JSON.parse(s) != nothing  # twitter
-    @test JSON.parse(s) != nothing  # facebook
-    validate_flickr(s)              # flickr
-    @test JSON.parse(s) != nothing  # youtube
-    @test JSON.parse(s) != nothing  # iphone
-    @test JSON.parse(s) != nothing  # customer
-    @test JSON.parse(s) != nothing  # product
-    @test JSON.parse(s) != nothing  # interop
-    validate_unicode(s)             # unicode
-    @test JSON.parse(s) != nothing  # issue5
-    @test JSON.parse(s) != nothing  # dollars
-    @test JSON.parse(s) != nothing  # brackets
-
-    put!(finished_async_tests, nothing)
+        put!(finished_async_tests, nothing)
+    catch ex
+        @error "async test failure" _exception=ex
+    finally
+        @isdefined(s) && close(s)
+        close(serv)
+    end; end
 end
 
-w = connect("localhost", 7777)
+w = connect(Sockets.localhost, 7777)
 
 @test JSON.parse(a) != nothing
 write(w, a)

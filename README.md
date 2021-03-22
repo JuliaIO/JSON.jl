@@ -2,8 +2,7 @@
 
 This package provides for parsing and printing JSON in pure Julia.
 
-[![Build Status](https://travis-ci.org/JuliaIO/JSON.jl.svg)](https://travis-ci.org/JuliaIO/JSON.jl)
-[![Build status](https://ci.appveyor.com/api/projects/status/2sfomjwl29k6y6oy)](https://ci.appveyor.com/project/staticfloat/json-jl)
+[![Build Status](https://github.com/JuliaIO/JSON.jl/workflows/CI/badge.svg)](https://github.com/JuliaIO/JSON.jl/actions/workflows/CI.yml?query=branch%3Amaster)
 [![codecov.io](http://codecov.io/github/JuliaIO/JSON.jl/coverage.svg?branch=master)](http://codecov.io/github/JuliaIO/JSON.jl?branch=master)
 
 ## Installation
