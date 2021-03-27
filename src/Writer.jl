@@ -358,11 +358,11 @@ print(a) = print(stdout, a)
 Creates a JSON string from a Julia object or value.
 
 Arguments:
-  • a: the Julia object or value to encode
-  • indent (optional number): if provided, pretty-print array and object
+  * a: the Julia object or value to encode
+  * indent (optional number): if provided, pretty-print array and object
     substructures by indenting with the provided number of spaces
 """
-json(a; indent=nothing) = ifelse(indent===nothing, sprint(print, a), sprint(print, a, indent))
+json(a; indent=nothing) = indent === nothing ? sprint(print, a) : sprint(print, a, indent)
 json(a, indent) = sprint(print, a, indent)
 
 end
