@@ -105,7 +105,7 @@ Return `true` if there is a current byte, and `false` if all bytes have been
 exausted.
 """
 @inline hasmore(ps::MemoryParserState) = ps.s ≤ length(ps)
-@inline hasmore(ps::StreamingParserState) = true  # no more now ≠ no more ever
+@inline hasmore(ps::StreamingParserState) = !ps.used || !eof(ps.io)
 
 """
 Remove as many whitespace bytes as possible from the `ParserState` starting from

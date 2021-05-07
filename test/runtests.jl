@@ -80,7 +80,7 @@ end
 end
 
 @testset "Regression" begin
-    @testset "for issue #$i" for i in [21, 26, 57, 109, 152, 163]
+    @testset "for issue #$i" for i in [21, 26, 57, 109, 152, 163, 314]
         include("regression/issue$(lpad(string(i), 3, "0")).jl")
     end
 end
