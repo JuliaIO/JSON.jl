@@ -42,6 +42,10 @@ include("json-samples.jl")
         @test JSON.parse("1") == 1
         @test JSON.parse("1.5") == 1.5
         @test JSON.parse("[true]") == [true]
+
+        # test for parsing single values in streams
+        @test JSON.parse(IOBuffer("123")) == 123
+        @test JSON.parse(IOBuffer("1.5")) == 1.5
     end
 end
 
@@ -80,7 +84,7 @@ end
 end
 
 @testset "Regression" begin
-    @testset "for issue #$i" for i in [21, 26, 57, 109, 152, 163, 314]
+    @testset "for issue #$i" for i in [21, 26, 57, 109, 152, 163]
         include("regression/issue$(lpad(string(i), 3, "0")).jl")
     end
 end
