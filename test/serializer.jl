@@ -85,6 +85,13 @@ let filename = tempname()
     rm(filename)
 end
 
+# test convenience printing to file
+let filename = tempname()
+    JSON.printfile(filename, Any[1, 2, 3.0])
+    @test read(filename, String) == "[1,2,3.0]"
+    rm(filename)
+end
+
 # issue #184: serializing a 0-dimensional array
 @test sprint(JSON.show_json, JSON.StandardSerialization(), view([184], 1)) == "184"
 

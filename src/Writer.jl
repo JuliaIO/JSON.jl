@@ -352,6 +352,15 @@ print(a, indent) = print(stdout, a, indent)
 print(a) = print(stdout, a)
 
 """
+    printfile(filename::AbstractString, printargs...)
+
+A convenience wrapper that opens the `filename` for writing and prints the JSON
+to it. All arguments other than `filename` are forwarded to `print`.
+"""
+printfile(filename::AbstractString, printargs...) =
+    open(io -> print(io, printargs...), filename, "w")
+
+"""
     json(a)
     json(a, indent::Int)
 
