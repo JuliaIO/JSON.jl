@@ -1,6 +1,6 @@
 # Run modified JSON checker tests
 
-const JSON_DATA_DIR = joinpath(dirname(@__DIR__), "data")
+const JSON_DATA_DIR = joinpath(dirname(pathof(JSON)), "../data")
 
 for i in 1:38
     file = "fail$(lpad(string(i), 2, "0")).json"
