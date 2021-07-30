@@ -319,7 +319,7 @@ byte before `to`. Bytes enclosed should all be ASCII characters.
 float_from_bytes(bytes::MemoryParserState, from::Int, to::Int) = float_from_bytes(bytes.utf8, from, to)
 
 function float_from_bytes(bytes::Union{String, Vector{UInt8}}, from::Int, to::Int)::Union{Float64,Nothing}
-    return Parsers.tryparse(Float64, bytes isa String ? SubString(bytes, from, to) : view(bytes, from, to))
+    return Parsers.tryparse(Float64, bytes isa String ? SubString(bytes, from:to) : view(bytes, from:to))
 end
 
 """
