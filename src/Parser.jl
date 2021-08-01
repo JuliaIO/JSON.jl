@@ -319,17 +319,7 @@ byte before `to`. Bytes enclosed should all be ASCII characters.
 float_from_bytes(bytes::MemoryParserState, from::Int, to::Int) = float_from_bytes(bytes.utf8, from, to)
 
 function float_from_bytes(bytes::Union{String, Vector{UInt8}}, from::Int, to::Int)::Union{Float64,Nothing}
-    # Would like to use tryparse, but we want it to consume the full input,
-    # and the version in Parsers does not do this.
-
-    # return Parsers.tryparse(Float64, @view bytes.utf8[from:to])
-
-    len = to - from + 1
-    x, code, vpos, vlen, tlen = Parsers.xparse(Float64, bytes, from, to, Parsers.OPTIONS)
-    if !Parsers.ok(code) || vlen < len
-        return nothing
-    end
-    return x::Float64
+    return Parsers.tryparse(Float64, bytes isa String ? SubString(bytes, from:to) : view(bytes, from:to))
 end
 
 """
