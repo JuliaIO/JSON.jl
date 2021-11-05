@@ -70,9 +70,17 @@ end
 ]
 """
 
-# test serializing a type without any fields
+# test serializing a singleton
 struct SingletonType end
-@test_throws ErrorException json(SingletonType())
+@test Base.issingletontype(SingletonType) # sanity test
+@test json(SingletonType()) == json(SingletonType)
+@test json(SingletonType()) == json(SingletonType())
+
+# test serializing a singleton with parameters
+struct ParamSingletonType{T} end
+@test json(ParamSingletonType{Float64}()) == json(ParamSingletonType{Float64})
+@test json(ParamSingletonType{Float64}()) == json(ParamSingletonType{Float64}())
+@test json(ParamSingletonType{Float64}()) != json(ParamSingletonType{Float32}())
 
 # test printing to stdout
 let filename = tempname()

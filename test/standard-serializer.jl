@@ -30,6 +30,18 @@ end
     @test sprint(JSON.print, Float64) == string("\"Float64\"")
 end
 
+@testset "Singletons" begin
+    struct SingletonType end
+    struct ParamSingletonType{T} end
+    
+    @test Base.issingletontype(SingletonType) # sanity test
+    @test sprint(JSON.print, SingletonType()) == string("\"SingletonType\"")
+    @test sprint(JSON.print, SingletonType) == string("\"SingletonType\"")
+
+    @test sprint(JSON.print, ParamSingletonType{Float64}()) == string("\"ParamSingletonType{Float64}\"")
+    @test sprint(JSON.print, ParamSingletonType{Float64}) == string("\"ParamSingletonType{Float64}\"")
+end
+
 @testset "Module" begin
     @test_throws ArgumentError sprint(JSON.print, JSON)
 end

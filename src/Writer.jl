@@ -19,7 +19,7 @@ struct CompositeTypeWrapper{T}
     fns::Vector{Symbol}
 end
 
-CompositeTypeWrapper(x, syms) = CompositeTypeWrapper(x, collect(syms))
+CompositeTypeWrapper(x, syms) = CompositeTypeWrapper(x, Vector{Symbol}(collect(syms)))
 CompositeTypeWrapper(x) = CompositeTypeWrapper(x, propertynames(x))
 
 """
@@ -41,11 +41,7 @@ for instance return an `AbstractArray{Any, 1}` whose elements are not JSON
 primitives.
 """
 function lower(a)
-    if nfields(a) > 0
-        CompositeTypeWrapper(a)
-    else
-        error("Cannot serialize type $(typeof(a))")
-    end
+    CompositeTypeWrapper(a)
 end
 
 # To avoid allocating an intermediate string, we directly define `show_json`
@@ -279,12 +275,16 @@ function show_json(io::SC, s::CS, kv::Pair)
     end_object(io)
 end
 
-function show_json(io::SC, s::CS, x::CompositeTypeWrapper)
-    begin_object(io)
-    for fn in x.fns
-        show_pair(io, s, fn, getproperty(x.wrapped, fn))
+function show_json(io::SC, s::CS, x::CompositeTypeWrapper{T}) where T
+    if Base.issingletontype(T)
+        show_json(io, s, T)
+    else
+        begin_object(io)
+        for fn in x.fns
+            show_pair(io, s, fn, getproperty(x.wrapped, fn))
+        end
+        end_object(io)
     end
-    end_object(io)
 end
 
 function show_json(io::SC, s::CS, x::Union{AbstractVector, Tuple})
