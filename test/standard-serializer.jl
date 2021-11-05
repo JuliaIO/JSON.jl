@@ -38,9 +38,11 @@ struct ParamSingletonType{T} end
     @test Base.issingletontype(SingletonType) # sanity test
     @test sprint(JSON.print, SingletonType()) == string("\"SingletonType\"")
     @test sprint(JSON.print, SingletonType) == string("\"SingletonType\"")
+    @test Base.repr(MIME"application/json"(), SingletonType) == string("\"SingletonType\"")
 
     @test sprint(JSON.print, ParamSingletonType{Float64}()) == string("\"ParamSingletonType{Float64}\"")
     @test sprint(JSON.print, ParamSingletonType{Float64}) == string("\"ParamSingletonType{Float64}\"")
+    @test Base.repr(MIME"application/json"(), ParamSingletonType{Float64}) == string("\"ParamSingletonType{Float64}\"")
 end
 
 @testset "Module" begin
