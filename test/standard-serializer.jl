@@ -30,9 +30,10 @@ end
     @test sprint(JSON.print, Float64) == string("\"Float64\"")
 end
 
+struct SingletonType end
+struct ParamSingletonType{T} end
+
 @testset "Singletons" begin
-    struct SingletonType end
-    struct ParamSingletonType{T} end
     
     @test Base.issingletontype(SingletonType) # sanity test
     @test sprint(JSON.print, SingletonType()) == string("\"SingletonType\"")
