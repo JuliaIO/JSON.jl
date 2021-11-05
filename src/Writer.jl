@@ -365,4 +365,6 @@ Arguments:
 json(a) = sprint(print, a)
 json(a, indent) = sprint(print, a, indent)
 
+Base.show(io::IOContext, ::MIME{Symbol("application/json")}, x::Any) = print(io, x)
+
 end
