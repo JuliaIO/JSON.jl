@@ -22,6 +22,10 @@ end
 CompositeTypeWrapper(x, syms) = CompositeTypeWrapper(x, collect(syms))
 CompositeTypeWrapper(x) = CompositeTypeWrapper(x, propertynames(x))
 
+struct SingletonTypeWrapper{T}
+    wrapped::T
+end
+
 """
     lower(x)
 
@@ -40,11 +44,11 @@ Note that the return value need not be *recursively* lowered—this function may
 for instance return an `AbstractArray{Any, 1}` whose elements are not JSON
 primitives.
 """
-function lower(a)
-    if nfields(a) > 0
-        CompositeTypeWrapper(a)
+function lower(a::T) where {T}
+    if Base.issingletontype(T)
+        SingletonTypeWrapper(a)
     else
-        error("Cannot serialize type $(typeof(a))")
+        CompositeTypeWrapper(a)
     end
 end
 
@@ -286,6 +290,8 @@ function show_json(io::SC, s::CS, x::CompositeTypeWrapper)
     end
     end_object(io)
 end
+
+show_json(io::SC, ::CS, x::SingletonTypeWrapper) = show_string(io, x.wrapped)
 
 function show_json(io::SC, s::CS, x::Union{AbstractVector, Tuple})
     begin_array(io)
