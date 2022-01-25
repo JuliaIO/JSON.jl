@@ -425,11 +425,11 @@ function _get_parsercontext(dicttype, inttype, allownan, null)
 end
 
 """
-    parse{T<:Associative}(str::AbstractString;
+    parse(str::AbstractString;
                           dicttype::Type{T}=Dict,
                           inttype::Type{<:Real}=Int64,
                           allownan::Bool=true,
-                          null=nothing)
+                          null=nothing) where {T<:Associative}
 
 Parses the given JSON string into corresponding Julia types.
 
@@ -456,11 +456,11 @@ function parse(str::AbstractString;
 end
 
 """
-    parse{T<:Associative}(io::IO;
+    parse(io::IO;
                           dicttype::Type{T}=Dict,
                           inttype::Type{<:Real}=Int64,
                           allownan=true,
-                          null=nothing)
+                          null=nothing) where {T<:Associative}
 
 Parses JSON from the given IO stream into corresponding Julia types.
 
