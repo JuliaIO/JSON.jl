@@ -28,4 +28,11 @@ using .Serializations: Serialization, CommonSerialization,
 # for pretty-printed (non-compact) output, JSONText must be re-parsed:
 Writer.lower(json::JSONText) = parse(json.s)
 
+function _precompile_()
+    x =  "{\"type\":\"callback\",\"data\":{\"callback\":1,\"result\":true,\"error\":false}}"
+    JSON.lower(JSON.parse(x))
+end
+
+_precompile_()
+
 end # module
