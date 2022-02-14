@@ -37,7 +37,7 @@ JSON.print(io::IO, n::Nothing)
 JSON.print(io::IO, b::Bool)
 JSON.print(io::IO, a::AbstractDict)
 JSON.print(io::IO, v::AbstractVector)
-JSON.print{T, N}(io::IO, v::Array{T, N})
+JSON.print(io::IO, v::Array{T, N}) where {T, N}
 ```
 
 Writes a compact (no extra whitespace or indentation) JSON representation
