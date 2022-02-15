@@ -429,7 +429,7 @@ end
           dicttype::Type{T}=Dict,
           inttype::Type{<:Real}=Int64,
           allownan::Bool=true,
-          null=nothing) where {T<:Associative}
+          null=nothing) where {T<:AbstractDict}
 
 Parses the given JSON string into corresponding Julia types.
 
