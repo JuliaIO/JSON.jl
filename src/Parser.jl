@@ -426,10 +426,10 @@ end
 
 """
     parse(str::AbstractString;
-                          dicttype::Type{T}=Dict,
-                          inttype::Type{<:Real}=Int64,
-                          allownan::Bool=true,
-                          null=nothing) where {T<:Associative}
+          dicttype::Type{T}=Dict,
+          inttype::Type{<:Real}=Int64,
+          allownan::Bool=true,
+          null=nothing) where {T<:Associative}
 
 Parses the given JSON string into corresponding Julia types.
 
@@ -457,10 +457,10 @@ end
 
 """
     parse(io::IO;
-                          dicttype::Type{T}=Dict,
-                          inttype::Type{<:Real}=Int64,
-                          allownan=true,
-                          null=nothing) where {T<:Associative}
+          dicttype::Type{T}=Dict,
+          inttype::Type{<:Real}=Int64,
+          allownan=true,
+          null=nothing) where {T<:Associative}
 
 Parses JSON from the given IO stream into corresponding Julia types.
 
