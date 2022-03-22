@@ -176,15 +176,15 @@ for kind in ("object", "array")
         io.first = true
     end
     @eval $beginfn(io::CompactContext) = (write(io, $beginsym); io.first = true)
-    @eval function $endfn(io::PrettyContext)
+    @eval function $endfn(io::PrettyContext; newline = true)
         io.state -= io.step
-        if !io.first
+        if newline && !io.first
             indent(io)
         end
         write(io, $endsym)
         io.first = false
     end
-    @eval $endfn(io::CompactContext) = (write(io, $endsym); io.first = false)
+    @eval $endfn(io::CompactContext; newline = true) = (write(io, $endsym); io.first = false)
 end
 
 """
@@ -212,9 +212,9 @@ show_null(io::IO) = Base.print(io, "null")
 Print object `x` as an element of a JSON array to context `io` using rules
 defined by serialization `s`.
 """
-function show_element(io::JSONContext, s, x)
+function show_element(io::JSONContext, s, x; newline = true)
     delimit(io)
-    indent(io)
+    newline && indent(io)
     show_json(io, s, x)
 end
 
@@ -287,12 +287,12 @@ function show_json(io::SC, s::CS, x::CompositeTypeWrapper)
     end_object(io)
 end
 
-function show_json(io::SC, s::CS, x::Union{AbstractVector, Tuple})
+function show_json(io::SC, s::CS, x::Union{AbstractVector, Tuple}; newline::Bool = true)
     begin_array(io)
     for elt in x
-        show_element(io, s, elt)
+        show_element(io, s, elt, newline = newline)
     end
-    end_array(io)
+    end_array(io, newline = newline)
 end
 
 """
@@ -327,6 +327,14 @@ function show_json(io::IO, s::Serialization, obj; indent=nothing)
         println(io)
     end
 end
+function show_json(io::IO, s::Serialization, obj::Union{AbstractVector, Tuple}; indent=nothing, newline=true)
+    ctx = indent === nothing ? CompactContext(io) : PrettyContext(io, indent)
+    show_json(ctx, s, obj, newline=newline)
+    if indent !== nothing
+        println(io)
+    end
+end
+
 
 """
     JSONText(s::AbstractString)
@@ -347,6 +355,12 @@ show_json(io::CompactContext, s::CS, json::JSONText) = write(io, json.s)
 print(io::IO, obj, indent) =
     show_json(io, StandardSerialization(), obj; indent=indent)
 print(io::IO, obj) = show_json(io, StandardSerialization(), obj)
+
+print(io::IO, obj::Union{AbstractVector, Tuple}, indent; newline::Bool = length(obj) <= 5) =
+    show_json(io, StandardSerialization(), obj; indent=indent, newline=newline)
+print(io::IO, obj::Union{AbstractVector, Tuple}; newline::Bool = length(obj) <= 5) = 
+    show_json(io, StandardSerialization(), obj, newline=newline)
+
 
 print(a, indent) = print(stdout, a, indent)
 print(a) = print(stdout, a)
