@@ -26,6 +26,29 @@ JSON.json([2,3])
 #  "[2,3]"
 JSON.json(j)
 #  "{\"an_array\":[\"string\",9],\"a_number\":5.0}"
+
+# import from a file called employees.json,
+# the contents of which are below,
+# manipulate, and write to another file
+# [
+#     {
+#         "id" : 1,
+#         "salary" : 70000
+#     },
+#     {
+#         "id" : 2,
+#         "salary" : 80000
+#     }
+# ]
+employees = JSON.parsefile("employees.json")
+
+for employee in employees
+    employee["salary"] = employee["salary"] * 2
+end
+
+open("employees_doubled.json", "w") do f
+    JSON.print(f, employees, 4)
+end
 ```
 
 ## Documentation
