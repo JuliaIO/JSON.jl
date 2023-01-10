@@ -83,27 +83,43 @@ abstract type JSONContext <: StructuralContext end
 """
 Internal implementation detail.
 
+To handle recursive references in objects/arrays when writing, by default we want
+to track references to objects seen and break recursion cycles to avoid stack overflows.
+Subtypes of `RecursiveCheckContext` must include two fields in order to allow recursive
+cycle checking to work properly when writing:
+  * `objectids::Set{UInt64}`: set of object ids in the current stack of objects being written
+  * `recursive_cycle_token::Any`: Any string, `nothing`, or object to be written when a cycle is detected
+"""
+abstract type RecursiveCheckContext <: JSONContext end
+
+"""
+Internal implementation detail.
+
 Keeps track of the current location in the array or object, which winds and
 unwinds during serialization.
 """
-mutable struct PrettyContext{T<:IO} <: JSONContext
+mutable struct PrettyContext{T<:IO} <: RecursiveCheckContext
     io::T
     step::Int     # number of spaces to step
     state::Int    # number of steps at present
     first::Bool   # whether an object/array was just started
+    objectids::Set{UInt64}
+    recursive_cycle_token
 end
-PrettyContext(io::IO, step) = PrettyContext(io, step, 0, false)
+PrettyContext(io::IO, step, recursive_cycle_token=nothing) = PrettyContext(io, step, 0, false, Set{UInt64}(), recursive_cycle_token)
 
 """
 Internal implementation detail.
 
 For compact printing, which in JSON is fully recursive.
 """
-mutable struct CompactContext{T<:IO} <: JSONContext
+mutable struct CompactContext{T<:IO} <: RecursiveCheckContext
     io::T
     first::Bool
+    objectids::Set{UInt64}
+    recursive_cycle_token
 end
-CompactContext(io::IO) = CompactContext(io, false)
+CompactContext(io::IO, recursive_cycle_token=nothing) = CompactContext(io, false, Set{UInt64}(), recursive_cycle_token)
 
 """
 Internal implementation detail.
@@ -265,12 +281,26 @@ end
 show_json(io::SC, ::CS, ::Nothing) = show_null(io)
 show_json(io::SC, ::CS, ::Missing) = show_null(io)
 
-function show_json(io::SC, s::CS, x::Union{AbstractDict, NamedTuple})
-    begin_object(io)
-    for kv in pairs(x)
-        show_pair(io, s, kv)
+recursive_cycle_check(f, io, s, id) = f()
+
+function recursive_cycle_check(f, io::RecursiveCheckContext, s, id)
+    if id in io.objectids
+        show_json(io, s, io.recursive_cycle_token)
+    else
+        push!(io.objectids, id)
+        f()
+        delete!(io.objectids, id)
     end
-    end_object(io)
+end
+
+function show_json(io::SC, s::CS, x::Union{AbstractDict, NamedTuple})
+    recursive_cycle_check(io, s, objectid(x)) do
+        begin_object(io)
+        for kv in pairs(x)
+            show_pair(io, s, kv)
+        end
+        end_object(io)
+    end
 end
 
 function show_json(io::SC, s::CS, kv::Pair)
@@ -280,19 +310,23 @@ function show_json(io::SC, s::CS, kv::Pair)
 end
 
 function show_json(io::SC, s::CS, x::CompositeTypeWrapper)
-    begin_object(io)
-    for fn in x.fns
-        show_pair(io, s, fn, getproperty(x.wrapped, fn))
+    recursive_cycle_check(io, s, objectid(x.wrapped)) do
+        begin_object(io)
+        for fn in x.fns
+            show_pair(io, s, fn, getproperty(x.wrapped, fn))
+        end
+        end_object(io)
     end
-    end_object(io)
 end
 
 function show_json(io::SC, s::CS, x::Union{AbstractVector, Tuple})
-    begin_array(io)
-    for elt in x
-        show_element(io, s, elt)
+    recursive_cycle_check(io, s, objectid(x)) do
+        begin_array(io)
+        for elt in x
+            show_element(io, s, elt)
+        end
+        end_array(io)
     end
-    end_array(io)
 end
 
 """
