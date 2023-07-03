@@ -209,7 +209,7 @@ JSON.Writer.show_element(io::MyContext, elt)
 
 # write a key for a JSON object
 # default implementation calls delimit, then indent, then show_string,
-# then seperate
+# then separate
 JSON.Writer.show_key(io::MyContext, elt)
 
 # write a key-value pair for a JSON object
@@ -322,7 +322,7 @@ end
 ```
 
 To use the custom serialization, `sprint` can be used (and this can be encapsulated by a
-convenient user-defined inteface):
+convenient user-defined interface):
 
 ```julia
 julia> JSON.parse(sprint(show_json, TaggedNumberSerialization(), Any[1, 2.0, "hi"]))
