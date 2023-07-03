@@ -224,7 +224,7 @@ gmaps= "{\"markers\": [
             \"homeTeam\":\"Hamilton Library\",
             \"awayTeam\":\"LUGip HW SIG\",
             \"markerImage\":\"images/white.png\",
-            \"information\": \"Linux users can meet the first Tuesday of the month to work out harward and configuration issues.\",
+            \"information\": \"Linux users can meet the first Tuesday of the month to work out hardware and configuration issues.\",
             \"fixture\":\"Tuesday 7pm\",
             \"capacity\":\"\",
             \"tv\":\"\"

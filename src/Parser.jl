@@ -102,7 +102,7 @@ the advancement. If the `ParserState` is already done, then throw an error.
 
 """
 Return `true` if there is a current byte, and `false` if all bytes have been
-exausted.
+exhausted.
 """
 @inline hasmore(ps::MemoryParserState) = ps.s ≤ length(ps)
 @inline hasmore(ps::StreamingParserState) = true  # no more now ≠ no more ever

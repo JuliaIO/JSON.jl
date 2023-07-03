@@ -34,9 +34,9 @@ const micros = Dict(
     "unicode-1024" => "ℜ" ^ 1024,
     "bool" => true,
     "null" => nothing,
-    "flat-homogenous-array-16" => collect(1:16),
-    "flat-homogenous-array-1024" => collect(1:1024),
-    "heterogenous-array" => [
+    "flat-homogeneous-array-16" => collect(1:16),
+    "flat-homogeneous-array-1024" => collect(1:1024),
+    "heterogeneous-array" => [
         1, 2, 3, 7, "A", "C", "E", "N", "Q", "R", "Shuttle to Grand Central"],
     "nested-array-16^2" => [collect(1:16) for _ in 1:16],
     "nested-array-16^3" => [[collect(1:16) for _ in 1:16] for _ in 1:16],
