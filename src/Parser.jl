@@ -417,7 +417,7 @@ end
 # Workaround for slow dynamic dispatch for creating objects
 const DEFAULT_PARSERCONTEXT = ParserContext{Dict{String, Any}, Int64, true, nothing}()
 function _get_parsercontext(dicttype, inttype, allownan, null)
-    if dicttype == Dict{String, Any} && inttype == Int64 && allownan
+    if dicttype == Dict{String, Any} && inttype == Int64 && allownan && isnothing(null)
         DEFAULT_PARSERCONTEXT
     else
         ParserContext{unparameterize_type(dicttype), inttype, allownan, null}.instance
