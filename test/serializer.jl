@@ -72,7 +72,11 @@ end
 
 # test serializing a type without any fields
 struct SingletonType end
-@test_throws ErrorException json(SingletonType())
+@test json(SingletonType()) == "\"Main.TestSerializer.SingletonType()\""
+
+struct ParamSingletonType{T} end
+@test json(ParamSingletonType{Float64}()) == "\"Main.TestSerializer.ParamSingletonType{Float64}()\""
+
 
 # test printing to stdout
 let filename = tempname()
