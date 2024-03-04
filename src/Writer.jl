@@ -121,7 +121,7 @@ const SC = StructuralContext
 # Low-level direct access
 Base.write(io::JSONContext, byte::UInt8) = write(io.io, byte)
 Base.write(io::StringContext, byte::UInt8) =
-    write(io.io, ESCAPED_ARRAY[byte + 0x01])
+    write(io.io, ESCAPED_ARRAY[byte + 1])
 #= turn on if there's a performance benefit
 write(io::StringContext, char::Char) =
     char <= '\x7f' ? write(io, ESCAPED_ARRAY[UInt8(c) + 0x01]) :
