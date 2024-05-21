@@ -42,6 +42,10 @@ include("json-samples.jl")
         @test JSON.parse("1") == 1
         @test JSON.parse("1.5") == 1.5
         @test JSON.parse("[true]") == [true]
+
+        # test for parsing single values in streams
+        @test JSON.parse(IOBuffer("123")) == 123
+        @test JSON.parse(IOBuffer("1.5")) == 1.5
     end
 end
 
