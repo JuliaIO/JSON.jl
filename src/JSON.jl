@@ -28,6 +28,11 @@ using .Serializations: Serialization, CommonSerialization,
 # for pretty-printed (non-compact) output, JSONText must be re-parsed:
 Writer.lower(json::JSONText) = parse(json.s)
 
+# support for FileIO
+# load(file::File{format"JSON"}, kwargs...) = parsefile(filename(file), kwargs...)
+fileio_load(file; kwargs...) = parsefile(file.filename; kwargs...)
+fileio_save(file, data) = write(file, json(data))
+
 function _precompile_()
     ccall(:jl_generating_output, Cint, ()) == 1 || return nothing
     x =  "{\"type\":\"callback\",\"data\":{\"callback\":1,\"result\":true,\"error\":false}}"
