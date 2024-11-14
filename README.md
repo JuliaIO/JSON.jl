@@ -1,6 +1,6 @@
 # JSON.jl
 
-This package provides for parsing and printing JSON in pure Julia. See also alternative packages [JSON3.jl](https://github.com/quinnj/JSON3.jl), and [Serde.jl](https://github.com/bhftbootcamp/Serde.jl) (based on the Serde Rust library that handles more formats than just JSON).
+This package provides for parsing and printing JSON in pure Julia. See also alternative packages [JSON3.jl](https://github.com/quinnj/JSON3.jl), and [Serde.jl](https://github.com/bhftbootcamp/Serde.jl).
 
 [![Build Status](https://github.com/JuliaIO/JSON.jl/workflows/CI/badge.svg)](https://github.com/JuliaIO/JSON.jl/actions/workflows/CI.yml?query=branch%3Amaster)
 [![codecov.io](http://codecov.io/github/JuliaIO/JSON.jl/coverage.svg?branch=master)](http://codecov.io/github/JuliaIO/JSON.jl?branch=master)
