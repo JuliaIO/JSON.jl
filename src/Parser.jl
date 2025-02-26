@@ -174,7 +174,7 @@ end
 function parse_jsconstant(::ParserContext{<:Any,<:Any,AllowNanInf,NullValue},
                           ps::ParserState) where {AllowNanInf,NullValue}
     c = advance!(ps)
-    if c == LATIN_T      # true
+    ret = if c == LATIN_T      # true
         skip!(ps, LATIN_R, LATIN_U, LATIN_E)
         true
     elseif c == LATIN_F  # false
@@ -192,6 +192,7 @@ function parse_jsconstant(::ParserContext{<:Any,<:Any,AllowNanInf,NullValue},
     else
         _error(E_UNEXPECTED_CHAR, ps)
     end
+    return ret::Union{Bool, Float64}
 end
 
 function parse_array(pc::ParserContext, ps::ParserState)
