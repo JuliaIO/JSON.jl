@@ -174,7 +174,7 @@ end
 function parse_jsconstant(::ParserContext{<:Any,<:Any,AllowNanInf,NullValue},
                           ps::ParserState) where {AllowNanInf,NullValue}
     c = advance!(ps)
-    ret = if c == LATIN_T      # true
+    if c == LATIN_T      # true
         skip!(ps, LATIN_R, LATIN_U, LATIN_E)
         true
     elseif c == LATIN_F  # false
@@ -192,7 +192,6 @@ function parse_jsconstant(::ParserContext{<:Any,<:Any,AllowNanInf,NullValue},
     else
         _error(E_UNEXPECTED_CHAR, ps)
     end
-    return ret::Union{Bool, Float64}
 end
 
 function parse_array(pc::ParserContext, ps::ParserState)
@@ -394,6 +393,7 @@ function parse_number(pc::ParserContext{<:Any,<:Any,AllowNanInf}, ps::ParserStat
             isint = false
         elseif AllowNanInf && c == LATIN_UPPER_I
             infinity = parse_jsconstant(pc, ps)
+            infinity === nothing && _error("Invalid infinity value", ps)
             resize!(number, 0)
             return (negative ? -infinity : infinity)
         else

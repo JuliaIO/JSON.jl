@@ -145,6 +145,7 @@ function parse_number(pc::ParserContext{<:Any,<:Any,AllowNanInf}, ps::MemoryPars
         elseif AllowNanInf && LATIN_UPPER_I == c
             ps.s = p
             infinity = parse_jsconstant(pc, ps)
+            infinity === nothing && _error("Invalid infinity value", ps)
             return (negative ? -infinity : infinity)
         else
             break
