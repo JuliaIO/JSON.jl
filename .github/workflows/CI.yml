@@ -1,12 +1,9 @@
 name: CI
 on:
-  pull_request:
-    branches:
-      - master
   push:
-    branches:
-      - master
-    tags: '*'
+    branches: [main, master]
+    tags: ["*"]
+  pull_request:
 jobs:
   test:
     name: Julia ${{ matrix.version }} - ${{ matrix.os }} - ${{ matrix.arch }} - ${{ github.event_name }}
@@ -15,32 +12,39 @@ jobs:
       fail-fast: false
       matrix:
         version:
-          - '1.0'
-          - '1'
-          - 'nightly'
+          - '1' # automatically expands to the latest stable 1.x release of Julia
+          - 'min'
+          - 'pre'
         os:
           - ubuntu-latest
+          - windows-latest
         arch:
           - x64
         include:
-          - version: '1'
-            os: ubuntu-latest
-            arch: x86
-          - version: '1'
-            os: windows-latest
-            arch: x64
-          - version: '1'
-            os: macos-latest
-            arch: x64
+          - os: macOS-latest
+            arch: aarch64
+            version: 1
     steps:
       - uses: actions/checkout@v4
       - uses: julia-actions/setup-julia@v2
         with:
           version: ${{ matrix.version }}
           arch: ${{ matrix.arch }}
+      - uses: julia-actions/cache@v2
       - uses: julia-actions/julia-buildpkg@v1
       - uses: julia-actions/julia-runtest@v1
       - uses: julia-actions/julia-processcoverage@v1
-      - uses: codecov/codecov-action@v3
+      - uses: codecov/codecov-action@v5
         with:
-          file: lcov.info
+          files: lcov.info
+          token: ${{ secrets.CODECOV_TOKEN }}
+  docs:
+    name: Documentation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: julia-actions/julia-buildpkg@latest
+      - uses: julia-actions/julia-docdeploy@latest
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DOCUMENTER_KEY: ${{ secrets.DOCUMENTER_KEY }}
