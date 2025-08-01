@@ -71,6 +71,10 @@ JSON.isvalidjson(json)
 JSON.json("test.json", j)
 ```
 
+## Vendor Directory
+
+This package includes a `vendor/` directory containing a simplified, no-dependency JSON parser (`JSONX`) that can be vendored (copied) into other projects. See the [vendor README](vendor/README.md) for details.
+
 ## Contributing and Questions
 
 Contributions are very welcome, as are feature requests and suggestions. Please open an

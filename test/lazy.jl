@@ -67,9 +67,9 @@ end
     # error cases
     x = JSON.lazy("{}")
     @test_throws ArgumentError JSON.applyarray((i, v) -> nothing, x)
-    @test_throws ArgumentError JSON.applystring(nothing, x)
+    @test_throws ArgumentError JSON.parsestring(x)
     x = JSON.lazy("{}"; allownan=true)
-    @test_throws ArgumentError JSON.applynumber(x -> nothing, x)
+    @test_throws ArgumentError JSON.parsenumber(x)
 
     # lazy indexing selection support
     # examples from https://support.smartbear.com/alertsite/docs/monitors/api/endpoint/jsonpath.html

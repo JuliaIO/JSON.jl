@@ -31,9 +31,9 @@ export JSONText, StructUtils, @noarg, @defaults, @tags, @choosetype, @nonstruct,
         erri += textwidth(c)
         st = iterate(snippet, i)
     end
-
     snippet = replace(snippet, r"[\b\f\n\r\t]" => " ")
-    caret = repeat(' ', erri + 2) * "^"
+    # we call @invoke here to avoid --trim verify errors
+    caret = @invoke(repeat(" "::String, (erri + 2)::Integer)) * "^"
     msg = """
     invalid JSON at byte position $(pos) (line $line_no) parsing type $T: $error
     $snippet$(error == UnexpectedEOF ? " <EOF>" : "...")
@@ -104,12 +104,10 @@ print(io::IO, obj, indent=nothing) = json(io, obj; pretty=something(indent, 0))
 print(a, indent=nothing) = print(stdout, a, indent)
 @doc (@doc json) print
 
-json(a, indent::Integer) = json(a; pretty=indent)
-
 @compile_workload begin
     x = JSON.parse("{\"a\": 1, \"b\": null, \"c\": true, \"d\": false, \"e\": \"\", \"f\": [1,null,true], \"g\": {\"key\": \"value\"}}")
-    # json = JSON.json(x)
-    # isvalid(json)
+    json = JSON.json(x)
+    isvalid(json)
 end
 
 

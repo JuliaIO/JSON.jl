@@ -310,6 +310,10 @@ types as this isn't robust for various output options (IO, String, etc.)
 nor recursive situations. Types should define an appropriate
 `JSON.lower` definition instead.
 
+*NOTE*: `JSON.json(str, indent::Integer)` is special-cased for backwards compatibility with pre-1.0 JSON.jl,
+as this typically would mean "write out the `indent` integer to file `str`". As writing out a single integer to
+a file is extremely rare, it was decided to keep the pre-1.0 behavior for compatibility reasons.
+
 Examples:
 ```julia
 using Dates
@@ -425,7 +429,13 @@ function json(x; pretty::Union{Integer,Bool}=false, kw...)
     return String(resize!(buf, pos - 1))
 end
 
-function json(fname::String, obj; kw...)
+function json(fname, obj; kw...)
+    if obj isa Integer
+        # special-case for pre-1.0 JSON compat
+        return json(fname; pretty=obj)
+    else
+        @assert fname isa AbstractString "filename must be a string"
+    end
     open(fname, "w") do io
         json(io, obj; kw...)
     end
@@ -454,7 +464,7 @@ macro checkn(n, force_resize=false)
     end)
 end
 
-struct WriteClosure{JS, arraylike, T} # T is the type of the parent object/array being written
+struct WriteClosure{JS, arraylike, T, I} # T is the type of the parent object/array being written
     buf::Vector{UInt8}
     pos::Ptr{Int}
     wroteany::Ptr{Bool} # to track if we wrote any data to the buffer
@@ -462,7 +472,7 @@ struct WriteClosure{JS, arraylike, T} # T is the type of the parent object/array
     depth::Int
     opts::JS
     ancestor_stack::Vector{Any} # to track circular references
-    io::Union{Nothing, IO}
+    io::I
     bufsize::Int
 end
 
@@ -481,7 +491,7 @@ end
 
 checkkey(s) = s isa AbstractString || throw(ArgumentError("Value returned from `StructUtils.lowerkey` must be a string: $(typeof(s))"))
 
-function (f::WriteClosure{JS, arraylike, T})(key, val) where {JS, arraylike, T}
+function (f::WriteClosure{JS, arraylike, T, I})(key, val) where {JS, arraylike, T, I}
     track_ref = ismutabletype(typeof(val))
     is_circ_ref = track_ref && any(x -> x === val, f.ancestor_stack)
     if !arraylike
@@ -598,7 +608,7 @@ function json!(buf, pos, x, opts::WriteOptions, ancestor_stack::Union{Nothing, V
         wroteany = false
         wroteanyref = Ref(false)
         GC.@preserve ref wroteanyref begin
-            c = WriteClosure{typeof(opts), al, typeof(x)}(buf, Base.unsafe_convert(Ptr{Int}, ref), Base.unsafe_convert(Ptr{Bool}, wroteanyref), local_ind, depth + 1, opts, ancestor_stack, io, bufsize)
+            c = WriteClosure{typeof(opts), al, typeof(x), typeof(io)}(buf, Base.unsafe_convert(Ptr{Int}, ref), Base.unsafe_convert(Ptr{Bool}, wroteanyref), local_ind, depth + 1, opts, ancestor_stack, io, bufsize)
             StructUtils.applyeach(opts.style, c, x)
             # get updated pos
             pos = unsafe_load(c.pos)

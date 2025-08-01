@@ -200,7 +200,7 @@ JSON.lower(x::Werewolf) = (type="werewolf", witching_hour=x.witching_hour)
 
 JSON.@choosetype AbstractMonster x -> x.monster_type[] == "vampire" ? Dracula : Werewolf
 
-struct Percent <: Number
+@nonstruct struct Percent <: Number
     value::Float64
 end
 
