@@ -266,9 +266,21 @@ function applyvalue(f, x::LazyValues, null)
         f(arr)
         return pos
     elseif type == JSONTypes.STRING
-        return applystring(s -> f(convert(String, s)), x)
+        str, pos = parsestring(x)
+        f(convert(String, str))
+        return pos
     elseif type == JSONTypes.NUMBER
-        return applynumber(f, x)
+        num, pos = parsenumber(x)
+        if isint(num)
+            f(num.int)
+        elseif isfloat(num)
+            f(num.float)
+        elseif isbigint(num)
+            f(num.bigint)
+        else
+            f(num.bigfloat)
+        end
+        return pos
     elseif type == JSONTypes.NULL
         f(null)
         return getpos(x) + 4
@@ -312,15 +324,30 @@ StructUtils.liftkey(st::StructStyle, ::Type{T}, x::PtrString) where {T} =
     StructUtils.liftkey(st, T, convert(String, x))
 StructUtils.lift(f, st::StructStyle, ::Type{T}, x::PtrString, tags) where {T} =
     StructUtils.lift(f, st, T, convert(String, x), tags)
+StructUtils.lift(st::StructStyle, ::Type{T}, x::PtrString, tags) where {T} =
+    StructUtils.lift(st, T, convert(String, x), tags)
 StructUtils.make!(f, st::StructStyle, ::Type{T}, x::PtrString, tags) where {T} =
     StructUtils.make!(f, st, T, convert(String, x), tags)
 
 function StructUtils.lift(f, style::StructStyle, ::Type{T}, x::LazyValues, tags) where {T}
     type = gettype(x)
     if type == JSONTypes.STRING
-        return applystring(s -> StructUtils.lift(f, style, T, s, tags), x)
+        ptrstr, pos = parsestring(x)
+        val = StructUtils.lift(style, T, ptrstr, tags)
+        f(val)
+        return pos
     elseif type == JSONTypes.NUMBER
-        return applynumber(x -> StructUtils.lift(f, style, T, x, tags), x)
+        num, pos = parsenumber(x)
+        if isint(num)
+            StructUtils.lift(f, style, T, num.int, tags)
+        elseif isfloat(num)
+            StructUtils.lift(f, style, T, num.float, tags)
+        elseif isbigint(num)
+            StructUtils.lift(f, style, T, num.bigint, tags)
+        else
+            StructUtils.lift(f, style, T, num.bigfloat, tags)
+        end
+        return pos
     elseif type == JSONTypes.NULL
         StructUtils.lift(f, style, T, nullvalue(style), tags)
         return getpos(x) + 4

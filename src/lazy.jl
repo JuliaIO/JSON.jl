@@ -269,8 +269,8 @@ function applyobject(keyvalfunc, x::LazyValues)
     @nextbyte
     b == UInt8('}') && return pos + 1
     while true
-        # applystring returns key as a PtrString
-        key, pos = @inline applystring(nothing, LazyValue(buf, pos, JSONTypes.STRING, getopts(x), false))
+        # parsestring returns key as a PtrString
+        key, pos = @inline parsestring(LazyValue(buf, pos, JSONTypes.STRING, getopts(x), false))
         @nextbyte
         if b != UInt8(':')
             error = ExpectedColon
@@ -455,7 +455,7 @@ StructUtils.keyeq(x::PtrString, y::Symbol) = convert(Symbol, x) == y
 # or not. It allows materialize, _binary, etc. to deal
 # with the string data appropriately without forcing a String allocation
 # PtrString should NEVER be visible to users though!
-function applystring(f, x::LazyValue)
+function parsestring(x::LazyValue)
     buf, pos = getbuf(x), getpos(x)
     len, b = getlength(buf), getbyte(buf, pos)
     if b != UInt8('"')
@@ -483,12 +483,7 @@ function applystring(f, x::LazyValue)
         @nextbyte(false)
     end
     str = PtrString(pointer(buf, spos), pos - spos, escaped)
-    if f === nothing
-        return str, pos + 1
-    else
-        f(str)
-        return pos + 1
-    end
+    return str, pos + 1
 
 @label invalid
     invalid(error, buf, pos, "string")
@@ -525,7 +520,30 @@ macro check_special(special, value)
     end)
 end
 
-function applynumber(valfunc, x::LazyValue)
+const INT = 0x00
+const FLOAT = 0x01
+const BIGINT = 0x02
+const BIGFLOAT = 0x03
+const BIG_ZERO = BigInt(0)
+
+struct NumberResult
+    tag::UInt8
+    int::Int64
+    float::Float64
+    bigint::BigInt
+    bigfloat::BigFloat
+    NumberResult(int::Int64) = new(INT, int)
+    NumberResult(float::Float64) = new(FLOAT, Int64(0), float)
+    NumberResult(bigint::BigInt) = new(BIGINT, Int64(0), 0.0, bigint)
+    NumberResult(bigfloat::BigFloat) = new(BIGFLOAT, Int64(0), 0.0, BIG_ZERO, bigfloat)
+end
+
+isint(x::NumberResult) = x.tag == INT
+isfloat(x::NumberResult) = x.tag == FLOAT
+isbigint(x::NumberResult) = x.tag == BIGINT
+isbigfloat(x::NumberResult) = x.tag == BIGFLOAT
+
+@inline function parsenumber(x::LazyValue)
     buf = getbuf(x)
     pos = getpos(x)
     len = getlength(buf)
@@ -610,23 +628,20 @@ function applynumber(valfunc, x::LazyValue)
             # if we overflowed, then let's try BigFloat
             bres = Parsers.xparse2(BigFloat, buf, startpos, len)
             if !Parsers.invalid(bres.code)
-                valfunc(bres.val)
-                return startpos + bres.tlen
+                return NumberResult(bres.val), startpos + bres.tlen
             end
         end
         if Parsers.invalid(res.code)
             error = InvalidNumber
             @goto invalid
         end
-        valfunc(res.val)
-        return startpos + res.tlen
+        return NumberResult(res.val), startpos + res.tlen
     else
         if overflow
-            valfunc(isneg ? -bval : bval)
+            return NumberResult(isneg ? -bval : bval), pos
         else
-            valfunc(isneg ? -val : val)
+            return NumberResult(isneg ? -val : val), pos
         end
-        return pos
     end
 
 @label invalid
@@ -643,9 +658,11 @@ function skip(x::LazyValues)
     elseif T == JSONTypes.ARRAY
         return applyarray((i, v) -> 0, x)
     elseif T == JSONTypes.STRING
-        return applystring(s -> 0, x)
+        _, pos = parsestring(x)
+        return pos
     elseif T == JSONTypes.NUMBER
-        return applynumber(n -> 0, x)
+        _, pos = parsenumber(x)
+        return pos
     elseif T == JSONTypes.TRUE
         return getpos(x) + 4
     elseif T == JSONTypes.FALSE
@@ -716,7 +733,7 @@ function Base.show(io::IO, x::LazyValue)
             show(io, MIME"text/plain"(), la)
         end
     elseif T == JSONTypes.STRING
-        str, _ = applystring(nothing, x)
+        str, _ = parsestring(x)
         Base.print(io, "JSON.LazyValue(", repr(convert(String, str)), ")")
     elseif T == JSONTypes.NULL
         Base.print(io, "JSON.LazyValue(nothing)")
