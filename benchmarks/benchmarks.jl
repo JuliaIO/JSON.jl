@@ -14,6 +14,11 @@ end
 @b JSON.parse("""{ "a": 1,"b": 2,"c": 3,"d": 4}""")
 @b JSON.json(A(1, 2, 3, 4))
 @b JSON.parse("""{ "a": 1,"b": 2,"c": 3,"d": 4}""", A)
+@b JSON.parse("""{ "a": 1,"b": 2,"c": 3,"d": 4}""", Tuple{Int, Int, Int, Int})
+@b JSON.parse("""{ "a": 1,"b": 2,"c": 3,"d": 4}""", NamedTuple{(:a, :b, :c, :d), Tuple{Int, Int, Int, Int}})
+@b JSON.parse("""[1, 2, 3, 4]""", Tuple{Int, Int, Int, Int})
+@b JSON.parse("""[["1", 1], ["2", 2]]""", Vector{Tuple{String, Int}})
+@b JSON.parse("""[["1", 1], ["1", 2], ["1", 3], ["1", 4], ["1", 5], ["1", 6], ["1", 7], ["1", 8], ["1", 9], ["1", 10], ["1", 11], ["1", 12], ["1", 13], ["1", 14], ["1", 15], ["1", 16], ["1", 17], ["1", 18], ["1", 19], ["1", 20]]""", Vector{Tuple{String, Int}})
 
 # integers with varying number of digits
 @b JSON.parse("""[1,2234,323423423,4234234234234,23232,456454545,56767676,6767,6767,6767676,6767,6767,1,0,-123,-3333]""")

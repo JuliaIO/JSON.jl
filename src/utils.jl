@@ -38,8 +38,6 @@ module JSONTypes
     Base.show(io::IO, x::T) = Base.print(io, "JSONTypes.", names[x])
 end
 
-
-
 isjsonl(filename) = endswith(filename, ".jsonl") || endswith(filename, ".ndjson")
 
 getlength(buf::AbstractVector{UInt8}) = length(buf)

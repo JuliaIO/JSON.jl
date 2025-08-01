@@ -1,0 +1,48 @@
+name: Vendor Tests
+
+on:
+  push:
+    paths:
+      - 'vendor/**'
+  pull_request:
+    paths:
+      - 'vendor/**'
+
+jobs:
+  test:
+    name: Julia ${{ matrix.version }} - ${{ matrix.os }} - ${{ matrix.arch }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        version:
+          - '1' # automatically expands to the latest stable 1.x release of Julia
+          - 'min'
+          - 'pre'
+        os:
+          - ubuntu-latest
+          - windows-latest
+        arch:
+          - x64
+        include:
+          - os: macOS-latest
+            arch: aarch64
+            version: 1
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Julia
+      uses: julia-actions/setup-julia@v2
+      with:
+        version: ${{ matrix.version }}
+        arch: ${{ matrix.arch }}
+        
+    - name: Cache Julia packages
+      uses: julia-actions/cache@v2
+      
+    - name: Run vendor tests
+      run: |
+        cd vendor
+        julia test.jl 

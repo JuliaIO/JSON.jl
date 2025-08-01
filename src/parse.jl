@@ -187,15 +187,19 @@ parse(buf::Union{AbstractVector{UInt8}, AbstractString}, ::Type{T}=Any;
 parse!(buf::Union{AbstractVector{UInt8}, AbstractString}, x::T; dicttype::Type{O}=DEFAULT_OBJECT_TYPE, null=nothing, style::StructStyle=JSONReadStyle{dicttype}(null), kw...) where {T, O} =
     @inline parse!(lazy(buf; kw...), x; dicttype, null, style)
 
-function parse(x::LazyValue, ::Type{T}=Any; dicttype::Type{O}=DEFAULT_OBJECT_TYPE, null=nothing, style::StructStyle=JSONReadStyle{dicttype}(null)) where {T, O}
-    out = StructUtils.ValueClosure{T}()
-    if T == Any && dicttype == DEFAULT_OBJECT_TYPE
-        pos = applyvalue(out, x, null)
-    else
-        pos = StructUtils.make!(out, style, T, x, (;))
-    end
+parse(x::LazyValue, ::Type{T}=Any; dicttype::Type{O}=DEFAULT_OBJECT_TYPE, null=nothing, style::StructStyle=JSONReadStyle{dicttype}(null)) where {T, O} =
+    @inline parse(x, T, dicttype, null, style)
+
+function parse(x::LazyValue, ::Type{Any}, ::Type{DEFAULT_OBJECT_TYPE}, null, style)
+    val, pos = @inline parsevalue(x, null)
+    getisroot(x) && checkendpos(x, Any, pos)
+    return val
+end
+
+function parse(x::LazyValue, ::Type{T}, dicttype::Type{O}, null, style) where {T, O}
+    val, pos = StructUtils.make(style, T, x)
     getisroot(x) && checkendpos(x, T, pos)
-    return out.value
+    return val
 end
 
 parse!(x::LazyValue, obj::T; dicttype::Type{O}=DEFAULT_OBJECT_TYPE, null=nothing, style::StructStyle=JSONReadStyle{dicttype}(null)) where {T, O} = StructUtils.make!(style, obj, x)
@@ -266,9 +270,21 @@ function applyvalue(f, x::LazyValues, null)
         f(arr)
         return pos
     elseif type == JSONTypes.STRING
-        return applystring(s -> f(convert(String, s)), x)
+        str, pos = parsestring(x)
+        f(convert(String, str))
+        return pos
     elseif type == JSONTypes.NUMBER
-        return applynumber(f, x)
+        num, pos = parsenumber(x)
+        if isint(num)
+            f(num.int)
+        elseif isfloat(num)
+            f(num.float)
+        elseif isbigint(num)
+            f(num.bigint)
+        else
+            f(num.bigfloat)
+        end
+        return pos
     elseif type == JSONTypes.NULL
         f(null)
         return getpos(x) + 4
@@ -285,23 +301,20 @@ end
 
 # we overload make! for Any for LazyValues because we can dispatch to more specific
 # types base on the LazyValue type
-function StructUtils.make!(f, st::StructStyle, ::Type{Any}, x::LazyValues, tags)
-    if haskey(tags, :choosetype)
-        return StructUtils.make!(f, st, tags.choosetype(x), x, StructUtils._delete(tags, :choosetype))
-    end
+function StructUtils.make(st::StructStyle, ::Type{Any}, x::LazyValues)
     type = gettype(x)
     if type == JSONTypes.OBJECT
-        return StructUtils.make!(f, st, objecttype(st), x, tags)
+        return StructUtils.make(st, objecttype(st), x)
     elseif type == JSONTypes.ARRAY
-        return StructUtils.make!(f, st, Vector{Any}, x, tags)
+        return StructUtils.make(st, Vector{Any}, x)
     elseif type == JSONTypes.STRING
-        return StructUtils.lift(f, st, String, x, tags)
+        return StructUtils.lift(st, String, x)
     elseif type == JSONTypes.NUMBER
-        return StructUtils.lift(f, st, Number, x, tags)
+        return StructUtils.lift(st, Number, x)
     elseif type == JSONTypes.NULL
-        return StructUtils.lift(f, st, Nothing, x, tags)
+        return StructUtils.lift(st, Nothing, x)
     elseif type == JSONTypes.TRUE || type == JSONTypes.FALSE
-        return StructUtils.lift(f, st, Bool, x, tags)
+        return StructUtils.lift(st, Bool, x)
     else
         throw(ArgumentError("cannot parse $x"))
     end
@@ -310,39 +323,41 @@ end
 # catch PtrString via lift or make! so we can ensure it never "escapes" to user-level
 StructUtils.liftkey(st::StructStyle, ::Type{T}, x::PtrString) where {T} =
     StructUtils.liftkey(st, T, convert(String, x))
-StructUtils.lift(f, st::StructStyle, ::Type{T}, x::PtrString, tags) where {T} =
-    StructUtils.lift(f, st, T, convert(String, x), tags)
-StructUtils.make!(f, st::StructStyle, ::Type{T}, x::PtrString, tags) where {T} =
-    StructUtils.make!(f, st, T, convert(String, x), tags)
+StructUtils.lift(st::StructStyle, ::Type{T}, x::PtrString) where {T} =
+    StructUtils.lift(st, T, convert(String, x))
 
-function StructUtils.lift(f, style::StructStyle, ::Type{T}, x::LazyValues, tags) where {T}
+function StructUtils.lift(style::StructStyle, ::Type{T}, x::LazyValues) where {T}
     type = gettype(x)
     if type == JSONTypes.STRING
-        return applystring(s -> StructUtils.lift(f, style, T, s, tags), x)
+        ptrstr, pos = parsestring(x)
+        return StructUtils.lift(T, ptrstr), pos
     elseif type == JSONTypes.NUMBER
-        return applynumber(x -> StructUtils.lift(f, style, T, x, tags), x)
+        num, pos = parsenumber(x)
+        if isint(num)
+            return StructUtils.lift(T, num.int), pos
+        elseif isfloat(num)
+            return StructUtils.lift(T, num.float), pos
+        elseif isbigint(num)
+            return StructUtils.lift(T, num.bigint), pos
+        else
+            return StructUtils.lift(T, num.bigfloat), pos
+        end
     elseif type == JSONTypes.NULL
-        StructUtils.lift(f, style, T, nullvalue(style), tags)
-        return getpos(x) + 4
+        return StructUtils.lift(T, nullvalue(style)), getpos(x) + 4
     elseif type == JSONTypes.TRUE
-        StructUtils.lift(f, style, T, true, tags)
-        return getpos(x) + 4
+        return StructUtils.lift(T, true), getpos(x) + 4
     elseif type == JSONTypes.FALSE
-        StructUtils.lift(f, style, T, false, tags)
-        return getpos(x) + 5
+        return StructUtils.lift(T, false), getpos(x) + 5
     elseif Base.issingletontype(T)
-        StructUtils.lift(f, style, T, T(), tags)
-        return skip(x)
+        return StructUtils.lift(T, T()), skip(x)
     else
-        f(StructUtils.lift(style, T, x, tags))
-        return skip(x)
+        return StructUtils.lift(T, x), skip(x)
     end
 end
 
-function StructUtils.make!(f, st::StructStyle, ::Type{JSONText}, x::LazyValues, tags)
+function StructUtils.make(::StructStyle, ::Type{JSONText}, x::LazyValues)
     buf = getbuf(x)
     pos = getpos(x)
     endpos = skip(x)
-    GC.@preserve buf f(JSONText(unsafe_string(pointer(buf, pos), endpos - pos)))
-    return endpos
+    GC.@preserve(buf, JSONText(unsafe_string(pointer(buf, pos), endpos - pos))), endpos
 end
