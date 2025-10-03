@@ -705,41 +705,39 @@ function _number(buf, pos, x::Number, opts::WriteOptions, io, bufsize)
             i -= 1
         end
         return pos + n
-    elseif x isa AbstractFloat
+    elseif x isa Union{Float16, Float32, Float64}
         infcheck(x, opts.allownan)
-        if x isa Union{Float16, Float32, Float64}
-            if isnan(x)
-                nan = opts.nan
-                @checkn sizeof(nan)
-                for i = 1:sizeof(nan)
-                    @inbounds buf[pos + i - 1] = UInt8(codeunit(nan, i))
-                end
-                return pos + sizeof(nan)
-            elseif isinf(x)
-                if x < 0
-                    inf = opts.ninf
-                else
-                    inf = opts.inf
-                end
-                @checkn sizeof(inf)
-                for i = 1:sizeof(inf)
-                    @inbounds buf[pos + i - 1] = UInt8(codeunit(inf, i))
-                end
-                return pos + sizeof(inf)
+        if isnan(x)
+            nan = opts.nan
+            @checkn sizeof(nan)
+            for i = 1:sizeof(nan)
+                @inbounds buf[pos + i - 1] = UInt8(codeunit(nan, i))
             end
-            if opts.float_style == :shortest
-                @checkn Base.Ryu.neededdigits(typeof(x))
-                return Base.Ryu.writeshortest(buf, pos, x)
-            elseif opts.float_style == :fixed
-                @checkn (opts.float_precision + Base.Ryu.neededdigits(typeof(x)))
-                return Base.Ryu.writefixed(buf, pos, x, opts.float_precision, false, false, true)
-            elseif opts.float_style == :exp
-                @checkn (opts.float_precision + Base.Ryu.neededdigits(typeof(x)))
-                return Base.Ryu.writeexp(buf, pos, x, opts.float_precision, false, false, true)
+            return pos + sizeof(nan)
+        elseif isinf(x)
+            if x < 0
+                inf = opts.ninf
             else
-                # unreachable as we validate float_style inputs
-                @assert false
+                inf = opts.inf
             end
+            @checkn sizeof(inf)
+            for i = 1:sizeof(inf)
+                @inbounds buf[pos + i - 1] = UInt8(codeunit(inf, i))
+            end
+            return pos + sizeof(inf)
+        end
+        if opts.float_style == :shortest
+            @checkn Base.Ryu.neededdigits(typeof(x))
+            return Base.Ryu.writeshortest(buf, pos, x)
+        elseif opts.float_style == :fixed
+            @checkn (opts.float_precision + Base.Ryu.neededdigits(typeof(x)))
+            return Base.Ryu.writefixed(buf, pos, x, opts.float_precision, false, false, true)
+        elseif opts.float_style == :exp
+            @checkn (opts.float_precision + Base.Ryu.neededdigits(typeof(x)))
+            return Base.Ryu.writeexp(buf, pos, x, opts.float_precision, false, false, true)
+        else
+            # unreachable as we validate float_style inputs
+            @assert false
         end
     else
         str = tostring(x)
