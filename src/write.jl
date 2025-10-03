@@ -727,14 +727,14 @@ function _number(buf, pos, x::Number, opts::WriteOptions, io, bufsize)
             return pos + sizeof(inf)
         end
         if opts.float_style == :shortest
-            @checkn Base.Ryu.neededdigits(typeof(x))
-            return Base.Ryu.writeshortest(buf, pos, x)
+            @checkn Ryu.neededdigits(typeof(x))
+            return Ryu.writeshortest(buf, pos, x)
         elseif opts.float_style == :fixed
-            @checkn (opts.float_precision + Base.Ryu.neededdigits(typeof(x)))
-            return Base.Ryu.writefixed(buf, pos, x, opts.float_precision, false, false, true)
+            @checkn (opts.float_precision + Ryu.neededdigits(typeof(x)))
+            return Ryu.writefixed(buf, pos, x, opts.float_precision, false, false, true)
         elseif opts.float_style == :exp
-            @checkn (opts.float_precision + Base.Ryu.neededdigits(typeof(x)))
-            return Base.Ryu.writeexp(buf, pos, x, opts.float_precision, false, false, true)
+            @checkn (opts.float_precision + Ryu.neededdigits(typeof(x)))
+            return Ryu.writeexp(buf, pos, x, opts.float_precision, false, false, true)
         else
             # unreachable as we validate float_style inputs
             @assert false
