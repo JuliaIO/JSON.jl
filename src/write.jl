@@ -619,11 +619,9 @@ function json!(buf, pos, x, opts::WriteOptions, ancestor_stack::Union{Nothing, V
         if wroteany
             pos -= 1
             pos = indent(buf, pos, local_ind, depth, io, bufsize)
-        else
-            # but if the object/array was empty, we need to do the check manually
-            @checkn 1
         end
         # even if the input is empty and we're jsonlines, the spec says it's ok to end w/ a newline
+        @checkn 1
         @inbounds buf[pos] = opts.jsonlines ? UInt8('\n') : al ? UInt8(']') : UInt8('}')
         return pos + 1
     else
