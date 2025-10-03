@@ -461,8 +461,16 @@ end
             j_{i}, pos = StructUtils.make(st, fieldtype(T, i), x)
             @nextbyte
             if typ == JSONTypes.OBJECT && b == UInt8('}')
+                if Base.@nany($N, k->!@isdefined(j_{k}))
+                    error = InvalidJSON
+                    @goto invalid
+                end
                 return Base.@ntuple($N, j), pos + 1
             elseif typ == JSONTypes.ARRAY && b == UInt8(']')
+                if Base.@nany($N, k->!@isdefined(j_{k}))
+                    error = InvalidJSON
+                    @goto invalid
+                end
                 return Base.@ntuple($N, j), pos + 1
             elseif b != UInt8(',')
                 error = ExpectedComma

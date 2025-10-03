@@ -751,4 +751,13 @@ end
     @test JSON.parse("{\"id\":1,\"any\":{\"type\":\"int\",\"value\":10}}", Q) == Q(1, (type="int", value=10))
     @test JSON.parse("{\"id\":1,\"any\":{\"type\":\"float\",\"value\":3.14}}", Q) == Q(1, (type="float", value=3.14))
     @test JSON.parse("{\"id\":1,\"any\":{\"type\":\"string\",\"value\":\"hi\"}}", Q) == Q(1, (type="string", value="hi"))
+    # extra tests for tuples since we have a custom implementation
+    @test JSON.parse("[1,2,3]", Tuple{Int, Int, Int}) == (1, 2, 3)
+    @test JSON.parse("[1,2,3, 4]", Tuple{Int, Int, Int}) == (1, 2, 3)
+    @test_throws ArgumentError JSON.parse("[]", Tuple{Int, Int, Int})
+    @test_throws ArgumentError JSON.parse("[1,2]", Tuple{Int, Int, Int})
+    @test JSON.parse("{\"a\":1,\"b\":2,\"c\":3}", Tuple{Int, Int, Int}) == (1, 2, 3)
+    @test JSON.parse("{\"a\":1,\"b\":2,\"c\":3,\"d\":4}", Tuple{Int, Int, Int}) == (1, 2, 3)
+    @test_throws ArgumentError JSON.parse("{}", Tuple{Int, Int, Int})
+    @test_throws ArgumentError JSON.parse("{\"a\":1,\"b\":2}", Tuple{Int, Int, Int})
 end
