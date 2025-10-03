@@ -107,7 +107,7 @@ print(a, indent=nothing) = print(stdout, a, indent)
 @compile_workload begin
     x = JSON.parse("{\"a\": 1, \"b\": null, \"c\": true, \"d\": false, \"e\": \"\", \"f\": [1,null,true], \"g\": {\"key\": \"value\"}}")
     json = JSON.json(x)
-    isvalid(json)
+    isvalidjson(json)
 end
 
 
