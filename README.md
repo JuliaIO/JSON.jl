@@ -52,7 +52,7 @@ x = JSON.parsefile("test.json")
 JSON.json([2,3])
 #  "[2,3]"
 
-# Julia struct to JSON, pretty printed
+# Julia struct to JSON, pretty printed, written to IO (stdout)
 JSON.json(stdout, j; pretty=true)
 # {
 #     "a": 1,
@@ -69,6 +69,12 @@ JSON.isvalidjson(json)
 
 # Write JSON to file
 JSON.json("test.json", j)
+
+# Download json data and parse into a DataFrame
+using HTTP, JSON, Tables, DataFrames
+resp = HTTP.get("https://raw.githubusercontent.com/altair-viz/vega_datasets/master/vega_datasets/_data/wheat.json")
+# null=missing will read json `null` as Julia `missing; `allownan=true` parses all numbers as Float64
+df = DataFrame(Tables.dictrowtable(JSON.parse(resp.body; null=missing, allownan=true)))
 ```
 
 ## Vendor Directory
