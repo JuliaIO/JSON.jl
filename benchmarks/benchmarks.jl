@@ -15,6 +15,17 @@ end
 @b JSON.json(A(1, 2, 3, 4))
 @b JSON.parse("""{ "a": 1,"b": 2,"c": 3,"d": 4}""", A)
 
+@b JSON.parse("""[1, 2, 3, 4]""", Tuple{Int, Int, Int, Int})
+
+@b JSON.parse("""[["a", 1, [["a", 1], ["b", 2]]], ["b", 2, [["a", 1], ["b", 2]]], ["c", 3, [["a", 1], ["b", 2]]]]""", Vector{Tuple{String, Int, Vector{Tuple{String, Int}}}})
+@b JSON.parse("""[["a", "1", [["a", "1"], ["b", "2"]]], ["b", "2", [["a", "1"], ["b", "2"]]], ["c", "3", [["a", "1"], ["b", "2"]]]]""", Vector{Tuple{String, String, Vector{Tuple{String, String}}}})
+@b JSON.parse("""[["a"]]""", Vector{Tuple{String}})
+@b JSON.parse("""["a"]""", Tuple{String})
+
+using Profile
+Profile.Allocs.clear(); Profile.Allocs.@profile sample_rate=1.0 JSON.parse("""[["a", 1, [["a", 1], ["b", 2]]], ["b", 2, [["a", 1], ["b", 2]]], ["c", 3, [["a", 1], ["b", 2]]]]""", Vector{Tuple{String, Int, Vector{Tuple{String, Int}}}})
+Profile.Allocs.print()
+
 # integers with varying number of digits
 @b JSON.parse("""[1,2234,323423423,4234234234234,23232,456454545,56767676,6767,6767,6767676,6767,6767,1,0,-123,-3333]""")
 @b JSON.json([1,2234,323423423,4234234234234,23232,456454545,56767676,6767,6767,6767676,6767,6767,1,0,-123,-3333])
