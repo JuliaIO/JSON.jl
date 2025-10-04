@@ -5,6 +5,7 @@ include(joinpath(dirname(pathof(JSON)), "../test/lazy.jl"))
 include(joinpath(dirname(pathof(JSON)), "../test/parse.jl"))
 include(joinpath(dirname(pathof(JSON)), "../test/json.jl"))
 include(joinpath(dirname(pathof(JSON)), "../test/arrow.jl"))
+include(joinpath(dirname(pathof(JSON)), "../test/ryu.jl"))
 
 function tar_files(tarball::String)
     data = Dict{String, Vector{UInt8}}()

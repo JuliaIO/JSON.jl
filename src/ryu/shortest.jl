@@ -381,11 +381,7 @@ function writeshortest(buf::AbstractVector{UInt8}, pos, x::T,
             buf_cconv = Base.cconvert(Ptr{UInt8}, buf)
             GC.@preserve buf_cconv begin
                 ptr = Base.unsafe_convert(Ptr{UInt8}, buf_cconv)
-                @static if VERSION ≥ v"1.10"
-                    Libc.memmove(ptr + pos + pointoff, ptr + pos + pointoff - 1, olength - pointoff + 1)
-                else
-                    unsafe_copyto!(ptr + pos + pointoff, ptr + pos + pointoff - 1, olength - pointoff + 1)
-                end
+                Base.unsafe_copyto!(ptr + pos + pointoff, ptr + pos + pointoff - 1, olength - pointoff + 1)
             end
             @inbounds buf[pos + pointoff] = decchar
             pos += olength + 1
