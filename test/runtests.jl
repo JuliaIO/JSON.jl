@@ -93,3 +93,13 @@ const jsonchecker = tar_files(joinpath(dirname(pathof(JSON)), "../test/jsoncheck
         parse_testfile2(i, file, data)
     end
 end
+
+@testset "fuzz_catch" begin
+    x = [
+        "688665-N6iC);2mb[)>uBbVU@].&/r7[8bB",
+        false,
+        Any[Dict{String, Any}("nMJe 9'H9l1z;15`(\"{a62V[N[y:GWb" => 339018, "8<\"7-~fgEzt5edi@-Q" => -0.24880373028918779, "UT)*=)&kQu[,< g;E+.('v=,1_zZUZuV*" => 939542, "=BYKHNx>y" => "UsTIrR[.G!(9a~y V8eX\",3q8Ue^B]lFpbU7x6@8]l5.wr;RN~", "" => false, "JOg*[CX.c4Zd!qG )CQN;RPq3J&Iq]0,!rc+,XWd}'`[ZE:/e[\$Py}<CCS\\Op" => "8+iqM[[x7U9M?\\`?DNm", "QMW<`6S[" => missing, "mf&,q;4=fIsz5&Hf:H!1<Y2?qCSYT|o5qW/}0:vDJ*^FX!*|F\" N=8.1+{#\\ +IH" => 710995), Any[936790, false, nothing, "954676-=\$\"u+bblP;RihZ}ME{0h^C`#F4!2AY[VvYD\$eqK0x-)GOn_o3gc` nf^1_MZuh", "850152-\$:QqPP8-v%{'U^& B0%"], Any[true, false, 0.22466108267242246, 841509, "%?-NI"]],
+        nothing
+    ]
+    @test JSON.json(x, 2) isa String
+end
