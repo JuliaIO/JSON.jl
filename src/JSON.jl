@@ -42,6 +42,7 @@ export JSONText, StructUtils, @noarg, @defaults, @tags, @choosetype, @nonstruct,
     throw(ArgumentError(msg))
 end
 
+include("ryu/Ryu.jl")
 include("utils.jl")
 include("object.jl")
 
