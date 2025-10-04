@@ -5,6 +5,12 @@
 # Note: The Ryu submodule is not public
 using JSON.Ryu
 
+test_array_types = if VERSION < v"1.11"
+    (Vector{UInt8},)
+else
+    (Vector{UInt8}, Memory{UInt8})
+end
+
 const maxMantissa = (UInt64(1) << 53) - 1
 todouble(sign, exp, mant) = Core.bitcast(Float64, (UInt64(sign) << 63) | (UInt64(exp) << 52) | (UInt64(mant)))
 
@@ -424,7 +430,7 @@ end
 end # Float16
 
 @testset "writeshortest(::AbstractVector, pos, ...)" begin
-    @testset for Vec in (Vector{UInt8}, Memory{UInt8})
+    @testset for Vec in test_array_types
         buf = Vec(undef, 4)
         @test Ryu.writeshortest(buf, 1, -0.0) == 5
         @test String(buf) == "-0.0"
@@ -635,7 +641,7 @@ end
     @test Ryu.writefixed(-100.0+eps(-100.0), 1, false, false, true, UInt8('.'), false) == "-100.0"
 
     @testset "writefixed(::AbstractVector, pos, ...)" begin
-        @testset for Vec in (Vector{UInt8}, Memory{UInt8})
+        @testset for Vec in test_array_types
             buf = Vec(undef, 6)
             @test Ryu.writefixed(buf, 1, 0.0, 4) == 7
             @test String(buf) == "0.0000"
@@ -849,7 +855,7 @@ end
 end
 
 @testset "writeexp(::AbstractVector, pos, ...)" begin
-    @testset for Vec in (Vector{UInt8}, Memory{UInt8})
+    @testset for Vec in test_array_types
         buf = Vec(undef, 10)
         @test Ryu.writeexp(buf, 1, 0.0, 4) == 11
         @test String(buf) == "0.0000e+00"
