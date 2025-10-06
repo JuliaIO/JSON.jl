@@ -12,10 +12,6 @@ Install JSON using the Julia package manager:
 import Pkg
 Pkg.add("JSON")
 ```
-Or, at the Julia REPL, type `]` to enter package mode, then type `add JSON`:
-```julia
-pkg> add JSON
-```
 
 ## Documentation
 
