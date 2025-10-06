@@ -2,6 +2,9 @@
 
 This guide provides an overview of how to migrate your code from either the pre-1.0 JSON.jl package to the 1.0 release or from JSON3.jl. The 1.0 release introduces several improvements and changes, particularly in how JSON is read and written, leveraging StructUtils.jl for customization and extensibility. Below, we outline the key differences and provide step-by-step instructions for updating your code.
 
+Note that, due to low demand, 32-bit systems are no longer supported. If you
+need JSON support on a 32-bit system, please [open a GitHub issue](https://github.com/JuliaIO/JSON.jl/issues/new).
+
 ---
 
 ## Migration guide from pre-1.0 -> 1.0
