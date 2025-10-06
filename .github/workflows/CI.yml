@@ -27,7 +27,6 @@ jobs:
           - os: macOS-latest
             arch: aarch64
             version: 1
-        include:
           - os: ubuntu-latest
             arch: x86
             version: 1
