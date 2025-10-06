@@ -418,6 +418,7 @@ if VERSION < v"1.11"
     _tostr(m::Vector{UInt8}, slen) = ccall(:jl_array_to_string, Ref{String}, (Any,), resize!(m, slen))
 else
     mem(n) = Memory{UInt8}(undef, n)
+    # TODO: This ccall uses a private C function.
     _tostr(m::Memory{UInt8}, slen) = ccall(:jl_genericmemory_to_string, Ref{String}, (Any, Int), m, slen)
 end
 
@@ -430,6 +431,7 @@ function Base.convert(::Type{String}, x::PtrString)
     return unsafe_string(x.ptr, x.len)
 end
 
+# TODO: This ccall uses a private C function.
 Base.convert(::Type{Symbol}, x::PtrString) = ccall(:jl_symbol_n, Ref{Symbol}, (Ptr{UInt8}, Int), x.ptr, x.len)
 
 function Base.convert(::Type{T}, x::PtrString) where {T <: Enum}
