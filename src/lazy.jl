@@ -627,7 +627,7 @@ isbigfloat(x::NumberResult) = x.tag == BIGFLOAT
             # if we overflowed, then let's try BigFloat
             bres = Parsers.xparse2(BigFloat, buf, startpos, len)
             if !Parsers.invalid(bres.code)
-                return NumberResult(bres.val), Int(startpos + bres.tlen)
+                return NumberResult(bres.val), startpos + Int(bres.tlen)
             end
         end
         if Parsers.invalid(res.code)
