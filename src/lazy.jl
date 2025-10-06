@@ -270,6 +270,7 @@ function applyobject(keyvalfunc, x::LazyValues)
     b == UInt8('}') && return pos + 1
     while true
         # parsestring returns key as a PtrString
+        # TODO: Key contains an invalid pointer here
         key, pos = @inline parsestring(LazyValue(buf, pos, JSONTypes.STRING, opts, false))
         @nextbyte
         if b != UInt8(':')
@@ -440,7 +441,18 @@ function Base.convert(::Type{T}, x::PtrString) where {T <: Enum}
     throw(ArgumentError("invalid `$T` string value: \"$sym\""))
 end
 
-Base.:(==)(x::PtrString, y::AbstractString) = x.len == sizeof(y) && ccall(:memcmp, Cint, (Ptr{UInt8}, Ptr{UInt8}, Csize_t), x.ptr, pointer(y), x.len) == 0
+function Base.:(==)(x::PtrString, y::AbstractString)
+    # If the string is backed by UInt8 codeunits, the `sizeof` computation below is correct
+    return if codeunit(y) == UInt8
+        x.len == sizeof(y) || return false
+        ref = Base.cconvert(Ptr{UInt8}, y)
+        cmp = GC.@preserve ref ccall(:memcmp, Cint, (Ptr{UInt8}, Ptr{UInt8}, Csize_t), x.ptr, Base.unsafe_convert(Ptr{UInt8}, ref), x.len)
+        iszero(cmp)
+    else
+        x == String(y)::String
+    end
+end
+
 Base.:(==)(x::PtrString, y::PtrString) = x.len == y.len && ccall(:memcmp, Cint, (Ptr{UInt8}, Ptr{UInt8}, Csize_t), x.ptr, y.ptr, x.len) == 0
 Base.isequal(x::PtrString, y::AbstractString) = x == y
 Base.isequal(x::PtrString, y::PtrString) = x == y
@@ -482,6 +494,8 @@ function parsestring(x::LazyValue)
         end
         @nextbyte(false)
     end
+    # TODO: The pointer escapes here, but callers of this function do not use GC.@preserve.
+    # Hence, the pointer is invalid by the time it's returned.
     str = PtrString(pointer(buf, spos), pos - spos, escaped)
     return str, pos + 1
 
@@ -732,6 +746,7 @@ function Base.show(io::IO, x::LazyValue)
             show(io, MIME"text/plain"(), la)
         end
     elseif T == JSONTypes.STRING
+        # TODO: str contains an invalid pointer here
         str, _ = parsestring(x)
         Base.print(io, "JSON.LazyValue(", repr(convert(String, str)), ")")
     elseif T == JSONTypes.NULL

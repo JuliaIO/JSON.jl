@@ -277,6 +277,7 @@ function applyvalue(f, x::LazyValues, null)
         f(arr)
         return pos
     elseif type == JSONTypes.STRING
+        # TODO: str contains an invalid pointer here
         str, pos = parsestring(x)
         f(convert(String, str))
         return pos
@@ -344,6 +345,7 @@ end
 function StructUtils.lift(style::StructStyle, ::Type{T}, x::LazyValues, tags=(;)) where {T}
     type = gettype(x)
     if type == JSONTypes.STRING
+        # TODO: ptrstr contains an invalid pointer here
         ptrstr, pos = parsestring(x)
         str, _ = StructUtils.lift(style, T, ptrstr, tags)
         return str, pos
