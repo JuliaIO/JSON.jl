@@ -1,20 +1,23 @@
 # JSON.jl
 
-This package provides for parsing and printing JSON in pure Julia.
+A Julia package for reading and writing JSON data.
 
 [![Build Status](https://github.com/JuliaIO/JSON.jl/workflows/CI/badge.svg)](https://github.com/JuliaIO/JSON.jl/actions/workflows/CI.yml?query=branch%3Amaster)
 [![codecov.io](http://codecov.io/github/JuliaIO/JSON.jl/coverage.svg?branch=master)](http://codecov.io/github/JuliaIO/JSON.jl?branch=master)
 
 ## Installation
 
-Type `] add JSON` and then hit ⏎ Return at the REPL. You should see `pkg> add JSON`.
+Install JSON using the Julia package manager:
+```julia
+import Pkg
+Pkg.add("JSON")
+```
 
 ## Documentation
 
-- [**STABLE**](https://juliaio.github.io/JSON.jl/stable) &mdash; **most recently tagged version of the documentation.**
-- [**LATEST**](https://juliaio.github.io/JSON.jl/dev) &mdash; *in-development version of the documentation.*
-
-Documentation includes extensive guides and examples for reading, writing, and migrating from JSON.jl pre.10 or JSON3.jl.
+The [documentation](https://juliaio.github.io/JSON.jl/stable) includes extensive
+guides and examples. It also has advice for migrating to JSON.jl v1.0 from
+JSON.jl v0.21 or JSON3.jl.
 
 ## Basic Usage
 
@@ -79,9 +82,12 @@ df = DataFrame(Tables.dictrowtable(JSON.parse(resp.body; null=missing, allownan=
 
 ## Vendor Directory
 
-This package includes a `vendor/` directory containing a simplified, no-dependency JSON parser (`JSONX`) that can be vendored (copied) into other projects. See the [vendor README](vendor/README.md) for details.
+This package includes a `vendor/` directory containing a simplified,
+no-dependency JSON parser (`JSONX`) that can be vendored (copied) into other
+projects. See the [vendor README](vendor/README.md) for details.
 
 ## Contributing and Questions
 
-Contributions are very welcome, as are feature requests and suggestions. Please open an
-[issue][https://github.com/JuliaIO/JSON.jl/issues] if you encounter any problems or would just like to ask a question.
+Contributions are very welcome, as are feature requests and suggestions. Please
+open an [issue](https://github.com/JuliaIO/JSON.jl/issues) if you encounter any
+problems or would just like to ask a question.
