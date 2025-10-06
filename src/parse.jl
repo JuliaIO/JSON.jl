@@ -214,7 +214,7 @@ parse!(x::LazyValue, obj::T; dicttype::Type{O}=DEFAULT_OBJECT_TYPE, null=nothing
 # for LazyValue, if x started at the beginning of the JSON input,
 # then we want to ensure that the entire input was consumed
 # and error if there are any trailing invalid JSON characters
-function checkendpos(x::LazyValue, ::Type{T}, pos) where {T}
+function checkendpos(x::LazyValue, ::Type{T}, pos::Int) where {T}
     buf = getbuf(x)
     len = getlength(buf)
     if pos <= len
@@ -427,7 +427,7 @@ end
 @generated function StructUtils.maketuple(st::StructStyle, ::Type{T}, x::LazyValues) where {T<:Tuple}
     N = fieldcount(T)
     ex = quote
-        pos = getpos(x)
+        pos::Int = getpos(x)
         buf = getbuf(x)
         len = getlength(buf)
         opts = getopts(x)

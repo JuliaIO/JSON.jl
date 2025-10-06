@@ -204,7 +204,7 @@ StructUtils.nulllike(::StructUtils.StructStyle, x::LazyValues) = gettype(x) == J
 
 # core method that detects what JSON value is at the current position
 # and immediately returns an appropriate LazyValue instance
-function _lazy(buf, pos, len, b, opts, isroot=false)
+function _lazy(buf, pos::Int, len, b, opts, isroot=false)
     if opts.jsonlines
         return LazyValue(buf, pos, JSONTypes.ARRAY, opts, isroot)
     elseif b == UInt8('{')
@@ -256,7 +256,7 @@ end
 # returns a `pos` value that notes the next position where parsing should continue
 # this is essentially the `StructUtils.applyeach` implementation for LazyValues w/ type OBJECT
 function applyobject(keyvalfunc, x::LazyValues)
-    pos = getpos(x)
+    pos::Int = getpos(x)
     buf = getbuf(x)
     len = getlength(buf)
     opts = getopts(x)
@@ -356,7 +356,7 @@ end
 # returns a `pos` value that notes the next position where parsing should continue
 # this is essentially the `StructUtils.applyeach` implementation for LazyValues w/ type ARRAY
 function applyarray(keyvalfunc, x::LazyValues)
-    pos = getpos(x)
+    pos::Int = getpos(x)
     buf = getbuf(x)
     len = getlength(buf)
     opts = getopts(x)
@@ -544,7 +544,7 @@ isbigfloat(x::NumberResult) = x.tag == BIGFLOAT
 
 @inline function parsenumber(x::LazyValue)
     buf = getbuf(x)
-    pos = getpos(x)
+    pos::Int = getpos(x)
     len = getlength(buf)
     opts = getopts(x)
     b = getbyte(buf, pos)
@@ -627,14 +627,14 @@ isbigfloat(x::NumberResult) = x.tag == BIGFLOAT
             # if we overflowed, then let's try BigFloat
             bres = Parsers.xparse2(BigFloat, buf, startpos, len)
             if !Parsers.invalid(bres.code)
-                return NumberResult(bres.val), startpos + bres.tlen
+                return NumberResult(bres.val), Int(startpos + bres.tlen)
             end
         end
         if Parsers.invalid(res.code)
             error = InvalidNumber
             @goto invalid
         end
-        return NumberResult(res.val), startpos + res.tlen
+        return NumberResult(res.val), Int(startpos + res.tlen)
     else
         if overflow
             return NumberResult(isneg ? -bval : bval), pos
