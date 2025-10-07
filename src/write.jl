@@ -393,6 +393,9 @@ end
 @noinline float_style_throw(fs) = throw(ArgumentError("Invalid float style: $fs"))
 float_style_check(fs) = fs == :shortest || fs == :fixed || fs == :exp || float_style_throw(fs)
 
+@noinline float_precision_throw(fs, fp) = throw(ArgumentError("float_precision must be positive when float_style is $fs; got $fp"))
+float_precision_check(fs, fp) = (fs == :shortest || fp > 0) || float_precision_throw(fs, fp)
+
 # if jsonlines and pretty is not 0 or false, throw an ArgumentError
 @noinline _jsonlines_pretty_throw() = throw(ArgumentError("pretty printing is not supported when writing jsonlines"))
 _jsonlines_pretty_check(jsonlines, pretty) = jsonlines && pretty !== false && !iszero(pretty) && _jsonlines_pretty_throw()
@@ -401,6 +404,7 @@ function json(io::IO, x::T; pretty::Union{Integer,Bool}=false, kw...) where {T}
     opts = WriteOptions(; pretty=pretty === true ? 2 : Int(pretty), kw...)
     _jsonlines_pretty_check(opts.jsonlines, opts.pretty)
     float_style_check(opts.float_style)
+    float_precision_check(opts.float_style, opts.float_precision)
     y = StructUtils.lower(opts.style, x)
     # Use smaller initial buffer size, limited by bufsize
     initial_size = min(sizeguess(y), opts.bufsize)
@@ -423,6 +427,7 @@ function json(x; pretty::Union{Integer,Bool}=false, kw...)
     opts = WriteOptions(; pretty=pretty === true ? 2 : Int(pretty), kw...)
     _jsonlines_pretty_check(opts.jsonlines, opts.pretty)
     float_style_check(opts.float_style)
+    float_precision_check(opts.float_style, opts.float_precision)
     y = StructUtils.lower(opts.style, x)
     buf = stringvec(sizeguess(y))
     pos = json!(buf, 1, y, opts, Any[y], nothing)

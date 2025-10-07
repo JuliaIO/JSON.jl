@@ -258,6 +258,11 @@ end
     # float_style and float_precision
     @test JSON.json(Float64(π); float_style=:fixed, float_precision=2) == "3.14"
     @test JSON.json(Float64(π); float_style=:exp, float_precision=2) == "3.14e+00"
+    @test_throws ArgumentError JSON.json(Float64(π); float_style=:fixed, float_precision=0)
+    @test_throws ArgumentError JSON.json(Float64(π); float_style=:fixed, float_precision=-1)
+    @test_throws ArgumentError JSON.json(Float64(π); float_style=:exp, float_precision=0)
+    io = IOBuffer()
+    @test_throws ArgumentError JSON.json(io, Float64(π); float_style=:fixed, float_precision=0)
     @test_throws ArgumentError JSON.json(Float64(π); float_style=:not_a_style)
 end
 
