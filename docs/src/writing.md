@@ -171,6 +171,8 @@ JSON.json(pi_value; float_style=:exp, float_precision=3)
 # [3.142e+00]
 ```
 
+`float_precision` must be a positive integer when `float_style` is `:fixed` or `:exp`.
+
 ### JSON Lines Format
 
 The JSON Lines format is useful for streaming records where each line is a JSON value:
