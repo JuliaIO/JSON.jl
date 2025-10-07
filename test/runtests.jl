@@ -4,7 +4,10 @@ include(joinpath(dirname(pathof(JSON)), "../test/object.jl"))
 include(joinpath(dirname(pathof(JSON)), "../test/lazy.jl"))
 include(joinpath(dirname(pathof(JSON)), "../test/parse.jl"))
 include(joinpath(dirname(pathof(JSON)), "../test/json.jl"))
-include(joinpath(dirname(pathof(JSON)), "../test/arrow.jl"))
+# Arrow.jl is broken on 32 bit systems for now :(
+if Sys.WORD_SIZE == 64
+    include(joinpath(dirname(pathof(JSON)), "../test/arrow.jl"))
+end
 
 function tar_files(tarball::String)
     data = Dict{String, Vector{UInt8}}()
