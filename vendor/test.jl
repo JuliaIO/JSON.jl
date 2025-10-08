@@ -109,6 +109,8 @@ include("jsonx.jl")
         @test JSONX.json((1, 2, 3)) == "[1,2,3]"
         # Note: NamedTuple order is not guaranteed, so we parse and compare
         @test JSONX.parse(JSONX.json((a=1, b=2))) == Dict("a" => 1.0, "b" => 2.0)
+        # Test JSONText
+        @test JSONX.json(JSONX.JSONText("{\"x\": invalid json}")) == "{\"x\": invalid json}"
     end
     
     @testset "AbstractSet Support" begin

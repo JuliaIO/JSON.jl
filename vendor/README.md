@@ -11,6 +11,8 @@ A simple, no-dependency JSON parser that can be vendored (copied/pasted) into ot
 
 ### Writing
 - `JSONX.json(value)` - Convert a Julia value to JSON string
+- `JSONX.JSONText(str)` - `str` will be treated as raw JSON and inserted
+  directly into the output.
 
 ### Supported Types
 
