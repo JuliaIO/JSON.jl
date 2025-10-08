@@ -263,6 +263,11 @@ function parse_number(str::String, pos::Int, len::Int)
 end
 
 # JSON writing functionality
+
+struct JSONText
+    text::String
+end
+
 function write_json(io::IO, value)
     if value === nothing || value === missing
         print(io, "null")
@@ -271,6 +276,8 @@ function write_json(io::IO, value)
     elseif value isa Number
         value isa Complex && throw(ArgumentError("Cannot serialize Complex numbers to JSON"))
         print(io, value)
+    elseif value isa JSONText
+        print(io, value.text)
     elseif value isa AbstractString
         write_string(io, value)
     elseif value isa AbstractVector || value isa AbstractSet || value isa Tuple
