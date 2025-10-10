@@ -270,17 +270,19 @@ function applyobject(keyvalfunc, x::LazyValues)
     b == UInt8('}') && return pos + 1
     while true
         # parsestring returns key as a PtrString
-        key, pos = @inline parsestring(LazyValue(buf, pos, JSONTypes.STRING, opts, false))
-        @nextbyte
-        if b != UInt8(':')
-            error = ExpectedColon
-            @goto invalid
+        GC.@preserve buf begin
+            key, pos = @inline parsestring(LazyValue(buf, pos, JSONTypes.STRING, opts, false))
+            @nextbyte
+            if b != UInt8(':')
+                error = ExpectedColon
+                @goto invalid
+            end
+            pos += 1
+            @nextbyte
+            # we're now positioned at the start of the value
+            val = _lazy(buf, pos, len, b, opts)
+            ret = keyvalfunc(key, val)
         end
-        pos += 1
-        @nextbyte
-        # we're now positioned at the start of the value
-        val = _lazy(buf, pos, len, b, opts)
-        ret = keyvalfunc(key, val)
         # if ret is an EarlyReturn, then we're short-circuiting
         # parsing via e.g. selection syntax, so return immediately
         ret isa StructUtils.EarlyReturn && return ret
@@ -732,8 +734,11 @@ function Base.show(io::IO, x::LazyValue)
             show(io, MIME"text/plain"(), la)
         end
     elseif T == JSONTypes.STRING
-        str, _ = parsestring(x)
-        Base.print(io, "JSON.LazyValue(", repr(convert(String, str)), ")")
+        buf = getbuf(x)
+        GC.@preserve buf begin
+            str, _ = parsestring(x)
+            Base.print(io, "JSON.LazyValue(", repr(convert(String, str)), ")")
+        end
     elseif T == JSONTypes.NULL
         Base.print(io, "JSON.LazyValue(nothing)")
     else # bool/number
