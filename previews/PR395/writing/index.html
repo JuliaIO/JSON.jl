@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>JSON Writing · JSON.jl</title><meta name="title" content="JSON Writing · JSON.jl"/><meta property="og:title" content="JSON Writing · JSON.jl"/><meta property="twitter:title" content="JSON Writing · JSON.jl"/><meta name="description" content="Documentation for JSON.jl."/><meta property="og:description" content="Documentation for JSON.jl."/><meta property="twitter:description" content="Documentation for JSON.jl."/><script data-outdated-warner src="../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.050/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL=".."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../assets/documenter.js"></script><script src="../search_index.js"></script><script src="../siteinfo.js"></script><script src="../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-mocha.css" data-theme-name="catppuccin-mocha"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-macchiato.css" data-theme-name="catppuccin-macchiato"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-frappe.css" data-theme-name="catppuccin-frappe"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-latte.css" data-theme-name="catppuccin-latte"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit"><a href="../">JSON.jl</a></span></div><button class="docs-search-query input is-rounded is-small is-clickable my-2 mx-auto py-1 px-2" id="documenter-search-query">Search docs (Ctrl + /)</button><ul class="docs-menu"><li><a class="tocitem" href="../">JSON.jl</a></li><li><a class="tocitem" href="../migrate/">Migration guides</a></li><li><a class="tocitem" href="../reading/">JSON Reading</a></li><li><a class="tocitem" href="../reference/">API Reference</a></li><li class="is-active"><a class="tocitem" href>JSON Writing</a><ul class="internal"><li><a class="tocitem" href="#Core-JSON-Serialization-JSON.json"><span>Core JSON Serialization - <code>JSON.json</code></span></a></li><li><a class="tocitem" href="#Customizing-JSON-Output"><span>Customizing JSON Output</span></a></li><li><a class="tocitem" href="#Customizing-Types"><span>Customizing Types</span></a></li><li><a class="tocitem" href="#Customizing-Struct-Serialization"><span>Customizing Struct Serialization</span></a></li><li><a class="tocitem" href="#Handling-Circular-References"><span>Handling Circular References</span></a></li><li><a class="tocitem" href="#Custom-Dictionary-Key-Serialization"><span>Custom Dictionary Key Serialization</span></a></li><li><a class="tocitem" href="#Advanced-Example:-The-FrankenStruct"><span>Advanced Example: The FrankenStruct</span></a></li></ul></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><a class="docs-sidebar-button docs-navbar-link fa-solid fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a><nav class="breadcrumb"><ul class="is-hidden-mobile"><li class="is-active"><a href>JSON Writing</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>JSON Writing</a></li></ul></nav><div class="docs-right"><a class="docs-navbar-link" href="https://github.com/JuliaIO/JSON.jl" title="View the repository on GitHub"><span class="docs-icon fa-brands"></span><span class="docs-label is-hidden-touch">GitHub</span></a><a class="docs-navbar-link" href="https://github.com/JuliaIO/JSON.jl/blob/master/docs/src/writing.md" title="Edit source on GitHub"><span class="docs-icon fa-solid"></span></a><a class="docs-settings-button docs-navbar-link fa-solid fa-gear" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-article-toggle-button fa-solid fa-chevron-up" id="documenter-article-toggle-button" href="javascript:;" title="Collapse all docstrings"></a></div></header><article class="content" id="documenter-page"><h1 id="JSON-Writing"><a class="docs-heading-anchor" href="#JSON-Writing">JSON Writing</a><a id="JSON-Writing-1"></a><a class="docs-heading-anchor-permalink" href="#JSON-Writing" title="Permalink"></a></h1><p>This guide to writing JSON in the JSON.jl package aims to:</p><ul><li>Provide a comprehensive overview of the JSON serialization process.</li><li>Explain the various options and configurations available for writing JSON data.</li><li>Offer practical examples to illustrate the usage of different functions and options.</li></ul><ul><li><a href="../#JSON.jl">JSON.jl</a></li><li><a href="../migrate/#Migration-guides">Migration guides</a></li><li class="no-marker"><ul><li><a href="../migrate/#Migration-guide-from-pre-1.0-1.0">Migration guide from pre-1.0 -&gt; 1.0</a></li><li><a href="../migrate/#Migration-guide-for-JSON3.jl">Migration guide for JSON3.jl</a></li></ul></li><li><a href="../reading/#JSON-Reading">JSON Reading</a></li><li class="no-marker"><ul><li><a href="../reading/#Core-JSON-Parsing-JSON.lazy-and-JSON.LazyValue">Core JSON Parsing - <code>JSON.lazy</code> and <code>JSON.LazyValue</code></a></li><li><a href="../reading/#JSON.parse-Untyped-materialization"><code>JSON.parse</code> - Untyped materialization</a></li><li><a href="../reading/#JSON.parse-Typed-materialization"><code>JSON.parse</code> - Typed materialization</a></li></ul></li><li><a href="../reference/#API-Reference">API Reference</a></li><li><a href="#JSON-Writing">JSON Writing</a></li><li class="no-marker"><ul><li><a href="#Core-JSON-Serialization-JSON.json">Core JSON Serialization - <code>JSON.json</code></a></li><li><a href="#Customizing-JSON-Output">Customizing JSON Output</a></li><li><a href="#Customizing-Types">Customizing Types</a></li><li><a href="#Customizing-Struct-Serialization">Customizing Struct Serialization</a></li><li><a href="#Handling-Circular-References">Handling Circular References</a></li><li><a href="#Custom-Dictionary-Key-Serialization">Custom Dictionary Key Serialization</a></li><li><a href="#Advanced-Example:-The-FrankenStruct">Advanced Example: The FrankenStruct</a></li></ul></li></ul><h2 id="Core-JSON-Serialization-JSON.json"><a class="docs-heading-anchor" href="#Core-JSON-Serialization-JSON.json">Core JSON Serialization - <code>JSON.json</code></a><a id="Core-JSON-Serialization-JSON.json-1"></a><a class="docs-heading-anchor-permalink" href="#Core-JSON-Serialization-JSON.json" title="Permalink"></a></h2><p>The main entrypoint for serializing Julia values to JSON in JSON.jl is the <code>JSON.json</code> function. This function offers flexible output options:</p><pre><code class="language-julia hljs"># Serialize to a String
+JSON.json(x) -&gt; String
+
+# Serialize to an IO object
+JSON.json(io::IO, x) -&gt; IO
+
+# Serialize to a file
+JSON.json(file_name::String, x) -&gt; String</code></pre><p>The <code>JSON.json</code> function accepts a wide range of Julia types and transforms them into their JSON representation by knowing how to serialize a core set of types:</p><table><tr><th style="text-align: right">Julia type</th><th style="text-align: right">JSON representation</th></tr><tr><td style="text-align: right"><code>Nothing</code></td><td style="text-align: right"><code>null</code></td></tr><tr><td style="text-align: right"><code>Bool</code></td><td style="text-align: right"><code>true</code> or <code>false</code></td></tr><tr><td style="text-align: right"><code>Number</code></td><td style="text-align: right">Numeric value (integer or floating point)</td></tr><tr><td style="text-align: right"><code>AbstractString</code></td><td style="text-align: right">String with escaped characters</td></tr><tr><td style="text-align: right"><code>AbstractDict</code>/<code>NamedTuple</code></td><td style="text-align: right">Object (<code>{}</code>)</td></tr><tr><td style="text-align: right"><code>AbstractVector</code>/<code>Tuple</code>/<code>Set</code></td><td style="text-align: right">Array (<code>[]</code>)</td></tr><tr><td style="text-align: right">Custom structs</td><td style="text-align: right">Object (<code>{}</code>) with fields as keys</td></tr><tr><td style="text-align: right"><code>JSONText</code></td><td style="text-align: right">Raw JSON (inserted as-is)</td></tr></table><p>For values that don&#39;t fall into one of the above categories, <code>JSON.lower</code> will be called allowing a &quot;domain transformation&quot; from Julia value to an appropriate representation of the categories above.</p><h2 id="Customizing-JSON-Output"><a class="docs-heading-anchor" href="#Customizing-JSON-Output">Customizing JSON Output</a><a id="Customizing-JSON-Output-1"></a><a class="docs-heading-anchor-permalink" href="#Customizing-JSON-Output" title="Permalink"></a></h2><p><code>JSON.json</code> supports numerous keyword arguments to control how data is serialized:</p><h3 id="Pretty-Printing"><a class="docs-heading-anchor" href="#Pretty-Printing">Pretty Printing</a><a id="Pretty-Printing-1"></a><a class="docs-heading-anchor-permalink" href="#Pretty-Printing" title="Permalink"></a></h3><p>By default, <code>JSON.json</code> produces compact JSON without extra whitespace. For human-readable output:</p><pre><code class="language-julia hljs"># Boolean flag for default pretty printing (2-space indent)
+JSON.json(x; pretty=true)
+
+# Or specify custom indentation level
+JSON.json(x; pretty=4)  # 4-space indentation</code></pre><p>Example of pretty printing:</p><pre><code class="language-julia hljs">data = Dict(&quot;name&quot; =&gt; &quot;Alice&quot;, &quot;scores&quot; =&gt; [95, 87, 92])
+
+# Compact output
+JSON.json(data)
+# {&quot;name&quot;:&quot;Alice&quot;,&quot;scores&quot;:[95,87,92]}
+
+# Pretty printed
+JSON.json(data; pretty=true)
+# {
+#   &quot;name&quot;: &quot;Alice&quot;,
+#   &quot;scores&quot;: [
+#     95,
+#     87,
+#     92
+#   ]
+# }</code></pre><p>When pretty printing, you can also control which arrays get printed inline versus multiline using the <code>inline_limit</code> option:</p><pre><code class="language-julia hljs">JSON.json(data; pretty=true, inline_limit=10)
+# {
+#   &quot;name&quot;: &quot;Alice&quot;,
+#   &quot;scores&quot;: [95, 87, 92]
+# }</code></pre><h3 id="Null-and-Empty-Value-Handling"><a class="docs-heading-anchor" href="#Null-and-Empty-Value-Handling">Null and Empty Value Handling</a><a id="Null-and-Empty-Value-Handling-1"></a><a class="docs-heading-anchor-permalink" href="#Null-and-Empty-Value-Handling" title="Permalink"></a></h3><p>JSON.json provides options to control how <code>nothing</code>, <code>missing</code>, and empty collections are handled:</p><pre><code class="language-julia hljs">struct Person
+    name::String
+    email::Union{String, Nothing}
+    phone::Union{String, Nothing}
+    tags::Vector{String}
+end
+
+person = Person(&quot;Alice&quot;, &quot;alice@example.com&quot;, nothing, String[])
+
+# Default behavior writes all values, including null
+JSON.json(person)
+# {&quot;name&quot;:&quot;Alice&quot;,&quot;email&quot;:&quot;alice@example.com&quot;,&quot;phone&quot;:null,&quot;tags&quot;:[]}
+
+# Exclude null values
+JSON.json(person; omit_null=true)
+# {&quot;name&quot;:&quot;Alice&quot;,&quot;email&quot;:&quot;alice@example.com&quot;,&quot;tags&quot;:[]}
+
+# Omit empty collections as well
+JSON.json(person; omit_null=true, omit_empty=true)
+# {&quot;name&quot;:&quot;Alice&quot;,&quot;email&quot;:&quot;alice@example.com&quot;}</code></pre><p>Note that we can also control whether null or empty values are omitted at the type level, either by overloading <code>omit_null</code>/<code>omit_empty</code> functions:</p><pre><code class="language-julia hljs">JSON.omit_null(::Type{Person}) = true</code></pre><p>Or by using a convenient macro annotation when defining the struct:</p><pre><code class="language-julia hljs">@omit_null struct Person
+    name::String
+    email::Union{String, Nothing}
+    phone::Union{String, Nothing}
+    tags::Vector{String}
+end</code></pre><h3 id="Special-Numeric-Values"><a class="docs-heading-anchor" href="#Special-Numeric-Values">Special Numeric Values</a><a id="Special-Numeric-Values-1"></a><a class="docs-heading-anchor-permalink" href="#Special-Numeric-Values" title="Permalink"></a></h3><p>By default, JSON.json throws an error when trying to serialize <code>NaN</code>, <code>Inf</code>, or <code>-Inf</code> as they are not valid JSON. However, you can enable them with the <code>allownan</code> option:</p><pre><code class="language-julia hljs">numbers = [1.0, NaN, Inf, -Inf]
+
+# Default behavior throws an error
+try
+    JSON.json(numbers)
+catch e
+    println(e)
+end
+# ArgumentError(&quot;NaN not allowed to be written in JSON spec; pass `allownan=true` to allow anyway&quot;)
+
+# With allownan=true
+JSON.json(numbers; allownan=true)
+# [1.0,NaN,Infinity,-Infinity]
+
+# Custom representations
+JSON.json(numbers; allownan=true, nan=&quot;null&quot;, inf=&quot;1e999&quot;, ninf=&quot;-1e999&quot;)
+# [1.0,null,1e999,-1e999]</code></pre><h3 id="Float-Formatting"><a class="docs-heading-anchor" href="#Float-Formatting">Float Formatting</a><a id="Float-Formatting-1"></a><a class="docs-heading-anchor-permalink" href="#Float-Formatting" title="Permalink"></a></h3><p>Control how floating-point numbers are formatted in the JSON output:</p><pre><code class="language-julia hljs">pi_value = [Float64(π)]
+
+# Default format (shortest representation)
+JSON.json(pi_value)
+# [3.141592653589793]
+
+# Fixed decimal notation
+JSON.json(pi_value; float_style=:fixed, float_precision=2)
+# [3.14]
+
+# Scientific notation
+JSON.json(pi_value; float_style=:exp, float_precision=3)
+# [3.142e+00]</code></pre><p><code>float_precision</code> must be a positive integer when <code>float_style</code> is <code>:fixed</code> or <code>:exp</code>.</p><h3 id="JSON-Lines-Format"><a class="docs-heading-anchor" href="#JSON-Lines-Format">JSON Lines Format</a><a id="JSON-Lines-Format-1"></a><a class="docs-heading-anchor-permalink" href="#JSON-Lines-Format" title="Permalink"></a></h3><p>The JSON Lines format is useful for streaming records where each line is a JSON value:</p><pre><code class="language-julia hljs">records = [
+    Dict(&quot;id&quot; =&gt; 1, &quot;name&quot; =&gt; &quot;Alice&quot;),
+    Dict(&quot;id&quot; =&gt; 2, &quot;name&quot; =&gt; &quot;Bob&quot;),
+    Dict(&quot;id&quot; =&gt; 3, &quot;name&quot; =&gt; &quot;Charlie&quot;)
+]
+
+# Standard JSON array
+JSON.json(records)
+# [{&quot;id&quot;:1,&quot;name&quot;:&quot;Alice&quot;},{&quot;id&quot;:2,&quot;name&quot;:&quot;Bob&quot;},{&quot;id&quot;:3,&quot;name&quot;:&quot;Charlie&quot;}]
+
+# JSON Lines format; each object on its own line, no begining or ending square brackets
+JSON.json(records; jsonlines=true)
+# {&quot;id&quot;:1,&quot;name&quot;:&quot;Alice&quot;}
+# {&quot;id&quot;:2,&quot;name&quot;:&quot;Bob&quot;}
+# {&quot;id&quot;:3,&quot;name&quot;:&quot;Charlie&quot;}</code></pre><h2 id="Customizing-Types"><a class="docs-heading-anchor" href="#Customizing-Types">Customizing Types</a><a id="Customizing-Types-1"></a><a class="docs-heading-anchor-permalink" href="#Customizing-Types" title="Permalink"></a></h2><h3 id="Using-JSON.JSONText"><a class="docs-heading-anchor" href="#Using-JSON.JSONText">Using <code>JSON.JSONText</code></a><a id="Using-JSON.JSONText-1"></a><a class="docs-heading-anchor-permalink" href="#Using-JSON.JSONText" title="Permalink"></a></h3><p>The <code>JSONText</code> type allows you to insert raw, pre-formatted JSON directly:</p><pre><code class="language-julia hljs">data = Dict(
+    &quot;name&quot; =&gt; &quot;Alice&quot;,
+    &quot;config&quot; =&gt; JSON.JSONText(&quot;{\&quot;theme\&quot;:\&quot;dark\&quot;,\&quot;fontSize\&quot;:16}&quot;)
+)
+
+JSON.json(data)
+# {&quot;name&quot;:&quot;Alice&quot;,&quot;config&quot;:{&quot;theme&quot;:&quot;dark&quot;,&quot;fontSize&quot;:16}}</code></pre><h3 id="Custom-Type-Serialization-with-lower"><a class="docs-heading-anchor" href="#Custom-Type-Serialization-with-lower">Custom Type Serialization with <code>lower</code></a><a id="Custom-Type-Serialization-with-lower-1"></a><a class="docs-heading-anchor-permalink" href="#Custom-Type-Serialization-with-lower" title="Permalink"></a></h3><p>For full control over how a type is serialized, you can define a <code>JSON.lower</code> method:</p><pre><code class="language-julia hljs">struct Coordinate
+    lat::Float64
+    lon::Float64
+end
+
+# Serialize as an array instead of an object
+JSON.lower(c::Coordinate) = [c.lat, c.lon]
+
+point = Coordinate(40.7128, -74.0060)
+JSON.json(point)
+# [40.7128,-74.006]
+
+# For serializing custom formats
+struct UUID
+    value::String
+end
+
+JSON.lower(u::UUID) = u.value
+
+JSON.json(UUID(&quot;123e4567-e89b-12d3-a456-426614174000&quot;))
+# &quot;123e4567-e89b-12d3-a456-426614174000&quot;</code></pre><h3 id="Custom-Serialization-for-Non-Owned-Types"><a class="docs-heading-anchor" href="#Custom-Serialization-for-Non-Owned-Types">Custom Serialization for Non-Owned Types</a><a id="Custom-Serialization-for-Non-Owned-Types-1"></a><a class="docs-heading-anchor-permalink" href="#Custom-Serialization-for-Non-Owned-Types" title="Permalink"></a></h3><p>To customize serialization for types you don&#39;t own (those from other packages), you can use a custom style:</p><pre><code class="language-julia hljs">using Dates
+
+# Create a custom style that inherits from JSONStyle
+struct DateTimeStyle &lt;: JSON.JSONStyle end
+
+# Define how to serialize Date and DateTime in this style
+JSON.lower(::DateTimeStyle, d::Date) = string(d)
+JSON.lower(::DateTimeStyle, dt::DateTime) = Dates.format(dt, &quot;yyyy-mm-dd HH:MM:SS&quot;)
+
+# Use the custom style
+JSON.json(Date(2023, 1, 1); style=DateTimeStyle())
+# &quot;2023-01-01&quot;
+
+JSON.json(DateTime(2023, 1, 1, 12, 30, 45); style=DateTimeStyle())
+# &quot;2023-01-01 12:30:45&quot;</code></pre><h2 id="Customizing-Struct-Serialization"><a class="docs-heading-anchor" href="#Customizing-Struct-Serialization">Customizing Struct Serialization</a><a id="Customizing-Struct-Serialization-1"></a><a class="docs-heading-anchor-permalink" href="#Customizing-Struct-Serialization" title="Permalink"></a></h2><h3 id="Field-Names-and-Tags"><a class="docs-heading-anchor" href="#Field-Names-and-Tags">Field Names and Tags</a><a id="Field-Names-and-Tags-1"></a><a class="docs-heading-anchor-permalink" href="#Field-Names-and-Tags" title="Permalink"></a></h3><p>The JSON.jl package integrates with StructUtils.jl for fine-grained control over struct serialization. StructUtils.jl provides convenient &quot;struct&quot; macros:</p><ul><li><code>@noarg</code>: generates a &quot;no-argument&quot; constructor (<code>T()</code>)</li><li><code>@kwarg</code>: generates an all-keyword-argument constructor, similar to <code>Base.@kwdef</code>; (<code>T(; kw1=v1, kw2=v2, ...)</code>)</li><li><code>@tags</code>/<code>@defaults</code>: convenience macros to enable specifying field defaults and field tags</li><li><code>@nonstruct</code>: marks a struct as non-struct-like, treating it as a primitive type for serialization</li></ul><p>Each struct macro also supports the setting of field default values (using the same syntax as <code>Base.@kwdef</code>), as well as specifying &quot;field tags&quot; using the <code>&amp;(tag=val,)</code> syntax.</p><pre><code class="language-julia hljs">using JSON, StructUtils
+
+# Using the @tags macro to customize field serialization
+@tags struct User
+    user_id::Int &amp;(json=(name=&quot;id&quot;,),)
+    first_name::String &amp;(json=(name=&quot;firstName&quot;,),)
+    last_name::String &amp;(json=(name=&quot;lastName&quot;,),)
+    created_at::DateTime &amp;(json=(dateformat=&quot;yyyy-mm-dd&quot;,),)
+    internal_note::String &amp;(json=(ignore=true,),)
+end
+
+user = User(123, &quot;Jane&quot;, &quot;Doe&quot;, DateTime(2023, 5, 8), &quot;Private note&quot;)
+
+JSON.json(user)
+# {&quot;id&quot;:123,&quot;firstName&quot;:&quot;Jane&quot;,&quot;lastName&quot;:&quot;Doe&quot;,&quot;created_at&quot;:&quot;2023-05-08&quot;}</code></pre><p>The various field tags allow:</p><ul><li>Renaming fields with <code>name</code></li><li>Custom date formatting with <code>dateformat</code></li><li>Excluding fields from JSON output with <code>ignore=true</code></li></ul><h3 id="Default-Values-with-@defaults"><a class="docs-heading-anchor" href="#Default-Values-with-@defaults">Default Values with <code>@defaults</code></a><a id="Default-Values-with-@defaults-1"></a><a class="docs-heading-anchor-permalink" href="#Default-Values-with-@defaults" title="Permalink"></a></h3><p>Combine with the <code>@defaults</code> macro to provide default values:</p><pre><code class="language-julia hljs">@defaults struct Configuration
+    port::Int = 8080
+    host::String = &quot;localhost&quot;
+    debug::Bool = false
+    timeout::Int = 30
+end
+
+config = Configuration(9000)
+JSON.json(config)
+# {&quot;port&quot;:9000,&quot;host&quot;:&quot;localhost&quot;,&quot;debug&quot;:false,&quot;timeout&quot;:30}</code></pre><h2 id="Handling-Circular-References"><a class="docs-heading-anchor" href="#Handling-Circular-References">Handling Circular References</a><a id="Handling-Circular-References-1"></a><a class="docs-heading-anchor-permalink" href="#Handling-Circular-References" title="Permalink"></a></h2><p><code>JSON.json</code> automatically detects circular references to prevent infinite recursion:</p><pre><code class="language-julia hljs">mutable struct Node
+    value::Int
+    next::Union{Nothing, Node}
+end
+
+# Create a circular reference
+node = Node(1, nothing)
+node.next = node
+
+# Without circular detection, this would cause a stack overflow
+JSON.json(node; omit_null=false)
+# {&quot;value&quot;:1,&quot;next&quot;:null}</code></pre><h2 id="Custom-Dictionary-Key-Serialization"><a class="docs-heading-anchor" href="#Custom-Dictionary-Key-Serialization">Custom Dictionary Key Serialization</a><a id="Custom-Dictionary-Key-Serialization-1"></a><a class="docs-heading-anchor-permalink" href="#Custom-Dictionary-Key-Serialization" title="Permalink"></a></h2><p>For dictionaries with non-string keys, <code>JSON.json</code> has a few default <code>lowerkey</code> definitions to convert keys to strings:</p><pre><code class="language-julia hljs"># Integer keys
+JSON.json(Dict(1 =&gt; &quot;one&quot;, 2 =&gt; &quot;two&quot;))
+# {&quot;1&quot;:&quot;one&quot;,&quot;2&quot;:&quot;two&quot;}
+
+# Symbol keys
+JSON.json(Dict(:name =&gt; &quot;Alice&quot;, :age =&gt; 30))
+# {&quot;name&quot;:&quot;Alice&quot;,&quot;age&quot;:30}
+
+# Custom key serialization
+struct CustomKey
+    id::Int
+end
+
+dict = Dict(CustomKey(1) =&gt; &quot;value1&quot;, CustomKey(2) =&gt; &quot;value2&quot;)
+try
+    JSON.json(dict)
+catch e
+    println(e)
+end
+# ArgumentError(&quot;No key representation for CustomKey. Define StructUtils.lowerkey(::CustomKey)&quot;)
+
+# Define how the key should be converted to a string
+StructUtils.lowerkey(::JSON.JSONStyle, k::CustomKey) = &quot;key-$(k.id)&quot;
+
+JSON.json(dict)
+# {&quot;key-1&quot;:&quot;value1&quot;,&quot;key-2&quot;:&quot;value2&quot;}</code></pre><h2 id="Advanced-Example:-The-FrankenStruct"><a class="docs-heading-anchor" href="#Advanced-Example:-The-FrankenStruct">Advanced Example: The FrankenStruct</a><a id="Advanced-Example:-The-FrankenStruct-1"></a><a class="docs-heading-anchor-permalink" href="#Advanced-Example:-The-FrankenStruct" title="Permalink"></a></h2><p>Let&#39;s explore a comprehensive example that showcases many of JSON.jl&#39;s advanced serialization features:</p><pre><code class="language-julia hljs">using Dates, JSON, StructUtils
+
+abstract type AbstractMonster end
+
+struct Dracula &lt;: AbstractMonster
+    num_victims::Int
+end
+
+struct Werewolf &lt;: AbstractMonster
+    witching_hour::DateTime
+end
+
+struct Percent &lt;: Number
+    value::Float64
+end
+
+JSON.lower(x::Percent) = x.value
+StructUtils.lowerkey(x::Percent) = string(x.value)
+
+@noarg mutable struct FrankenStruct
+    id::Int
+    name::String # no default to show serialization of an undefined field
+    address::Union{Nothing, String} = nothing
+    rate::Union{Missing, Float64} = missing
+    type::Symbol = :a &amp;(json=(name=&quot;franken_type&quot;,),)
+    notsure::Any = JSON.Object(&quot;key&quot; =&gt; &quot;value&quot;)
+    monster::AbstractMonster = Dracula(10) &amp;(json=(lower=x -&gt; x isa Dracula ? 
+        (monster_type=&quot;vampire&quot;, num_victims=x.num_victims) : 
+        (monster_type=&quot;werewolf&quot;, witching_hour=x.witching_hour),),)
+    percent::Percent = Percent(0.5)
+    birthdate::Date = Date(2025, 1, 1) &amp;(json=(dateformat=&quot;yyyy/mm/dd&quot;,),)
+    percentages::Dict{Percent, Int} = Dict{Percent, Int}(Percent(0.0) =&gt; 0, Percent(1.0) =&gt; 1)
+    json_properties::JSONText = JSONText(&quot;{\&quot;key\&quot;: \&quot;value\&quot;}&quot;)
+    matrix::Matrix{Float64} = [1.0 2.0; 3.0 4.0]
+    extra_field::Any = nothing &amp;(json=(ignore=true,),)
+end
+
+franken = FrankenStruct()
+franken.id = 1
+
+json = JSON.json(franken)
+# &quot;{\&quot;id\&quot;:1,\&quot;name\&quot;:null,\&quot;address\&quot;:null,\&quot;rate\&quot;:null,\&quot;franken_type\&quot;:\&quot;a\&quot;,\&quot;notsure\&quot;:{\&quot;key\&quot;:\&quot;value\&quot;},\&quot;monster\&quot;:{\&quot;monster_type\&quot;:\&quot;vampire\&quot;,\&quot;num_victims\&quot;:10},\&quot;percent\&quot;:0.5,\&quot;birthdate\&quot;:\&quot;2025/01/01\&quot;,\&quot;percentages\&quot;:{\&quot;1.0\&quot;:1,\&quot;0.0\&quot;:0},\&quot;json_properties\&quot;:{\&quot;key\&quot;: \&quot;value\&quot;},\&quot;matrix\&quot;:[[1.0,3.0],[2.0,4.0]]}&quot;</code></pre><p>Let&#39;s analyze each part of this complex example to understand how JSON.jl&#39;s serialization features work:</p><h3 id="Custom-Type-Serialization-Strategy"><a class="docs-heading-anchor" href="#Custom-Type-Serialization-Strategy">Custom Type Serialization Strategy</a><a id="Custom-Type-Serialization-Strategy-1"></a><a class="docs-heading-anchor-permalink" href="#Custom-Type-Serialization-Strategy" title="Permalink"></a></h3><ol><li><p><strong>The <code>AbstractMonster</code> Type Hierarchy</strong>:</p><ul><li>We define an abstract type <code>AbstractMonster</code> with two concrete subtypes: <code>Dracula</code> and <code>Werewolf</code></li><li>Each type contains type-specific data (number of victims vs. witching hour)</li></ul></li><li><p><strong>Custom Numeric Type</strong>:</p><ul><li><code>Percent</code> is a custom numeric type that wraps a <code>Float64</code></li><li>We provide two serialization methods:<ul><li><code>JSON.lower(x::Percent) = x.value</code>: This tells JSON how to serialize a <code>Percent</code> value (convert to the underlying Float64)</li><li><code>StructUtils.lowerkey(x::Percent) = string(x.value)</code>: This handles when a <code>Percent</code> is used as a dictionary key</li></ul></li></ul></li><li><p><strong>The <code>FrankenStruct</code></strong>:</p><ul><li>Created with <code>@noarg</code> making it a mutable struct that can be default constructed like <code>FrankenStruct()</code></li></ul></li></ol><h3 id="Field-Level-Serialization-Control"><a class="docs-heading-anchor" href="#Field-Level-Serialization-Control">Field-Level Serialization Control</a><a id="Field-Level-Serialization-Control-1"></a><a class="docs-heading-anchor-permalink" href="#Field-Level-Serialization-Control" title="Permalink"></a></h3><p>Let&#39;s examine each field of <code>FrankenStruct</code> in detail:</p><ol><li><p><strong>Basic Fields</strong>: </p><ul><li><code>id::Int</code>: Standard integer field (initialized explicitly to 1)</li><li><code>name::String</code>: Intentionally left uninitialized to demonstrate <code>#undef</code> serialization</li></ul></li><li><p><strong>Null Handling and Unions</strong>:</p><ul><li><code>address::Union{Nothing, String} = nothing</code>: Demonstrates how <code>Nothing</code> values are serialized</li><li><code>rate::Union{Missing, Float64} = missing</code>: Shows how <code>Missing</code> values are serialized (both become <code>null</code> in JSON)</li></ul></li><li><p><strong>Field Renaming with Tags</strong>:</p><ul><li><code>type::Symbol = :a &amp;(json=(name=&quot;franken_type&quot;,),)</code>: <ul><li>The <code>name</code> tag changes the output JSON key from <code>&quot;type&quot;</code> to <code>&quot;franken_type&quot;</code></li><li>The value <code>:a</code> is automatically serialized as the string <code>&quot;a&quot;</code> through a default <code>lower</code> method for symbols</li></ul></li></ul></li><li><p><strong>Any Type</strong>:</p><ul><li><code>notsure::Any = JSON.Object(&quot;key&quot; =&gt; &quot;value&quot;)</code>: Shows how JSON handles arbitrary types</li></ul></li><li><p><strong>Field-Specific Custom Serialization</strong>:</p><ul><li><pre><code class="nohighlight hljs">monster::AbstractMonster = Dracula(10) &amp;(json=(lower=x -&gt; x isa Dracula ? 
+    (monster_type=&quot;vampire&quot;, num_victims=x.num_victims) : 
+    (monster_type=&quot;werewolf&quot;, witching_hour=x.witching_hour),),)</code></pre><ul><li>This demonstrates <strong>field-specific custom serialization</strong> using the <code>lower</code> field tag</li><li>The lambda function checks the concrete type and produces a different JSON structure based on the type</li><li>For <code>Dracula</code>, it adds a <code>&quot;monster_type&quot;: &quot;vampire&quot;</code> field</li><li>For <code>Werewolf</code>, it would add a <code>&quot;monster_type&quot;: &quot;werewolf&quot;</code> field</li><li>Unlike a global <code>JSON.lower</code> method, this approach only applies when this specific field is serialized</li></ul></li></ul></li><li><p><strong>Custom Numeric Type</strong>:</p><ul><li><code>percent::Percent = Percent(0.5)</code>: Uses the global <code>JSON.lower</code> we defined to serialize as <code>0.5</code></li></ul></li><li><p><strong>Custom Date Formatting</strong>:</p><ul><li><code>birthdate::Date = Date(2025, 1, 1) &amp;(json=(dateformat=&quot;yyyy/mm/dd&quot;,),)</code>:<ul><li>The <code>dateformat</code> field tag controls how the date is formatted</li><li>Instead of ISO format (<code>&quot;2025-01-01&quot;</code>), it&#39;s serialized as <code>&quot;2025/01/01&quot;</code></li></ul></li></ul></li><li><p><strong>Dictionary with Custom Keys</strong>:</p><ul><li><code>percentages::Dict{Percent, Int} = Dict{Percent, Int}(Percent(0.0) =&gt; 0, Percent(1.0) =&gt; 1)</code>:<ul><li>This dictionary uses our custom <code>Percent</code> type as keys</li><li>JSON uses our <code>StructUtils.lowerkey</code> method to convert the keys to strings</li></ul></li></ul></li><li><p><strong>Raw JSON Inclusion</strong>:</p><ul><li><code>json_properties::JSONText = JSONText(&quot;{\&quot;key\&quot;: \&quot;value\&quot;}&quot;)</code>:<ul><li>The <code>JSONText</code> wrapper indicates this should be included as-is in the output</li><li>No escaping or processing is done; the string is inserted directly into the JSON</li></ul></li></ul></li><li><p><strong>Matrices and Multi-dimensional Arrays</strong>:</p><ul><li><code>matrix::Matrix{Float64} = [1.0 2.0; 3.0 4.0]</code>:<ul><li>2D array serialized as nested arrays in column-major order</li></ul></li></ul></li><li><p><strong>Ignoring Fields</strong>:</p><ul><li><code>extra_field::Any = nothing &amp;(json=(ignore=true,),)</code>:<ul><li>The <code>ignore=true</code> field tag means this field will be completely excluded from serialization</li><li>Useful for internal fields that shouldn&#39;t be part of the JSON representation</li></ul></li></ul></li></ol><h3 id="Output-Analysis"><a class="docs-heading-anchor" href="#Output-Analysis">Output Analysis</a><a id="Output-Analysis-1"></a><a class="docs-heading-anchor-permalink" href="#Output-Analysis" title="Permalink"></a></h3><p>When we serialize this struct, we get a JSON string with all the specialized serialization rules applied:</p><pre><code class="language-json hljs">{
+  &quot;id&quot;: 1,
+  &quot;name&quot;: null,
+  &quot;address&quot;: null,
+  &quot;rate&quot;: null,
+  &quot;franken_type&quot;: &quot;a&quot;,
+  &quot;notsure&quot;: {&quot;key&quot;: &quot;value&quot;},
+  &quot;monster&quot;: {&quot;monster_type&quot;: &quot;vampire&quot;, &quot;num_victims&quot;: 10},
+  &quot;percent&quot;: 0.5,
+  &quot;birthdate&quot;: &quot;2025/01/01&quot;,
+  &quot;percentages&quot;: {&quot;1.0&quot;: 1, &quot;0.0&quot;: 0},
+  &quot;json_properties&quot;: {&quot;key&quot;: &quot;value&quot;},
+  &quot;matrix&quot;: [[1.0, 3.0], [2.0, 4.0]]
+}</code></pre><p>Some key observations:</p><ul><li><code>extra_field</code> is completely omitted due to the <code>ignore</code> tag</li><li>Field names are either their originals (<code>id</code>, <code>name</code>) or renamed versions (<code>franken_type</code> instead of <code>type</code>)</li><li>The nested <code>monster</code> field has custom serialization, producing a specialized format</li><li>The date is in the custom format we specified</li><li>Dictionary keys using our custom <code>Percent</code> type are properly converted to strings</li><li>The matrix is serialized in column-major order as nested arrays</li><li>The <code>JSONText</code> data is inserted directly without any additional processing</li></ul><p>This example demonstrates how JSON.jl provides extensive control over JSON serialization at multiple levels: global type rules, field-specific customization, and overall serialization options.</p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../reference/">« API Reference</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.14.1 on <span class="colophon-date" title="Friday 10 October 2025 04:55">Friday 10 October 2025</span>. Using Julia version 1.11.7.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
