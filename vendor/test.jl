@@ -11,10 +11,11 @@ include("jsonx.jl")
         # Test booleans
         @test JSONX.parse("true") === true
         @test JSONX.parse("false") === false
-        # Test numbers (all return Float64)
-        @test JSONX.parse("0") == 0.0
-        @test JSONX.parse("123") == 123.0
-        @test JSONX.parse("-123") == -123.0
+        # Test integers (return Int64)
+        @test JSONX.parse("0") === Int64(0)
+        @test JSONX.parse("123") === Int64(123)
+        @test JSONX.parse("-123") === Int64(-123)
+        # Test floats (return Float64)
         @test JSONX.parse("3.14") == 3.14
         @test JSONX.parse("-3.14") == -3.14
         @test JSONX.parse("1e2") == 100.0
@@ -27,19 +28,46 @@ include("jsonx.jl")
         @test JSONX.parse("\"\\\\backslash\\\\\"") == "\\backslash\\"
         @test JSONX.parse("\"\\n\\t\\r\\b\\f\"") == "\n\t\r\b\f"
     end
+
+    @testset "Integer vs Float Parsing" begin
+        # Integers without decimal/exponent -> Int64
+        @test JSONX.parse("42") === Int64(42)
+        @test JSONX.parse("-100") === Int64(-100)
+        @test JSONX.parse("0") === Int64(0)
+
+        # Numbers with decimal point -> Float64
+        @test JSONX.parse("42.0") === 42.0
+        @test JSONX.parse("1.5") === 1.5
+
+        # Numbers with exponent -> Float64
+        @test JSONX.parse("1e10") === 1e10
+        @test JSONX.parse("1E5") === 1e5
+        @test JSONX.parse("2.5e3") === 2500.0
+        @test JSONX.parse("1e10") isa Float64
+
+        # Int64 overflow fallback to Float64
+        @test JSONX.parse("99999999999999999999") == 1e20
+
+        # Negative overflow
+        @test JSONX.parse("-99999999999999999999") == -1e20
+
+        # Edge case: numbers at Int64 boundary
+        @test JSONX.parse(string(typemax(Int64))) === typemax(Int64)
+        @test JSONX.parse(string(typemin(Int64))) === typemin(Int64)
+    end
     
     @testset "Arrays" begin
         # Test empty array
         @test JSONX.parse("[]") == []
         # Test simple arrays
-        @test JSONX.parse("[1,2,3]") == [1.0, 2.0, 3.0]
+        @test JSONX.parse("[1,2,3]") == [1, 2, 3]
         @test JSONX.parse("[\"a\",\"b\",\"c\"]") == ["a", "b", "c"]
         @test JSONX.parse("[true,false,null]") == [true, false, nothing]
         # Test nested arrays
-        @test JSONX.parse("[[1,2],[3,4]]") == [[1.0, 2.0], [3.0, 4.0]]
-        @test JSONX.parse("[1,[2,3],4]") == [1.0, [2.0, 3.0], 4.0]
+        @test JSONX.parse("[[1,2],[3,4]]") == [[1, 2], [3, 4]]
+        @test JSONX.parse("[1,[2,3],4]") == [1, [2, 3], 4]
         # Test mixed types
-        @test JSONX.parse("[1,\"two\",3.0,true,null]") == [1.0, "two", 3.0, true, nothing]
+        @test JSONX.parse("[1,\"two\",3.0,true,null]") == [1, "two", 3.0, true, nothing]
     end
     
     @testset "Objects" begin
@@ -47,20 +75,20 @@ include("jsonx.jl")
         @test JSONX.parse("{}") == Dict{String, Any}()
         # Test simple objects
         @test JSONX.parse("{\"key\":\"value\"}") == Dict("key" => "value")
-        @test JSONX.parse("{\"a\":1,\"b\":2}") == Dict("a" => 1.0, "b" => 2.0)
+        @test JSONX.parse("{\"a\":1,\"b\":2}") == Dict("a" => 1, "b" => 2)
         # Test nested objects
         @test JSONX.parse("{\"a\":{\"b\":\"c\"}}") == Dict("a" => Dict("b" => "c"))
-        @test JSONX.parse("{\"a\":[1,2,3]}") == Dict("a" => [1.0, 2.0, 3.0])
+        @test JSONX.parse("{\"a\":[1,2,3]}") == Dict("a" => [1, 2, 3])
         # Test mixed types
-        @test JSONX.parse("{\"str\":\"hello\",\"num\":123,\"bool\":true,\"null\":null}") == 
-              Dict("str" => "hello", "num" => 123.0, "bool" => true, "null" => nothing)
+        @test JSONX.parse("{\"str\":\"hello\",\"num\":123,\"bool\":true,\"null\":null}") ==
+              Dict("str" => "hello", "num" => 123, "bool" => true, "null" => nothing)
     end
     
     @testset "Whitespace Handling" begin
         # Test various whitespace
         @test JSONX.parse("  null  ") === nothing
         @test JSONX.parse("\t\n\r null \t\n\r") === nothing
-        @test JSONX.parse("[ 1 , 2 , 3 ]") == [1.0, 2.0, 3.0]
+        @test JSONX.parse("[ 1 , 2 , 3 ]") == [1, 2, 3]
         @test JSONX.parse("{ \"key\" : \"value\" }") == Dict("key" => "value")
     end
     
@@ -100,7 +128,7 @@ include("jsonx.jl")
         @test JSONX.json(Dict{String, Any}()) == "{}"
         @test JSONX.json(Dict("key" => "value")) == "{\"key\":\"value\"}"
         # Note: Dictionary order is not guaranteed, so we parse and compare
-        @test JSONX.parse(JSONX.json(Dict("a" => 1, "b" => 2))) == Dict("a" => 1.0, "b" => 2.0)
+        @test JSONX.parse(JSONX.json(Dict("a" => 1, "b" => 2))) == Dict("a" => 1, "b" => 2)
         # Test nested structures
         @test JSONX.json(Dict("a" => Dict("b" => "c"))) == "{\"a\":{\"b\":\"c\"}}"
         @test JSONX.json(Dict("a" => [1, 2, 3])) == "{\"a\":[1,2,3]}"
@@ -108,7 +136,7 @@ include("jsonx.jl")
         @test JSONX.json(:symbol) == "\"symbol\""
         @test JSONX.json((1, 2, 3)) == "[1,2,3]"
         # Note: NamedTuple order is not guaranteed, so we parse and compare
-        @test JSONX.parse(JSONX.json((a=1, b=2))) == Dict("a" => 1.0, "b" => 2.0)
+        @test JSONX.parse(JSONX.json((a=1, b=2))) == Dict("a" => 1, "b" => 2)
         # Test JSONText
         @test JSONX.json(JSONX.JSONText("{\"x\": invalid json}")) == "{\"x\": invalid json}"
     end
@@ -143,25 +171,25 @@ include("jsonx.jl")
             nothing,
             true,
             false,
-            0.0,
-            123.0,
-            -123.0,
+            0,
+            123,
+            -123,
             3.14,
             -3.14,
             "",
             "hello",
             "quoted \"string\"",
             [],
-            [1.0, 2.0, 3.0],
+            [1, 2, 3],
             ["a", "b", "c"],
-            [1.0, "mixed", 3.0, true, nothing],
+            [1, "mixed", 3.0, true, nothing],
             Dict{String, Any}(),
             Dict("key" => "value"),
-            Dict("a" => 1.0, "b" => 2.0),
+            Dict("a" => 1, "b" => 2),
             Dict("nested" => Dict("key" => "value")),
-            Dict("array" => [1.0, 2.0, 3.0]),
+            Dict("array" => [1, 2, 3]),
         ]
-        
+
         for case in test_cases
             json_str = JSONX.json(case)
             parsed = JSONX.parse(json_str)
@@ -171,7 +199,7 @@ include("jsonx.jl")
     
     @testset "Edge Cases" begin
         # Test very large numbers
-        @test JSONX.parse("1234567890123456789") == 1234567890123456789.0
+        @test JSONX.parse("1234567890123456789") === 1234567890123456789
         @test JSONX.parse("1.234567890123456789") == 1.234567890123456789
         # Test scientific notation
         @test JSONX.parse("1e10") == 1e10
@@ -198,9 +226,9 @@ include("jsonx.jl")
         """
         expected = Dict(
             "name" => "John",
-            "age" => 30.0,
+            "age" => 30,
             "active" => true,
-            "scores" => [85.0, 92.0, 78.0],
+            "scores" => [85, 92, 78],
             "address" => Dict("street" => "123 Main St", "city" => "Anytown"),
             "tags" => ["developer", "programmer"],
             "metadata" => nothing
@@ -221,10 +249,10 @@ include("jsonx.jl")
 
     @testset "AbstractVector{UInt8} Support" begin
         @test JSONX.parse(Vector{UInt8}("null")) === nothing
-        @test JSONX.parse(Vector{UInt8}("42")) == 42.0
+        @test JSONX.parse(Vector{UInt8}("42")) === 42
         @test JSONX.parse(Vector{UInt8}("\"hello\"")) == "hello"
-        @test JSONX.parse(Vector{UInt8}("[1,2,3]")) == [1.0, 2.0, 3.0]
-        @test JSONX.parse(Vector{UInt8}("{\"a\":1}")) == Dict("a" => 1.0)
+        @test JSONX.parse(Vector{UInt8}("[1,2,3]")) == [1, 2, 3]
+        @test JSONX.parse(Vector{UInt8}("{\"a\":1}")) == Dict("a" => 1)
     end
 
     @testset "Unicode Handling" begin
@@ -292,7 +320,7 @@ include("jsonx.jl")
             write(test_file, "{\"test\":\"value\",\"number\":42}")
             # Test parsefile
             result = JSONX.parsefile(test_file)
-            @test result == Dict("test" => "value", "number" => 42.0)
+            @test result == Dict("test" => "value", "number" => 42)
             # Test with Unicode content
             write(test_file, "\"Hello 世界! 🌍\"")
             result = JSONX.parsefile(test_file)
@@ -304,4 +332,4 @@ include("jsonx.jl")
     end
 end
 
-println("All JSONX tests passed!") 
+println("All JSONX tests passed!")
