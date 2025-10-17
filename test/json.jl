@@ -588,6 +588,10 @@ end
             @test result == expected
         end
     end
+
+    @testset "Test pre-1.0 compat for object Tuple keys" begin
+        @test JSON.json(Dict(("a", "b") => 1)) == "{\"(\\\"a\\\", \\\"b\\\")\":1}"
+    end
 end
 
 end # @testset "JSON.json"

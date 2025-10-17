@@ -16,6 +16,9 @@ StructUtils.lower(::JSONStyle, x::AbstractArray{<:Any,0}) = x[1]
 StructUtils.lower(::JSONStyle, x::AbstractArray{<:Any, N}) where {N} = (view(x, ntuple(_ -> :, N - 1)..., j) for j in axes(x, N))
 StructUtils.lower(::JSONStyle, x::AbstractVector) = x
 
+# for pre-1.0 compat, which serialized Tuple object keys by default
+StructUtils.lowerkey(::JSONStyle, x::Tuple) = string(x)
+
 """
     JSON.omit_null(::Type{T})::Bool
     JSON.omit_null(::JSONStyle, ::Type{T})::Bool
