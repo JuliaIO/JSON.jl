@@ -19,7 +19,7 @@ A simple, no-dependency JSON parser that can be vendored (copied/pasted) into ot
 **Reading (JSON → Julia):**
 - `null` → `nothing`
 - `true`/`false` → `Bool`
-- Numbers → `Float64` (all numbers are parsed as Float64)
+- Numbers → `Int64` or `Float64` (integers without decimal/exponent → Int64, with overflow fallback to Float64)
 - Strings → `String` (with full Unicode support)
 - Arrays → `Vector{Any}`
 - Objects → `Dict{String, Any}`
@@ -80,7 +80,7 @@ JSONX provides detailed error messages for invalid JSON:
 
 Compared to the full JSON.jl package, JSONX is intentionally simplified:
 
-- **No integer parsing**: All numbers are parsed as Float64
+- **Limited numeric types**: Parses as Int64 or Float64 only (no BigInt/BigFloat for very large numbers)
 - **No custom type parsing**: Only returns basic Julia types
 - **No configuration options**: Uses fixed defaults
 - **No streaming**: Loads entire input into memory
