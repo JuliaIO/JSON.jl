@@ -264,6 +264,8 @@ include("jsonx.jl")
         @test JSONX.parse("\"\\uD83C\\uDF55\"") == "🍕"  # Pizza emoji
         # Mixed content
         @test JSONX.parse("\"Hello \\u0041\\u006E\\u0064\\u0072\\u0065\\u0077!\"") == "Hello Andrew!"
+        # String unescaping
+        @test JSONX.parse(raw"\"𝔸\\a\"") == "𝔸\\a"
         # Writing Unicode
         @test JSONX.json("A") == "\"A\""
         @test JSONX.json("😀") == "\"😀\""

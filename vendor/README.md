@@ -96,3 +96,9 @@ Compared to the full JSON.jl package, JSONX is intentionally simplified:
 - **Error robust**: Comprehensive error checking and reporting
 
 Note: Functions are not exported, so use `JSONX.parse` and `JSONX.json` with the module prefix.
+
+## Changelog
+
+- Fixed unicode handling when unescaping strings (https://github.com/JuliaIO/JSON.jl/pull/405).
+- **Breaking**: Added support for parsing Int64's (https://github.com/JuliaIO/JSON.jl/pull/396).
+- Added `JSONText` (https://github.com/JuliaIO/JSON.jl/pull/394).
