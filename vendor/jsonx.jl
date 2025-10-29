@@ -138,10 +138,14 @@ function unescape_string(str::String, start_pos::Int, end_pos::Int)
                 b == 0x00 && throw(ArgumentError("Invalid escape sequence \\$(Char(esc_c))"))
                 print(io, Char(b))
             end
+
+            pos += 1
         else
-            print(io, Char(c))
+            # Regular character
+            print(io, str[pos])
+            pos = nextind(str, pos)
         end
-        pos += 1
+
     end
     return String(take!(io))
 end
