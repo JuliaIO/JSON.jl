@@ -28,21 +28,24 @@ jobs:
           - os: macOS-latest
             arch: aarch64
             version: 1
-    
+          - os: ubuntu-latest
+            arch: x86
+            version: 1
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v5
-      
+
     - name: Setup Julia
       uses: julia-actions/setup-julia@v2
       with:
         version: ${{ matrix.version }}
         arch: ${{ matrix.arch }}
-        
+
     - name: Cache Julia packages
       uses: julia-actions/cache@v2
-      
+
     - name: Run vendor tests
       run: |
         cd vendor
-        julia test.jl 
+        julia test.jl
