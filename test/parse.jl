@@ -282,6 +282,9 @@ end
         @test JSON.isvalidjson(io)
     end
     @test JSON.isvalidjson("{}")
+    @test !JSON.isvalidjson("{JSON")
+    @test !JSON.isvalidjson("JSON")
+    @test !JSON.isvalidjson(collect(codeunits("JSON")))
     x = JSON.parse("{}")
     @test isempty(x) && typeof(x) == JSON.Object{String, Any}
     @test_throws ArgumentError JSON.parse(JSON.LazyValue(".", 1, JSON.JSONTypes.OBJECT, JSON.LazyOptions(), true))
