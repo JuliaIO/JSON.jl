@@ -214,7 +214,7 @@ parse!(x::LazyValue, obj::T; dicttype::Type{O}=DEFAULT_OBJECT_TYPE, null=nothing
 # for LazyValue, if x started at the beginning of the JSON input,
 # then we want to ensure that the entire input was consumed
 # and error if there are any trailing invalid JSON characters
-function checkendpos(x::LazyValue, ::Type{T}, pos) where {T}
+function checkendpos(x::LazyValue, ::Type{T}, pos::Int) where {T}
     buf = getbuf(x)
     len = getlength(buf)
     if pos <= len
@@ -277,8 +277,11 @@ function applyvalue(f, x::LazyValues, null)
         f(arr)
         return pos
     elseif type == JSONTypes.STRING
-        str, pos = parsestring(x)
-        f(convert(String, str))
+        buf = getbuf(x)
+        GC.@preserve buf begin
+            str, pos = parsestring(x)
+            f(convert(String, str))
+        end
         return pos
     elseif type == JSONTypes.NUMBER
         num, pos = parsenumber(x)
@@ -343,9 +346,12 @@ end
 
 function StructUtils.lift(style::StructStyle, ::Type{T}, x::LazyValues, tags=(;)) where {T}
     type = gettype(x)
+    buf = getbuf(x)
     if type == JSONTypes.STRING
-        ptrstr, pos = parsestring(x)
-        str, _ = StructUtils.lift(style, T, ptrstr, tags)
+        GC.@preserve buf begin
+            ptrstr, pos = parsestring(x)
+            str, _ = StructUtils.lift(style, T, ptrstr, tags)
+        end
         return str, pos
     elseif type == JSONTypes.NUMBER
         num, pos = parsenumber(x)
@@ -427,7 +433,7 @@ end
 @generated function StructUtils.maketuple(st::StructStyle, ::Type{T}, x::LazyValues) where {T<:Tuple}
     N = fieldcount(T)
     ex = quote
-        pos = getpos(x)
+        pos::Int = getpos(x)
         buf = getbuf(x)
         len = getlength(buf)
         opts = getopts(x)
@@ -448,7 +454,9 @@ end
         Base.@nexprs $N i -> begin
             if typ == JSONTypes.OBJECT
                 # consume key
-                _, pos = @inline parsestring(LazyValue(buf, pos, JSONTypes.STRING, opts, false))
+                GC.@preserve buf begin
+                    _, pos = @inline parsestring(LazyValue(buf, pos, JSONTypes.STRING, opts, false))
+                end
                 @nextbyte
                 if b != UInt8(':')
                     error = ExpectedColon
@@ -483,7 +491,9 @@ end
         while true
             if typ == JSONTypes.OBJECT
                 # consume key
-                _, pos = @inline parsestring(LazyValue(buf, pos, JSONTypes.STRING, opts, false))
+                GC.@preserve buf begin
+                    _, pos = @inline parsestring(LazyValue(buf, pos, JSONTypes.STRING, opts, false))
+                end
                 @nextbyte
                 if b != UInt8(':')
                     error = ExpectedColon

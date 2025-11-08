@@ -273,6 +273,11 @@ end
     # float_style and float_precision
     @test JSON.json(Float64(π); float_style=:fixed, float_precision=2) == "3.14"
     @test JSON.json(Float64(π); float_style=:exp, float_precision=2) == "3.14e+00"
+    @test_throws ArgumentError JSON.json(Float64(π); float_style=:fixed, float_precision=0)
+    @test_throws ArgumentError JSON.json(Float64(π); float_style=:fixed, float_precision=-1)
+    @test_throws ArgumentError JSON.json(Float64(π); float_style=:exp, float_precision=0)
+    io = IOBuffer()
+    @test_throws ArgumentError JSON.json(io, Float64(π); float_style=:fixed, float_precision=0)
     @test_throws ArgumentError JSON.json(Float64(π); float_style=:not_a_style)
 end
 
@@ -597,6 +602,10 @@ end
             result = String(take!(io))
             @test result == expected
         end
+    end
+
+    @testset "Test pre-1.0 compat for object Tuple keys" begin
+        @test JSON.json(Dict(("a", "b") => 1)) == "{\"(\\\"a\\\", \\\"b\\\")\":1}"
     end
 end
 

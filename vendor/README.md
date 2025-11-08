@@ -11,13 +11,15 @@ A simple, no-dependency JSON parser that can be vendored (copied/pasted) into ot
 
 ### Writing
 - `JSONX.json(value)` - Convert a Julia value to JSON string
+- `JSONX.JSONText(str)` - `str` will be treated as raw JSON and inserted
+  directly into the output.
 
 ### Supported Types
 
 **Reading (JSON → Julia):**
 - `null` → `nothing`
 - `true`/`false` → `Bool`
-- Numbers → `Float64` (all numbers are parsed as Float64)
+- Numbers → `Int64` or `Float64` (integers without decimal/exponent → Int64, with overflow fallback to Float64)
 - Strings → `String` (with full Unicode support)
 - Arrays → `Vector{Any}`
 - Objects → `Dict{String, Any}`
@@ -78,7 +80,7 @@ JSONX provides detailed error messages for invalid JSON:
 
 Compared to the full JSON.jl package, JSONX is intentionally simplified:
 
-- **No integer parsing**: All numbers are parsed as Float64
+- **Limited numeric types**: Parses as Int64 or Float64 only (no BigInt/BigFloat for very large numbers)
 - **No custom type parsing**: Only returns basic Julia types
 - **No configuration options**: Uses fixed defaults
 - **No streaming**: Loads entire input into memory
@@ -94,3 +96,9 @@ Compared to the full JSON.jl package, JSONX is intentionally simplified:
 - **Error robust**: Comprehensive error checking and reporting
 
 Note: Functions are not exported, so use `JSONX.parse` and `JSONX.json` with the module prefix.
+
+## Changelog
+
+- Fixed unicode handling when unescaping strings (https://github.com/JuliaIO/JSON.jl/pull/405).
+- **Breaking**: Added support for parsing Int64's (https://github.com/JuliaIO/JSON.jl/pull/396).
+- Added `JSONText` (https://github.com/JuliaIO/JSON.jl/pull/394).

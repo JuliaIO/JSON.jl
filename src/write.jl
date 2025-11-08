@@ -16,6 +16,9 @@ StructUtils.lower(::JSONStyle, x::AbstractArray{<:Any,0}) = x[1]
 StructUtils.lower(::JSONStyle, x::AbstractArray{<:Any, N}) where {N} = (view(x, ntuple(_ -> :, N - 1)..., j) for j in axes(x, N))
 StructUtils.lower(::JSONStyle, x::AbstractVector) = x
 
+# for pre-1.0 compat, which serialized Tuple object keys by default
+StructUtils.lowerkey(::JSONStyle, x::Tuple) = string(x)
+
 """
     JSON.omit_null(::Type{T})::Bool
     JSON.omit_null(::JSONStyle, ::Type{T})::Bool
@@ -393,6 +396,9 @@ end
 @noinline float_style_throw(fs) = throw(ArgumentError("Invalid float style: $fs"))
 float_style_check(fs) = fs == :shortest || fs == :fixed || fs == :exp || float_style_throw(fs)
 
+@noinline float_precision_throw(fs, fp) = throw(ArgumentError("float_precision must be positive when float_style is $fs; got $fp"))
+float_precision_check(fs, fp) = (fs == :shortest || fp > 0) || float_precision_throw(fs, fp)
+
 # if jsonlines and pretty is not 0 or false, throw an ArgumentError
 @noinline _jsonlines_pretty_throw() = throw(ArgumentError("pretty printing is not supported when writing jsonlines"))
 _jsonlines_pretty_check(jsonlines, pretty) = jsonlines && pretty !== false && !iszero(pretty) && _jsonlines_pretty_throw()
@@ -401,6 +407,7 @@ function json(io::IO, x::T; pretty::Union{Integer,Bool}=false, kw...) where {T}
     opts = WriteOptions(; pretty=pretty === true ? 2 : Int(pretty), kw...)
     _jsonlines_pretty_check(opts.jsonlines, opts.pretty)
     float_style_check(opts.float_style)
+    float_precision_check(opts.float_style, opts.float_precision)
     y = StructUtils.lower(opts.style, x)
     # Use smaller initial buffer size, limited by bufsize
     initial_size = min(sizeguess(y), opts.bufsize)
@@ -423,6 +430,7 @@ function json(x; pretty::Union{Integer,Bool}=false, kw...)
     opts = WriteOptions(; pretty=pretty === true ? 2 : Int(pretty), kw...)
     _jsonlines_pretty_check(opts.jsonlines, opts.pretty)
     float_style_check(opts.float_style)
+    float_precision_check(opts.float_style, opts.float_precision)
     y = StructUtils.lower(opts.style, x)
     buf = stringvec(sizeguess(y))
     pos = json!(buf, 1, y, opts, Any[y], nothing)
@@ -619,11 +627,9 @@ function json!(buf, pos, x, opts::WriteOptions, ancestor_stack::Union{Nothing, V
         if wroteany
             pos -= 1
             pos = indent(buf, pos, local_ind, depth, io, bufsize)
-        else
-            # but if the object/array was empty, we need to do the check manually
-            @checkn 1
         end
         # even if the input is empty and we're jsonlines, the spec says it's ok to end w/ a newline
+        @checkn 1
         @inbounds buf[pos] = opts.jsonlines ? UInt8('\n') : al ? UInt8(']') : UInt8('}')
         return pos + 1
     else

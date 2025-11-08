@@ -5,7 +5,8 @@ module JSONX
     JSONX.parse(bytes::AbstractVector{UInt8})
 
 Parse a JSON string or byte array and return a Julia value.
-Returns one of: Dict{String, Any}, Vector{Any}, String, Float64, Bool, or Nothing.
+Returns one of: Dict{String, Any}, Vector{Any}, String, Int64, Float64, Bool, or Nothing.
+Numbers without decimal points or exponents are parsed as Int64, falling back to Float64 on overflow.
 """
 function parse(json_str::String)
     pos = 1
@@ -137,10 +138,14 @@ function unescape_string(str::String, start_pos::Int, end_pos::Int)
                 b == 0x00 && throw(ArgumentError("Invalid escape sequence \\$(Char(esc_c))"))
                 print(io, Char(b))
             end
+
+            pos += 1
         else
-            print(io, Char(c))
+            # Regular character
+            print(io, str[pos])
+            pos = nextind(str, pos)
         end
-        pos += 1
+
     end
     return String(take!(io))
 end
@@ -251,10 +256,30 @@ end
 
 function parse_number(str::String, pos::Int, len::Int)
     start_pos = pos
-    while pos <= len && (codeunit(str, pos) == UInt8('-') || (UInt8('0') <= codeunit(str, pos) <= UInt8('9')) || codeunit(str, pos) == UInt8('.') || codeunit(str, pos) == UInt8('e') || codeunit(str, pos) == UInt8('E') || codeunit(str, pos) == UInt8('+'))
-        pos += 1
+    has_decimal_or_exp = false
+    while pos <= len
+        c = codeunit(str, pos)
+        if c == UInt8('-') || (UInt8('0') <= c <= UInt8('9')) || c == UInt8('+')
+            pos += 1
+        elseif c == UInt8('.') || c == UInt8('e') || c == UInt8('E')
+            has_decimal_or_exp = true
+            pos += 1
+        else
+            break
+        end
     end
-    num_str = str[start_pos:pos-1]
+    num_str = @view str[start_pos:pos-1]
+
+    # Try parsing as Int64 if no decimal point or exponent
+    if !has_decimal_or_exp
+        try
+            return Base.parse(Int64, num_str), pos
+        catch
+            # Fall back to Float64 if Int64 parsing fails (e.g., overflow)
+        end
+    end
+
+    # Parse as Float64
     try
         return Base.parse(Float64, num_str), pos
     catch
@@ -263,6 +288,11 @@ function parse_number(str::String, pos::Int, len::Int)
 end
 
 # JSON writing functionality
+
+struct JSONText
+    text::String
+end
+
 function write_json(io::IO, value)
     if value === nothing || value === missing
         print(io, "null")
@@ -271,6 +301,8 @@ function write_json(io::IO, value)
     elseif value isa Number
         value isa Complex && throw(ArgumentError("Cannot serialize Complex numbers to JSON"))
         print(io, value)
+    elseif value isa JSONText
+        print(io, value.text)
     elseif value isa AbstractString
         write_string(io, value)
     elseif value isa AbstractVector || value isa AbstractSet || value isa Tuple
@@ -332,4 +364,4 @@ function write_object(io::IO, dict::Union{AbstractDict, NamedTuple})
     print(io, '}')
 end
 
-end # module 
+end # module
