@@ -81,6 +81,13 @@ end
     @test JSON.json(Dict{Int, Int}(1 => 2)) == "{\"1\":2}"
     @test JSON.json((a = 1, b = 2)) == "{\"a\":1,\"b\":2}"
     @test JSON.json((a = nothing, b=2, c="hey", d=3.14, e=true, f=false)) == "{\"a\":null,\"b\":2,\"c\":\"hey\",\"d\":3.14,\"e\":true,\"f\":false}"
+    # test Vector{Pair} serializes as object, not array
+    @test JSON.json(Pair{String, Int}[]) == "{}"
+    @test JSON.json([:a => 1, :b => 2]) == "{\"a\":1,\"b\":2}"
+    @test JSON.json(["x" => "value", "y" => 42]) == "{\"x\":\"value\",\"y\":42}"
+    @test JSON.json([1 => "one", 2 => "two"]) == "{\"1\":\"one\",\"2\":\"two\"}"
+    # test Vector{Pair} in nested structures
+    @test JSON.json(Dict("data" => [:x => 1, :y => 2])) == "{\"data\":{\"x\":1,\"y\":2}}"
     # test the JSON output of nested array/objects
     @test JSON.json([1, [2, 3], [4, [5, 6]]]) == "[1,[2,3],[4,[5,6]]]"
     @test JSON.json(Dict{Int, Any}(1 => Dict{Int, Any}(2 => Dict{Int, Any}(3 => 4)))) == "{\"1\":{\"2\":{\"3\":4}}}"
