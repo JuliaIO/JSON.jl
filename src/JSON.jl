@@ -87,8 +87,13 @@ function isvalidjson end
 
 isvalidjson(io::Union{IO, Base.AbstractCmd}; kw...) = isvalidjson(Base.read(io); kw...)
 
-isvalidjson(buf::Union{AbstractVector{UInt8}, AbstractString}; kw...) =
-    isvalidjson(lazy(buf; kw...))
+function isvalidjson(buf::Union{AbstractVector{UInt8}, AbstractString}; kw...)
+    try
+        return isvalidjson(lazy(buf; kw...))
+    catch
+        return false
+    end
+end
 
 function isvalidjson(x::LazyValue)
     try
