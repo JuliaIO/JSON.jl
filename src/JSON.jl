@@ -105,9 +105,9 @@ print(a, indent=nothing) = print(stdout, a, indent)
 @doc (@doc json) print
 
 """
-    JSON.writefile(Vector{UInt8}, x; kw...)::Vector{UInt8}
-    JSON.writefile(io::IO, x; kw...)
-    JSON.writefile(filename::AbstractString, x; kw...)
+    JSON.write_json(Vector{UInt8}, x; kw...)::Vector{UInt8}
+    JSON.write_json(io::IO, x; kw...)
+    JSON.write_json(filename::AbstractString, x; kw...)
 
 Serialize `x` to JSON format. This function provides the same functionality as [`JSON.json`](@ref)
 
@@ -120,34 +120,28 @@ This function is provided for backward compatibility when upgrading from
 older versions of JSON.jl where the `json` function signature differed.
 For new code, prefer using [`JSON.json`](@ref) directly.
 
-All methods accept the same keyword arguments as [`JSON.json`](@ref):
-
-- `omit_null`, `omit_empty`, `allownan`, `jsonlines`, `pretty`, `inline_limit`
-- `ninf`, `inf`, `nan`, `float_style`, `float_precision`, `bufsize`, `style`
-
 See [`JSON.json`](@ref) for detailed documentation of all keyword arguments and more examples.
 
 # Examples
 ```julia
 # Write to IO
 io = IOBuffer()
-JSON.writefile(io, Dict("key" => "value"))
+JSON.write_json(io, Dict("key" => "value"))
 String(take!(io))  # "{\"key\":\"value\"}"
 
 # Write to file
-JSON.writefile("output.json", [1, 2, 3])
+JSON.write_json("output.json", [1, 2, 3])
 
 # Get as bytes
-bytes = JSON.writefile(Vector{UInt8}, Dict("hello" => "world"))
+bytes = JSON.write_json(Vector{UInt8}, Dict("hello" => "world"))
 String(bytes)  # "{\"hello\":\"world\"}"
 ```
 """
-function writefile end
+function write_json end
 
-function writefile(::Type{Vector{UInt8}}, x; pretty::Union{Integer,Bool}=false, kw...)
+function write_json(::Type{Vector{UInt8}}, x; pretty::Union{Integer,Bool}=false, kw...)
     opts = WriteOptions(; pretty=pretty === true ? 2 : Int(pretty), kw...)
-    _jsonlines_pretty_check(opts.jsonlines, opts.pretty)
-    float_style_check(opts.float_style)
+    _write_options_check(opts)
     y = StructUtils.lower(opts.style, x)
     buf = Vector{UInt8}(undef, sizeguess(y))
     pos = json!(buf, 1, y, opts, Any[y], nothing)
@@ -155,13 +149,13 @@ function writefile(::Type{Vector{UInt8}}, x; pretty::Union{Integer,Bool}=false, 
     return buf
 end
 
-function writefile(io::IO, x; kw...)
+function write_json(io::IO, x; kw...)
     json(io, x; kw...)
 end
 
-function writefile(filename::AbstractString, x; kw...)
+function write_json(filename::AbstractString, x; kw...)
     open(filename; write=true) do io
-        writefile(io, x; kw...)
+        write_json(io, x; kw...)
     end
 end
 

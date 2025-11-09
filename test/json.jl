@@ -210,19 +210,19 @@ end
         # inline_limit tests
         @test JSON.json([1, 2]; pretty=2, inline_limit=3) == "[1,2]"
         @test JSON.json([1, 2, 3]; pretty=2, inline_limit=3) == "[\n  1,\n  2,\n  3\n]"
-        # writefile
+        # write_json
         for (obj, kw, output) in [
             ([1, 2, 3], (;), b"[1,2,3]"),
             ([1, 2, 3], (;pretty=true), b"[\n  1,\n  2,\n  3\n]"),
             (NaN, (;allownan=true), b"NaN"),
             (NaN, (;allownan=true, nan="different nan string"), b"different nan string"),
         ]
-            @test JSON.writefile(Vector{UInt8}, obj; kw...) == output
+            @test JSON.write_json(Vector{UInt8}, obj; kw...) == output
             io = IOBuffer()
-            @test JSON.writefile(io, obj; kw...) === nothing
+            @test JSON.write_json(io, obj; kw...) === nothing
             @test take!(io) == output
             fname = tempname()
-            @test JSON.writefile(fname, obj; kw...) === nothing
+            @test JSON.write_json(fname, obj; kw...) === nothing
             @test read(fname) == output
         end
     end
