@@ -20,6 +20,13 @@ end
     values::Vector{Int}
 end
 
+@omit_null struct SentinelOverrides
+    id::Int
+    forced::Union{Nothing, JSON.Null}
+    passthrough::Union{Nothing, String}
+    dropped::Union{Nothing, JSON.Omit}
+end
+
 @testset "JSON.json" begin
 
 @testset "Basics" begin
@@ -254,6 +261,18 @@ end
     @test JSON.json((a=1, b=nothing); omit_null=false) == "{\"a\":1,\"b\":null}"
     @test JSON.json((a=1, b=[]); omit_empty=true) == "{\"a\":1}"
     @test JSON.json((a=1, b=[]); omit_empty=false) == "{\"a\":1,\"b\":[]}"
+    @testset "Sentinel overrides" begin
+        @test JSON.json(JSON.Null()) == "null"
+        @test_throws ArgumentError JSON.json(JSON.Omit())
+        @test JSON.json((a=1, b=JSON.Null()); omit_null=true) == "{\"a\":1,\"b\":null}"
+        @test JSON.json((a=JSON.Omit(), b=JSON.Null())) == "{\"b\":null}"
+        @test JSON.json((a=JSON.Omit(), b=2); omit_null=false) == "{\"b\":2}"
+        @test JSON.json([JSON.Omit(), 1, JSON.Omit(), 2]) == "[1,2]"
+        @test JSON.json([JSON.Omit(), JSON.Omit()]) == "[]"
+        x = SentinelOverrides(1, JSON.Null(), nothing, JSON.Omit())
+        @test JSON.json(x) == "{\"id\":1,\"forced\":null}"
+        @test JSON.json(x; omit_null=false) == "{\"id\":1,\"forced\":null,\"passthrough\":null}"
+    end
     # custom style overload
     JSON.lower(::CustomJSONStyle, x::Rational) = (num=x.num, den=x.den)
     @test JSON.json(1//3; style=CustomJSONStyle()) == "{\"num\":1,\"den\":3}"
