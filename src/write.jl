@@ -1,11 +1,32 @@
 struct JSONWriteStyle <: JSONStyle end
 
+"""
+    JSON.Null()
+
+Singleton sentinel that always serializes as the JSON literal `null`,
+even when `omit_null=true` at the struct or callsite level. Useful for
+per-field overrides (e.g. `Union{Nothing, JSON.Null}`) or custom field
+lowering that must force a `null` emission.
+"""
+struct Null end
+
+"""
+    JSON.Omit()
+
+Singleton sentinel that removes the enclosing value from the JSON output,
+regardless of `omit_null` / `omit_empty` settings. Valid within objects
+and arrays; using it as the root value throws an error.
+"""
+struct Omit end
+
 sizeguess(::Nothing) = 4
 sizeguess(x::Bool) = 5
 sizeguess(x::Integer) = 20
 sizeguess(x::AbstractFloat) = 20
 sizeguess(x::Union{Float16, Float32, Float64}) = Base.Ryu.neededdigits(typeof(x))
 sizeguess(x::AbstractString) = 2 + sizeof(x)
+sizeguess(::Null) = 4
+sizeguess(::Omit) = 0
 sizeguess(_) = 512
 
 StructUtils.lower(::JSONStyle, ::Missing) = nothing
@@ -16,6 +37,7 @@ StructUtils.lower(::JSONStyle, x::AbstractArray{<:Any,0}) = x[1]
 StructUtils.lower(::JSONStyle, x::AbstractArray{<:Any, N}) where {N} = (view(x, ntuple(_ -> :, N - 1)..., j) for j in axes(x, N))
 StructUtils.lower(::JSONStyle, x::AbstractVector) = x
 StructUtils.arraylike(::JSONStyle, x::AbstractVector{<:Pair}) = false
+StructUtils.structlike(::JSONStyle, ::Type{<:NamedTuple}) = true
 
 # for pre-1.0 compat, which serialized Tuple object keys by default
 StructUtils.lowerkey(::JSONStyle, x::Tuple) = string(x)
@@ -234,6 +256,12 @@ All methods accept the following keyword arguments:
   If `true`, empty fields are excluded. If `false`, empty fields are included.
   If `nothing`, the behavior is determined by `JSON.omit_empty(::Type{T})`.
 
+- `JSON.Null()` / `JSON.Omit()` sentinels: `JSON.Null()` always emits a JSON `null`
+  literal even when `omit_null=true`, enabling per-field overrides (for example by
+  declaring a field as `Union{Nothing, JSON.Null}`) or defining a custom `lower` function for a field that returns `JSON.Null`.
+  `JSON.Omit()` removes the enclosing value from the output regardless of global omit settings, making it easy for field-level
+  lowering code to drop optional data entirely. For example, by defining a custom `lower` function for a field that returns `JSON.Omit`.
+    
 - `allownan::Bool=false`: If `true`, allow `Inf`, `-Inf`, and `NaN` in the output.
   If `false`, throw an error if `Inf`, `-Inf`, or `NaN` is encountered.
 
@@ -403,6 +431,7 @@ float_precision_check(fs, fp) = (fs == :shortest || fp > 0) || float_precision_t
 # if jsonlines and pretty is not 0 or false, throw an ArgumentError
 @noinline _jsonlines_pretty_throw() = throw(ArgumentError("pretty printing is not supported when writing jsonlines"))
 _jsonlines_pretty_check(jsonlines, pretty) = jsonlines && pretty !== false && !iszero(pretty) && _jsonlines_pretty_throw()
+@noinline _root_omit_throw() = throw(ArgumentError("JSON.Omit() is only valid inside arrays or objects"))
 
 function json(io::IO, x::T; pretty::Union{Integer,Bool}=false, kw...) where {T}
     opts = WriteOptions(; pretty=pretty === true ? 2 : Int(pretty), kw...)
@@ -503,6 +532,7 @@ checkkey(s) = s isa AbstractString || throw(ArgumentError("Value returned from `
 function (f::WriteClosure{JS, arraylike, T, I})(key, val) where {JS, arraylike, T, I}
     track_ref = ismutabletype(typeof(val))
     is_circ_ref = track_ref && any(x -> x === val, f.ancestor_stack)
+    val isa Omit && return
     if !arraylike
         # for objects, check omit_null/omit_empty
         # and skip if the value is null or empty
@@ -563,7 +593,11 @@ end
 # assume x is lowered value
 function json!(buf, pos, x, opts::WriteOptions, ancestor_stack::Union{Nothing, Vector{Any}}=nothing, io::Union{Nothing, IO}=nothing, ind::Int=opts.pretty, depth::Int=0, bufsize::Int=opts.bufsize)
     # string
-    if x isa AbstractString
+    if x isa Omit
+        _root_omit_throw()
+    elseif x isa Null
+        return _null(buf, pos, io, bufsize)
+    elseif x isa AbstractString
         return _string(buf, pos, x, io, bufsize)
     # write JSONText out directly
     elseif x isa JSONText

@@ -127,6 +127,45 @@ Or by using a convenient macro annotation when defining the struct:
 end
 ```
 
+#### Field-level overrides with `JSON.Null` / `JSON.Omit`
+
+Sometimes you want a struct to opt into `omit_null=true` globally, while still forcing specific
+fields to emit `null`, or vice-versa. JSON.jl provides two sentinel constructors (defined in the
+`JSON` module but intentionally not exported) to cover those cases:
+
+- `JSON.Null()` always serializes as the literal `null`, even when omit-null logic would normally
+  skip it.
+- `JSON.Omit()` drops the enclosing field/entry regardless of omit settings. (It is only valid
+  inside an object/array; using it as the top-level value throws an error.)
+
+You can reference these sentinels directly in your data types or return them from custom `lower`
+functions attached via field tags.
+
+```julia
+struct Profile
+    id::Int
+    email::Union{String, JSON.Null}
+    nickname::Union{String, JSON.Omit}
+end
+
+profile = Profile(1, JSON.Null(), JSON.Omit())
+
+# `email` stays in the payload even with omit_null=true
+JSON.json(profile; omit_null=true)
+# {"id":1,"email":null}
+
+@tags struct User
+    id::Int
+    display_name::Union{Nothing, String} &(json=(lower=n -> something(n, JSON.Omit()),),)
+end
+
+user = User(2, nothing)
+
+# Field-level lowering can return JSON.Omit() to remove the entry entirely
+JSON.json(user)
+# {"id":2}
+```
+
 ### Special Numeric Values
 
 By default, JSON.json throws an error when trying to serialize `NaN`, `Inf`, or `-Inf` as they are not valid JSON. However, you can enable them with the `allownan` option:
