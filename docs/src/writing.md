@@ -26,7 +26,7 @@ JSON.json(file_name::String, x) -> String
 The `JSON.json` function accepts a wide range of Julia types and transforms them into their JSON representation by knowing how to serialize a core set of types:
 
 | Julia type                         | JSON representation                       |
-|------------------------------------|------------------------------------------|
+|:-----------------------------------|:------------------------------------------|
 | `Nothing`                          | `null`                                    |
 | `Bool`                             | `true` or `false`                         |
 | `Number`                           | Numeric value (integer or floating point) |

@@ -19,7 +19,7 @@ There are several "entrypoints" to reading JSON in JSON.jl, including:
 These functions are all built to accept the same kinds of JSON inputs:
 
 | Accepted `json` sources                    | Notes                                             |
-|--------------------------------------------|---------------------------------------------------|
+|:-------------------------------------------|:--------------------------------------------------|
 | `AbstractString`                           | UTF‑8; UTF‑8‑BOM handled automatically            |
 | `AbstractVector{UInt8}`                    | zero‑copy if already bytes                        |
 | `IO`, `IOStream`, `Base.AbstractCmd`       | stream fully read into a byte vector              |
@@ -130,7 +130,7 @@ JSON.Object{String, Any} with 7 entries:
 Under the hood, this `getindex` call is really calling `JSON.parse(lazyvalue)`. `JSON.parse` can also be called as a main entrypoint function with all the same input types as `JSON.lazy`. This form of `parse` is referred to as "untyped parsing" or "untyped materialization". It allocates and _materializes_ the raw JSON values into appropriate "default" Julia-level values. In particular:
 
 | JSON construct | Default Julia value                                                       |
-|----------------|---------------------------------------------------------------------------|
+|:---------------|:--------------------------------------------------------------------------|
 | object         | `JSON.Object{String,Any}` (order‑preserving drop-in replacement for Dict) |
 | array          | `Vector{Any}`                                                             |
 | string         | `String`                                                                  |
