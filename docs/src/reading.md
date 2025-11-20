@@ -39,7 +39,7 @@ Each entrypoint function first calls `JSON.lazy`, which will consume the JSON in
 
 So what can we do with a `JSON.LazyValue`?
 
-```julia
+```julia-repl
 julia> x = JSON.lazy("{\"a\": 1, \"b\": null, \"c\": true, \"d\": false, \"e\": \"\", \"f\": [1,2,3], \"g\": {\"h\":{\"i\":\"foo\"}}}")
 LazyObject{String} with 7 entries:
   "a" => JSON.LazyValue(1)
@@ -55,7 +55,7 @@ Note that for convenience at the REPL, special `show` overloads enable displayin
 `LazyValue`s support convenient syntax for both _navigating_ their structure and _materializing_, with an aim
 to support lazy workflows. Examples include:
 
-```julia
+```julia-repl
 # convenient "get" syntax on lazy objects
 julia> x.a
 JSON.LazyValue(1)
@@ -115,7 +115,7 @@ Ok, but at some point, we _do_ actually need Julia values to operate on, so let'
 
 In the `LazyValue` syntax example, it was shown that empty `getindex` will result in a "default" materialization of a `LazyValue`:
 
-```julia
+```julia-repl
 julia> x[]
 JSON.Object{String, Any} with 7 entries:
   "a" => 1
