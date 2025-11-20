@@ -2,6 +2,8 @@
 
 A Julia package for reading and writing JSON data.
 
+[![Stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://juliaio.github.io/JSON.jl/stable)
+[![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://juliaio.github.io/JSON.jl/dev)
 [![Build Status](https://github.com/JuliaIO/JSON.jl/workflows/CI/badge.svg)](https://github.com/JuliaIO/JSON.jl/actions/workflows/CI.yml?query=branch%3Amaster)
 [![codecov.io](http://codecov.io/github/JuliaIO/JSON.jl/coverage.svg?branch=master)](http://codecov.io/github/JuliaIO/JSON.jl?branch=master)
 
