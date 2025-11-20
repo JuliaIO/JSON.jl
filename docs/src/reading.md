@@ -4,9 +4,6 @@ This guide to reading JSON in the JSON.jl package aims to:
   - Provide a comprehensive overview of the JSON reading process.
   - Explain the various options and configurations available for reading JSON data.
   - Offer practical examples to illustrate the usage of different functions and options.
-
-```@contents
-```
   
 ## Core JSON Parsing - `JSON.lazy` and `JSON.LazyValue`
 

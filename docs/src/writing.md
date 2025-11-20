@@ -5,9 +5,6 @@ This guide to writing JSON in the JSON.jl package aims to:
   - Explain the various options and configurations available for writing JSON data.
   - Offer practical examples to illustrate the usage of different functions and options.
 
-```@contents
-```
-
 ## Core JSON Serialization - `JSON.json`
 
 The main entrypoint for serializing Julia values to JSON in JSON.jl is the [`JSON.json`](@ref) function. This function offers flexible output options:
