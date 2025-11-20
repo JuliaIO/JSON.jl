@@ -10,7 +10,7 @@ This guide to writing JSON in the JSON.jl package aims to:
 
 ## Core JSON Serialization - `JSON.json`
 
-The main entrypoint for serializing Julia values to JSON in JSON.jl is the `JSON.json` function. This function offers flexible output options:
+The main entrypoint for serializing Julia values to JSON in JSON.jl is the [`JSON.json`](@ref) function. This function offers flexible output options:
 
 ```julia
 # Serialize to a String
@@ -23,7 +23,7 @@ JSON.json(io::IO, x) -> IO
 JSON.json(file_name::String, x) -> String
 ```
 
-The `JSON.json` function accepts a wide range of Julia types and transforms them into their JSON representation by knowing how to serialize a core set of types:
+The [`JSON.json`](@ref) function accepts a wide range of Julia types and transforms them into their JSON representation by knowing how to serialize a core set of types:
 
 | Julia type                         | JSON representation                       |
 |:-----------------------------------|:------------------------------------------|
@@ -40,11 +40,11 @@ For values that don't fall into one of the above categories, `JSON.lower` will b
 
 ## Customizing JSON Output
 
-`JSON.json` supports numerous keyword arguments to control how data is serialized:
+[`JSON.json`](@ref) supports numerous keyword arguments to control how data is serialized:
 
 ### Pretty Printing
 
-By default, `JSON.json` produces compact JSON without extra whitespace. For human-readable output:
+By default, [`JSON.json`](@ref) produces compact JSON without extra whitespace. For human-readable output:
 
 ```julia
 # Boolean flag for default pretty printing (2-space indent)
@@ -355,7 +355,7 @@ JSON.json(config)
 
 ## Handling Circular References
 
-`JSON.json` automatically detects circular references to prevent infinite recursion:
+[`JSON.json`](@ref) automatically detects circular references to prevent infinite recursion:
 
 ```julia
 mutable struct Node
@@ -374,7 +374,7 @@ JSON.json(node; omit_null=false)
 
 ## Custom Dictionary Key Serialization
 
-For dictionaries with non-string keys, `JSON.json` has a few default `lowerkey` definitions to convert keys to strings:
+For dictionaries with non-string keys, [`JSON.json`](@ref) has a few default `lowerkey` definitions to convert keys to strings:
 
 ```julia
 # Integer keys
