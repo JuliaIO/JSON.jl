@@ -7,7 +7,7 @@ using PrecompileTools, Parsers, StructUtils
 
 # reexport some StructUtils macros
 import StructUtils: @noarg, @defaults, @tags, @choosetype, @nonstruct, lower, lift
-export JSONText, StructUtils, @noarg, @defaults, @tags, @choosetype, @nonstruct, @omit_null, @omit_empty
+export JSONText, StructUtils, JSONSchema, jsonschema, @noarg, @defaults, @tags, @choosetype, @nonstruct, @omit_null, @omit_empty
 
 @enum Error InvalidJSON UnexpectedEOF ExpectedOpeningObjectChar ExpectedOpeningQuoteChar ExpectedOpeningArrayChar ExpectedClosingArrayChar ExpectedComma ExpectedColon ExpectedNewline InvalidChar InvalidNumber InvalidUTF16
 
@@ -74,6 +74,7 @@ end
 include("lazy.jl")
 include("parse.jl")
 include("write.jl")
+include("schema.jl")
 
 """
     JSON.isvalidjson(json) -> Bool
@@ -113,6 +114,10 @@ print(a, indent=nothing) = print(stdout, a, indent)
     x = JSON.parse("{\"a\": 1, \"b\": null, \"c\": true, \"d\": false, \"e\": \"\", \"f\": [1,null,true], \"g\": {\"key\": \"value\"}}")
     json = JSON.json(x)
     isvalidjson(json)
+end
+
+function jsonschema(::Type{T}; style::JSONStyle=JSONWriteStyle()) where {T}
+    return JSONSchema.build(T; style)
 end
 
 

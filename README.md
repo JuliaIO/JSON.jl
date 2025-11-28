@@ -80,6 +80,25 @@ resp = HTTP.get("https://raw.githubusercontent.com/altair-viz/vega_datasets/mast
 df = DataFrame(Tables.dictrowtable(JSON.parse(resp.body; null=missing, allownan=true)))
 ```
 
+## Generating JSON Schema
+
+JSON.jl can derive JSON Schema definitions for most Julia structs and containers. This is handy when you need to publish a contract for APIs that already use JSON.jl types.
+
+```julia
+using JSON, StructUtils
+
+@tags struct Person
+    id::Int
+    full_name::String &(json=(name="fullName",),)
+    age::Union{Nothing, Int} &(json=(minimum=0, maximum=150),)
+end
+
+schema = JSON.jsonschema(Person)
+println(JSON.json(schema; pretty=true))
+```
+
+Schema generation respects StructUtils field tags (`minimum`, `maximum`, `pattern`, custom field names, etc.), understands `Union{Nothing, T}` optional fields, arrays, dictionaries, sets, tuples, and enums, and throws an `ArgumentError` when a type cannot be represented unambiguously.
+
 ## Vendor Directory
 
 This package includes a `vendor/` directory containing a simplified,
