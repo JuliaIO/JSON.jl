@@ -4,42 +4,39 @@ This guide to reading JSON in the JSON.jl package aims to:
   - Provide a comprehensive overview of the JSON reading process.
   - Explain the various options and configurations available for reading JSON data.
   - Offer practical examples to illustrate the usage of different functions and options.
-
-```@contents
-```
   
 ## Core JSON Parsing - `JSON.lazy` and `JSON.LazyValue`
 
 There are several "entrypoints" to reading JSON in JSON.jl, including:
-  - `JSON.parse`/`JSON.parse!`
-  - `JSON.parsefile`/`JSON.parsefile!`
-  - `JSON.lazy`/`JSON.lazyfile`
-  - `JSON.isvalidjson`
+  - [`JSON.parse`](@ref)/`JSON.parse!`
+  - [`JSON.parsefile`](@ref)/[`JSON.parsefile!`](@ref)
+  - [`JSON.lazy`](@ref)/[`JSON.lazyfile`](@ref)
+  - [`JSON.isvalidjson`](@ref)
 
 These functions are all built to accept the same kinds of JSON inputs:
 
 | Accepted `json` sources                    | Notes                                             |
-|--------------------------------------------|---------------------------------------------------|
+|:-------------------------------------------|:--------------------------------------------------|
 | `AbstractString`                           | UTF‑8; UTF‑8‑BOM handled automatically            |
 | `AbstractVector{UInt8}`                    | zero‑copy if already bytes                        |
 | `IO`, `IOStream`, `Base.AbstractCmd`       | stream fully read into a byte vector              |
 
 The core JSON parsing machinery is hence built around having an `AbstractVector{UInt8}` or `AbstractString` JSON input where individual bytes can be parsed to identify JSON structure, validate syntax, and ultimately produce Julia-level values.
 
-Each entrypoint function first calls `JSON.lazy`, which will consume the JSON input until the type of the next JSON value can be identified (`{` for objects, `[` for arrays, `"` for strings, `t` for true, `f` for false, `n` for null, and `-` or a digit for numbers). `JSON.lazy` returns a `JSON.LazyValue`, which wraps the JSON input buffer (`AbstractVector{UInt8}` or `AbstractString`), and marks the byte position the value starts at, the type of the value, and any keyword arguments that were provided that may affect parsing. Currently supported parsing-specific keyword arguments to `JSON.lazy` (and thus all other entrypoint functions) include:
+Each entrypoint function first calls [`JSON.lazy`](@ref), which will consume the JSON input until the type of the next JSON value can be identified (`{` for objects, `[` for arrays, `"` for strings, `t` for true, `f` for false, `n` for null, and `-` or a digit for numbers). [`JSON.lazy`](@ref) returns a [`JSON.LazyValue`](@ref), which wraps the JSON input buffer (`AbstractVector{UInt8}` or `AbstractString`), and marks the byte position the value starts at, the type of the value, and any keyword arguments that were provided that may affect parsing. Currently supported parsing-specific keyword arguments to [`JSON.lazy`](@ref) (and thus all other entrypoint functions) include:
 
   - `allownan::Bool = false`: whether "special" float values shoudl be allowed while parsing (`NaN`, `Inf`, `-Inf`); these values are specifically _not allowed_ in the JSON spec, but many JSON libraries allow reading/writing
   - `ninf::String = "-Infinity"`: the string that will be used to parse `-Inf` if `allownan=true`
   - `inf::String = "Infinity"`: the string that will be used to parse `Inf` if `allownan=true`
   - `nan::String = "NaN"`: the string that will be sued to parse `NaN` if `allownan=true`
-  - `jsonlines::Bool = false`: whether the JSON input should be treated as an implicit array, with newlines separating individual JSON elements with no leading `'['` or trailing `']'` characters. Common in logging or streaming workflows. Defaults to `true` when used with `JSON.parsefile` and the filename extension is `.jsonl` or `ndjson`. Note this ensures that parsing will _always_ return an array at the root-level.
+  - `jsonlines::Bool = false`: whether the JSON input should be treated as an implicit array, with newlines separating individual JSON elements with no leading `'['` or trailing `']'` characters. Common in logging or streaming workflows. Defaults to `true` when used with [`JSON.parsefile`](@ref) and the filename extension is `.jsonl` or `ndjson`. Note this ensures that parsing will _always_ return an array at the root-level.
   - Materialization-specific keyword arguments (i.e. they affect materialization, but not parsing)
     - `dicttype = JSON.Object{String, Any}`: type to parse JSON objects as by default (recursively)
     - `null = nothing`: value to return for JSON `null` value
 
-So what can we do with a `JSON.LazyValue`?
+So what can we do with a [`JSON.LazyValue`](@ref)?
 
-```julia
+```julia-repl
 julia> x = JSON.lazy("{\"a\": 1, \"b\": null, \"c\": true, \"d\": false, \"e\": \"\", \"f\": [1,2,3], \"g\": {\"h\":{\"i\":\"foo\"}}}")
 LazyObject{String} with 7 entries:
   "a" => JSON.LazyValue(1)
@@ -55,7 +52,7 @@ Note that for convenience at the REPL, special `show` overloads enable displayin
 `LazyValue`s support convenient syntax for both _navigating_ their structure and _materializing_, with an aim
 to support lazy workflows. Examples include:
 
-```julia
+```julia-repl
 # convenient "get" syntax on lazy objects
 julia> x.a
 JSON.LazyValue(1)
@@ -115,7 +112,7 @@ Ok, but at some point, we _do_ actually need Julia values to operate on, so let'
 
 In the `LazyValue` syntax example, it was shown that empty `getindex` will result in a "default" materialization of a `LazyValue`:
 
-```julia
+```julia-repl
 julia> x[]
 JSON.Object{String, Any} with 7 entries:
   "a" => 1
@@ -127,10 +124,10 @@ JSON.Object{String, Any} with 7 entries:
   "g" => Object{String, Any}("h"=>Object{String, Any}("i"=>"foo"))
 ```
 
-Under the hood, this `getindex` call is really calling `JSON.parse(lazyvalue)`. `JSON.parse` can also be called as a main entrypoint function with all the same input types as `JSON.lazy`. This form of `parse` is referred to as "untyped parsing" or "untyped materialization". It allocates and _materializes_ the raw JSON values into appropriate "default" Julia-level values. In particular:
+Under the hood, this `getindex` call is really calling `JSON.parse(lazyvalue)`. [`JSON.parse`](@ref) can also be called as a main entrypoint function with all the same input types as [`JSON.lazy`](@ref). This form of `parse` is referred to as "untyped parsing" or "untyped materialization". It allocates and _materializes_ the raw JSON values into appropriate "default" Julia-level values. In particular:
 
 | JSON construct | Default Julia value                                                       |
-|----------------|---------------------------------------------------------------------------|
+|:---------------|:--------------------------------------------------------------------------|
 | object         | `JSON.Object{String,Any}` (order‑preserving drop-in replacement for Dict) |
 | array          | `Vector{Any}`                                                             |
 | string         | `String`                                                                  |
@@ -145,7 +142,7 @@ Because `Object` uses a linked-list implementation, key lookups are `O(n)`, perf
 
 ## `JSON.parse` - Typed materialization
 
-While untyped materialization is convenient for quick exploration, one of the most powerful features of JSON.jl is its ability to directly parse JSON into concrete Julia types. This is done by providing a type as the second argument to `JSON.parse` and opens up a world of type-safe JSON parsing with minimal boilerplate.
+While untyped materialization is convenient for quick exploration, one of the most powerful features of JSON.jl is its ability to directly parse JSON into concrete Julia types. This is done by providing a type as the second argument to [`JSON.parse`](@ref) and opens up a world of type-safe JSON parsing with minimal boilerplate.
 
 ### Basic usage with structs
 

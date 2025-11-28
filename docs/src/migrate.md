@@ -1,4 +1,4 @@
-# Migration guides
+# Migration Guides
 
 This guide provides an overview of how to migrate your code from either the pre-1.0 JSON.jl package to the 1.0 release or from JSON3.jl. The 1.0 release introduces several improvements and changes, particularly in how JSON is read and written, leveraging StructUtils.jl for customization and extensibility. Below, we outline the key differences and provide step-by-step instructions for updating your code.
 
@@ -7,7 +7,7 @@ This guide provides an overview of how to migrate your code from either the pre-
 ## Migration guide from pre-1.0 -> 1.0
 
 ### Writing JSON
-- `JSON.json`
+- [`JSON.json`](@ref)
   - What stayed the same:
     - Produces a compact String by default
     - Can automatically serialize basic structs in a sensible way
@@ -33,7 +33,7 @@ This guide provides an overview of how to migrate your code from either the pre-
     - Utilizing multiple dispatch to combine `JSON.print` and `JSON.json` and provide convenience for writing to files
     - Most opened issues over the last few years were about providing more controls around writing JSON without having to completely implement a custom serializer
     - More consistency with `JSON.parse` keyword args with `allownan` and `jsonlines`
-- `JSON.print`
+- [`JSON.print`](@ref)
   - What stayed the same:
     - Technically still defined for backwards compatibility, but just calls `JSON.json` under the hood
   - Why the changes:
@@ -55,12 +55,12 @@ This guide provides an overview of how to migrate your code from either the pre-
     - There was often confusion about whether a custom Serialization or StructuralContext was needed and what intefaces were then required to implement
     - The need to customize separators, delimiters, and indentation, while powerful, can be accomplished much simpler via keyword arguments or is not necessary at all (i.e. JSON.jl shouldn't be too concerned with how to produce anything that isn't JSON)
     - Instead of overloading show_string/show_element/show_key/show_pair/show_json, `lower` can be used to accomplish any requirements of "overloading" how values are serialized; the addition of "styles" also allows customizing for non-owned types instead of needing a custom context + `show_json` method
-- `JSONText`
+- [`JSONText`](@ref)
   - What changed:
     - Nothing; `JSONText` can still be used to have a JSON-formatted string be written as-is when serializing
 
 ### Reading JSON
-- `JSON.parse` / `JSON.parsefile`
+- [`JSON.parse`](@ref) / [`JSON.parsefile`](@ref)
   - What stayed the same:
     - These functions take the same JSON input arguments (String, IO, or filename for `parsefile`)
     - The `dicttype`, `allownan`, and `null` keyword arguments all remain and implement the same functionality
@@ -75,7 +75,7 @@ This guide provides an overview of how to migrate your code from either the pre-
     - The `inttype` keyword argument is rare among other JSON libraries and doesn't serve a strong purpose; memory gains from possibly using smaller ints is minimal and leads to more error-prone code via overflows by trying to force integers into non-standard small types
     - For the `allownan` default value change, there are many benchmarks/JSON-accuracy checking test suites that enforce adherance to the specification; following the specification by default is recommended and common across language JSON libraries
     - Mmapping is an internal detail that most users shouldn't worry about anyway, and it can be done transparently without any outside affect to the user
-- `JSONText`
+- [`JSONText`](@ref)
   - `JSONText` can now also be used while parsing, as a field type of a struct or directly to return the raw JSON (similar to how writing with `JSONText` works)
 
 ## Migration guide for JSON3.jl
