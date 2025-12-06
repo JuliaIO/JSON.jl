@@ -442,7 +442,7 @@ end
 JSON.@choosetype AbstractMonster x -> x.monster_type[] == "vampire" ? Dracula : Werewolf
 
 # Define a custom numeric type with special parsing
-struct Percent <: Number
+@nonstruct struct Percent <: Number
     value::Float64
 end
 
