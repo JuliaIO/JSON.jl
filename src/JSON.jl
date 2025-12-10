@@ -109,6 +109,61 @@ print(io::IO, obj, indent=nothing) = json(io, obj; pretty=something(indent, 0))
 print(a, indent=nothing) = print(stdout, a, indent)
 @doc (@doc json) print
 
+"""
+    JSON.write_json(Vector{UInt8}, x; kw...)::Vector{UInt8}
+    JSON.write_json(io::IO, x; kw...)
+    JSON.write_json(filename::AbstractString, x; kw...)
+
+Serialize `x` to JSON format. This function provides the same functionality as [`JSON.json`](@ref)
+
+The first method returns the JSON output as a `Vector{UInt8}`.
+The second method writes JSON output to an `IO` object.
+The third method writes JSON output to a file specified by `filename` which will
+be created if it does not exist yet or overwritten if it does exist.
+
+This function is provided for backward compatibility when upgrading from 
+older versions of JSON.jl where the `json` function signature differed.
+For new code, prefer using [`JSON.json`](@ref) directly.
+
+See [`JSON.json`](@ref) for detailed documentation of all keyword arguments and more examples.
+
+# Examples
+```julia
+# Write to IO
+io = IOBuffer()
+JSON.write_json(io, Dict("key" => "value"))
+String(take!(io))  # "{\"key\":\"value\"}"
+
+# Write to file
+JSON.write_json("output.json", [1, 2, 3])
+
+# Get as bytes
+bytes = JSON.write_json(Vector{UInt8}, Dict("hello" => "world"))
+String(bytes)  # "{\"hello\":\"world\"}"
+```
+"""
+function write_json end
+
+function write_json(::Type{Vector{UInt8}}, x; pretty::Union{Integer,Bool}=false, kw...)
+    opts = WriteOptions(; pretty=pretty === true ? 2 : Int(pretty), kw...)
+    _write_options_check(opts)
+    y = StructUtils.lower(opts.style, x)
+    buf = Vector{UInt8}(undef, sizeguess(y))
+    pos = json!(buf, 1, y, opts, Any[y], nothing)
+    resize!(buf, pos - 1)
+    return buf
+end
+
+function write_json(io::IO, x; kw...)
+    json(io, x; kw...)
+end
+
+function write_json(filename::AbstractString, x; kw...)
+    open(filename; write=true) do io
+        write_json(io, x; kw...)
+    end
+end
+
 @compile_workload begin
     x = JSON.parse("{\"a\": 1, \"b\": null, \"c\": true, \"d\": false, \"e\": \"\", \"f\": [1,null,true], \"g\": {\"key\": \"value\"}}")
     json = JSON.json(x)
