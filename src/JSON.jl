@@ -6,8 +6,8 @@ using Dates, UUIDs, Logging
 using PrecompileTools, Parsers, StructUtils
 
 # reexport some StructUtils macros
-import StructUtils: @noarg, @defaults, @tags, @choosetype, @nonstruct, lower, lift
-export JSONText, StructUtils, @noarg, @defaults, @tags, @choosetype, @nonstruct, @omit_null, @omit_empty
+import StructUtils: @noarg, @kwarg, @defaults, @tags, @choosetype, @nonstruct, lower, lift
+export JSONText, StructUtils, @noarg, @kwarg, @defaults, @tags, @choosetype, @nonstruct, @omit_null, @omit_empty
 
 @enum Error InvalidJSON UnexpectedEOF ExpectedOpeningObjectChar ExpectedOpeningQuoteChar ExpectedOpeningArrayChar ExpectedClosingArrayChar ExpectedComma ExpectedColon ExpectedNewline InvalidChar InvalidNumber InvalidUTF16
 
