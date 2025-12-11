@@ -329,6 +329,12 @@ end
     end
     @omit_null ParametricStruct{String}  # Apply to specific parametric type
 
+    # Test case 5: Chaining with @kwarg on a parametric struct
+    @omit_null @kwarg struct KwargParametric{T}
+        x::T
+        y::Union{Nothing, T}
+    end
+
     struct SimpleStruct
         id::Int
         name::Union{Nothing, String}
@@ -354,6 +360,10 @@ end
     # Tests for case 4: Complex types
     @test JSON.json(ParametricStruct{String}(1, nothing)) == "{\"id\":1}"
     @test JSON.json(ParametricStruct{String}(1, "test")) == "{\"id\":1,\"value\":\"test\"}"
+
+    # Tests for case 5: @kwarg + parametric struct
+    @test JSON.json(KwargParametric(1, nothing)) == "{\"x\":1}"
+    @test JSON.json(KwargParametric(1, 2)) == "{\"x\":1,\"y\":2}"
 
     @test JSON.json(SimpleStruct(1, nothing)) == "{\"id\":1}"
     @test JSON.json(SimpleStruct(1, "test")) == "{\"id\":1,\"name\":\"test\"}"

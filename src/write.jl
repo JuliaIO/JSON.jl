@@ -150,19 +150,19 @@ function _omit_macro_impl(expr, omit_func_name, module_context)
     if isa(expr, Symbol) || (Meta.isexpr(expr, :curly) || Meta.isexpr(expr, :where))
         # Extract the base type name
         T = _extract_type_name(expr)
-        return esc(quote
-            JSON.$omit_func_name(::Type{$T}) = true
-        end)
+        omit_def = _omit_def_expr(T, omit_func_name, module_context)
+        return esc(omit_def)
     end
     # Case 2: Struct definition (possibly from macro expansion)
     if Meta.isexpr(expr, :struct)
         ismutable, T, fieldsblock = expr.args
         T = _extract_type_name(T)
+        omit_def = _omit_def_expr(T, omit_func_name, module_context)
         return esc(quote
             # insert original expr as-is
             $expr
             # omit function overload
-            JSON.$omit_func_name(::Type{$T}) = true
+            $omit_def
         end)
     end
     # Case 3: Block expression (from complex macros like @defaults)
@@ -172,11 +172,12 @@ function _omit_macro_impl(expr, omit_func_name, module_context)
         if struct_expr !== nothing
             ismutable, T, fieldsblock = struct_expr.args
             T = _extract_type_name(T)
+            omit_def = _omit_def_expr(T, omit_func_name, module_context)
             return esc(quote
                 # insert original expr as-is
                 $original_expr
                 # omit function overload
-                JSON.$omit_func_name(::Type{$T}) = true
+                $omit_def
             end)
         end
     end
@@ -186,17 +187,65 @@ function _omit_macro_impl(expr, omit_func_name, module_context)
         if Meta.isexpr(expr, :struct)
             ismutable, T, fieldsblock = expr.args
             T = _extract_type_name(T)
+            omit_def = _omit_def_expr(T, omit_func_name, module_context)
             return esc(quote
                 # insert original expr as-is
                 $original_expr
                 # omit function overload
-                JSON.$omit_func_name(::Type{$T}) = true
+                $omit_def
             end)
         else
             throw(ArgumentError("Macro $(original_expr.args[1]) did not expand to a struct definition"))
         end
     end
     throw(ArgumentError("Invalid usage of @$omit_func_name macro. Expected: struct definition, type name, or macro that expands to struct definition"))
+end
+
+# Collect unbound type variables from a type expression to safely add a `where` clause.
+function _collect_typevars(T, module_context)
+    vars = Symbol[]
+    function visit(x; in_param::Bool=false)
+        if x isa Symbol
+            if in_param && !isdefined(module_context, x)
+                push!(vars, x)
+            end
+            return
+        elseif x isa Expr
+            if Meta.isexpr(x, :curly)
+                # Skip base type (args[1]); only parameters can be typevars.
+                for arg in x.args[2:end]
+                    visit(arg; in_param=true)
+                end
+                return
+            elseif Meta.isexpr(x, :where)
+                visit(x.args[1]; in_param=false)
+                for arg in x.args[2:end]
+                    visit(arg; in_param=true)
+                end
+                return
+            elseif Meta.isexpr(x, :<:) || Meta.isexpr(x, :(=))
+                for arg in x.args
+                    visit(arg; in_param=true)
+                end
+                return
+            end
+            for arg in x.args
+                visit(arg; in_param=in_param)
+            end
+        end
+        return
+    end
+    visit(T)
+    return unique(vars)
+end
+
+function _omit_def_expr(T, omit_func_name, module_context)
+    vars = _collect_typevars(T, module_context)
+    if isempty(vars)
+        return :(JSON.$omit_func_name(::Type{$T}) = true)
+    else
+        return :(JSON.$omit_func_name(::Type{$T}) where {$(vars...)} = true)
+    end
 end
 
 # Helper function to recursively find a struct definition in a block expression
