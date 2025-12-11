@@ -7,7 +7,7 @@ using PrecompileTools, Parsers, StructUtils
 
 # reexport some StructUtils macros
 import StructUtils: @noarg, @kwarg, @defaults, @tags, @choosetype, @nonstruct, lower, lift
-export JSONText, StructUtils, @noarg, @kwarg, @defaults, @tags, @choosetype, @nonstruct, @omit_null, @omit_empty
+export JSONText, StructUtils, @noarg, @kwarg, @defaults, @tags, @choosetype, @nonstruct, @omit_null, @omit_empty, schema, Schema, SchemaContext
 
 @enum Error InvalidJSON UnexpectedEOF ExpectedOpeningObjectChar ExpectedOpeningQuoteChar ExpectedOpeningArrayChar ExpectedClosingArrayChar ExpectedComma ExpectedColon ExpectedNewline InvalidChar InvalidNumber InvalidUTF16
 
@@ -74,6 +74,7 @@ end
 include("lazy.jl")
 include("parse.jl")
 include("write.jl")
+include("schema.jl")
 
 """
     JSON.isvalidjson(json) -> Bool
