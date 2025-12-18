@@ -138,6 +138,8 @@ function Base.get(f::Base.Callable, obj::Object{K,V}, key) where {K,V}
 end
 
 Base.getindex(obj::Object, key) = get(() -> throw(KeyError(key)), obj, key)
+Base.getindex(obj::Object{String}, key::Symbol) = get(() -> throw(KeyError(key)), obj, String(key))
+Base.getindex(obj::Object{Symbol}, key::String) = get(() -> throw(KeyError(key)), obj, Symbol(key))
 Base.get(obj::Object, key, default) = get(() -> default, obj, key)
 
 # support getproperty for dot access
