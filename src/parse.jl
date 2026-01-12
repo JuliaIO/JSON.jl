@@ -338,6 +338,11 @@ StructUtils.lift(st::StructStyle, ::Type{T}, x::PtrString, tags) where {T} =
 StructUtils.lift(st::StructStyle, ::Type{T}, x::PtrString) where {T} =
     StructUtils.lift(st, T, convert(String, x))
 
+# liftkey for numeric dict key types to enable round-tripping Dict{Int,V}, Dict{Float64,V}, etc.
+# these correspond to the lowerkey definitions in write.jl that convert numeric keys to strings
+StructUtils.liftkey(::JSONStyle, ::Type{T}, x::AbstractString) where {T<:Integer} = Base.parse(T, x)
+StructUtils.liftkey(::JSONStyle, ::Type{T}, x::AbstractString) where {T<:AbstractFloat} = Base.parse(T, x)
+
 function StructUtils.lift(style::StructStyle, ::Type{T}, x::LazyValues) where {T<:AbstractArray{E,0}} where {E}
     m = T(undef)
     m[1], pos = StructUtils.lift(style, E, x)
