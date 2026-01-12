@@ -140,6 +140,10 @@ end
 Base.getindex(obj::Object, key) = get(() -> throw(KeyError(key)), obj, key)
 Base.getindex(obj::Object{String}, key::Symbol) = get(() -> throw(KeyError(key)), obj, String(key))
 Base.getindex(obj::Object{Symbol}, key::String) = get(() -> throw(KeyError(key)), obj, Symbol(key))
+Base.setindex!(obj::Object{String}, value, key::Symbol) = setindex!(obj, value, String(key))
+Base.setindex!(obj::Object{Symbol}, value, key::String) = setindex!(obj, value, Symbol(key))
+Base.delete!(obj::Object{String}, key::Symbol) = delete!(obj, String(key))
+Base.delete!(obj::Object{Symbol}, key::String) = delete!(obj, Symbol(key))
 Base.get(obj::Object, key, default) = get(() -> default, obj, key)
 
 # support getproperty for dot access
@@ -155,6 +159,7 @@ end
 # haskey
 Base.haskey(obj::Object, key) = find_node_by_key(obj, key) !== nothing
 Base.haskey(obj::Object{String}, key::Symbol) = haskey(obj, String(key))
+Base.haskey(obj::Object{Symbol}, key::String) = haskey(obj, Symbol(key))
 
 # setindex! finds node with key and sets value or inserts a new node
 function Base.setindex!(obj::Object{K,V}, value, key::K) where {K,V}

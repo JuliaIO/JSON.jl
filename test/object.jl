@@ -268,8 +268,59 @@ using JSON, Test
         @test haskey(obj, :symbol_test)
         @test !haskey(obj, :nonexistent_symbol)
 
+        # Test that indexing with both String and Symbol keys work
+        @test obj[:symbol_test] == obj["symbol_test"]
+        
+        # Test overwriting with Symbol key 
+        obj[:symbol_test] = "newvalue"
+        @test obj[:symbol_test] == obj["symbol_test"] == "newvalue"
+
+        # Test deletion with Symbol key
+        delete!(obj, :symbol_test)
+        @test !haskey(obj, :symbol_test)
+        @test !haskey(obj, "symbol_test")
+        
         # Test with empty object
         empty_obj = JSON.Object{String, Any}()
+        @test !haskey(empty_obj, :anything)
+        @test !haskey(empty_obj, "anything")
+    end
+
+    # Test enhanced haskey for Symbol objects with String keys
+    @testset "Enhanced haskey for Symbol Objects" begin
+        obj = JSON.Object{Symbol, Any}()
+        obj[:hello] = "world"
+        obj[:count] = 42
+
+        # Test basic string key lookup
+        @test haskey(obj, :hello)
+        @test haskey(obj, :count)
+        @test !haskey(obj, :missing)
+        
+        # Test String key lookup (should convert to Symbol)
+        @test haskey(obj, "hello")
+        @test haskey(obj, "count")
+        @test !haskey(obj, "missing")
+
+        # Test that String keys work for both existing and non-existing keys
+        obj[:symbol_test] = "value"
+        @test haskey(obj, "symbol_test")
+        @test !haskey(obj, "nonexistent_symbol")
+
+        # Test that indexing with both String and Symbol keys work
+        @test obj[:symbol_test] == obj["symbol_test"]
+
+        # Test overwriting with String key 
+        obj["symbol_test"] = "newvalue"
+        @test obj[:symbol_test] == obj["symbol_test"] == "newvalue"
+
+        # Test deletion with String key
+        delete!(obj, "symbol_test")
+        @test !haskey(obj, :symbol_test)
+        @test !haskey(obj, "symbol_test")
+
+        # Test with empty object
+        empty_obj = JSON.Object{Symbol, Any}()
         @test !haskey(empty_obj, :anything)
         @test !haskey(empty_obj, "anything")
     end
