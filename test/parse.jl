@@ -704,6 +704,13 @@ end
 
         StructUtils.liftkey(::JSON.JSONStyle, ::Type{Point}, x::String) = Point(parse(Int, split(x, "_")[1]), parse(Int, split(x, "_")[2]))
         @test JSON.parse("{\"1_2\":\"hi\"}", Dict{Point, String}) == Dict(Point(1, 2) => "hi")
+        # https://github.com/JuliaIO/JSON.jl/issues/422 - numeric dict key round-tripping
+        @test JSON.parse(JSON.json(Dict(1=>1)), Dict{Int,Int}) == Dict(1 => 1)
+        @test JSON.parse(JSON.json(Dict(1=>"a", 2=>"b")), Dict{Int,String}) == Dict(1 => "a", 2 => "b")
+        @test JSON.parse(JSON.json(Dict{Int,Int}()), Dict{Int,Int}) == Dict{Int,Int}()
+        @test JSON.parse("{\"1\":1,\"2\":2}", Dict{Int64,Int64}) == Dict(1 => 1, 2 => 2)
+        @test JSON.parse("{\"1.5\":1,\"2.5\":2}", Dict{Float64,Int}) == Dict(1.5 => 1, 2.5 => 2)
+        @test JSON.parse(JSON.json(Dict(1.5=>1, 2.5=>2)), Dict{Float64,Int}) == Dict(1.5 => 1, 2.5 => 2)
         # https://github.com/quinnj/JSON3.jl/issues/138
         @test JSON.parse("""{"num": 42}""", P) == P(42, "bar")
     end
