@@ -136,6 +136,8 @@ function Base.get(f::Base.Callable, obj::Object{K,V}, key) where {K,V}
     node !== nothing && return _v(node)::V
     return f()
 end
+Base.get(f::Base.Callable, obj::Object{String}, key::Symbol) = get(f, obj, String(key))
+Base.get(f::Base.Callable, obj::Object{Symbol}, key::String) = get(f, obj, Symbol(key))
 
 Base.getindex(obj::Object, key) = get(() -> throw(KeyError(key)), obj, key)
 Base.getindex(obj::Object{String}, key::Symbol) = get(() -> throw(KeyError(key)), obj, String(key))
@@ -145,6 +147,8 @@ Base.setindex!(obj::Object{Symbol}, value, key::String) = setindex!(obj, value, 
 Base.delete!(obj::Object{String}, key::Symbol) = delete!(obj, String(key))
 Base.delete!(obj::Object{Symbol}, key::String) = delete!(obj, Symbol(key))
 Base.get(obj::Object, key, default) = get(() -> default, obj, key)
+Base.get(obj::Object{String}, key::Symbol, default) = get(obj, String(key), default)
+Base.get(obj::Object{Symbol}, key::String, default) = get(obj, Symbol(key), default)
 
 # support getproperty for dot access
 Base.getproperty(obj::Object{Symbol}, sym::Symbol) = getindex(obj, sym)

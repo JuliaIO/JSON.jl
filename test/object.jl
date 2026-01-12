@@ -279,7 +279,14 @@ using JSON, Test
         delete!(obj, :symbol_test)
         @test !haskey(obj, :symbol_test)
         @test !haskey(obj, "symbol_test")
-        
+
+        # Test get with Symbol key (should convert to String)
+        obj["get_test"] = "got it"
+        @test get(obj, :get_test, "default") == "got it"
+        @test get(obj, :nonexistent, "default") == "default"
+        @test get(() -> "fallback", obj, :get_test) == "got it"
+        @test get(() -> "fallback", obj, :nonexistent) == "fallback"
+
         # Test with empty object
         empty_obj = JSON.Object{String, Any}()
         @test !haskey(empty_obj, :anything)
@@ -318,6 +325,13 @@ using JSON, Test
         delete!(obj, "symbol_test")
         @test !haskey(obj, :symbol_test)
         @test !haskey(obj, "symbol_test")
+
+        # Test get with String key (should convert to Symbol)
+        obj[:get_test] = "got it"
+        @test get(obj, "get_test", "default") == "got it"
+        @test get(obj, "nonexistent", "default") == "default"
+        @test get(() -> "fallback", obj, "get_test") == "got it"
+        @test get(() -> "fallback", obj, "nonexistent") == "fallback"
 
         # Test with empty object
         empty_obj = JSON.Object{Symbol, Any}()
