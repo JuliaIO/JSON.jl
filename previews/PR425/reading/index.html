@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>JSON Reading · JSON.jl</title><meta name="title" content="JSON Reading · JSON.jl"/><meta property="og:title" content="JSON Reading · JSON.jl"/><meta property="twitter:title" content="JSON Reading · JSON.jl"/><meta name="description" content="Documentation for JSON.jl."/><meta property="og:description" content="Documentation for JSON.jl."/><meta property="twitter:description" content="Documentation for JSON.jl."/><script data-outdated-warner src="../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.050/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL=".."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../assets/documenter.js"></script><script src="../search_index.js"></script><script src="../siteinfo.js"></script><script src="../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-mocha.css" data-theme-name="catppuccin-mocha"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-macchiato.css" data-theme-name="catppuccin-macchiato"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-frappe.css" data-theme-name="catppuccin-frappe"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-latte.css" data-theme-name="catppuccin-latte"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit"><a href="../">JSON.jl</a></span></div><button class="docs-search-query input is-rounded is-small is-clickable my-2 mx-auto py-1 px-2" id="documenter-search-query">Search docs (Ctrl + /)</button><ul class="docs-menu"><li><a class="tocitem" href="../">Home</a></li><li><a class="tocitem" href="../writing/">JSON Writing</a></li><li class="is-active"><a class="tocitem" href>JSON Reading</a><ul class="internal"><li><a class="tocitem" href="#Core-JSON-Parsing-JSON.lazy-and-JSON.LazyValue"><span>Core JSON Parsing - <code>JSON.lazy</code> and <code>JSON.LazyValue</code></span></a></li><li><a class="tocitem" href="#JSON.parse-Untyped-materialization"><span><code>JSON.parse</code> - Untyped materialization</span></a></li><li><a class="tocitem" href="#JSON.parse-Typed-materialization"><span><code>JSON.parse</code> - Typed materialization</span></a></li></ul></li><li><a class="tocitem" href="../migrate/">Migration Guides</a></li><li><a class="tocitem" href="../reference/">API Reference</a></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><a class="docs-sidebar-button docs-navbar-link fa-solid fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a><nav class="breadcrumb"><ul class="is-hidden-mobile"><li class="is-active"><a href>JSON Reading</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>JSON Reading</a></li></ul></nav><div class="docs-right"><a class="docs-navbar-link" href="https://github.com/JuliaIO/JSON.jl" title="View the repository on GitHub"><span class="docs-icon fa-brands"></span><span class="docs-label is-hidden-touch">GitHub</span></a><a class="docs-navbar-link" href="https://github.com/JuliaIO/JSON.jl/blob/master/docs/src/reading.md" title="Edit source on GitHub"><span class="docs-icon fa-solid"></span></a><a class="docs-settings-button docs-navbar-link fa-solid fa-gear" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-article-toggle-button fa-solid fa-chevron-up" id="documenter-article-toggle-button" href="javascript:;" title="Collapse all docstrings"></a></div></header><article class="content" id="documenter-page"><h1 id="JSON-Reading"><a class="docs-heading-anchor" href="#JSON-Reading">JSON Reading</a><a id="JSON-Reading-1"></a><a class="docs-heading-anchor-permalink" href="#JSON-Reading" title="Permalink"></a></h1><p>This guide to reading JSON in the JSON.jl package aims to:</p><ul><li>Provide a comprehensive overview of the JSON reading process.</li><li>Explain the various options and configurations available for reading JSON data.</li><li>Offer practical examples to illustrate the usage of different functions and options.</li></ul><h2 id="Core-JSON-Parsing-JSON.lazy-and-JSON.LazyValue"><a class="docs-heading-anchor" href="#Core-JSON-Parsing-JSON.lazy-and-JSON.LazyValue">Core JSON Parsing - <code>JSON.lazy</code> and <code>JSON.LazyValue</code></a><a id="Core-JSON-Parsing-JSON.lazy-and-JSON.LazyValue-1"></a><a class="docs-heading-anchor-permalink" href="#Core-JSON-Parsing-JSON.lazy-and-JSON.LazyValue" title="Permalink"></a></h2><p>There are several &quot;entrypoints&quot; to reading JSON in JSON.jl, including:</p><ul><li><a href="../reference/#JSON.parse"><code>JSON.parse</code></a>/<code>JSON.parse!</code></li><li><a href="../reference/#JSON.parsefile"><code>JSON.parsefile</code></a>/<a href="../reference/#JSON.parsefile!"><code>JSON.parsefile!</code></a></li><li><a href="../reference/#JSON.lazy"><code>JSON.lazy</code></a>/<a href="../reference/#JSON.lazyfile"><code>JSON.lazyfile</code></a></li><li><a href="../reference/#JSON.isvalidjson"><code>JSON.isvalidjson</code></a></li></ul><p>These functions are all built to accept the same kinds of JSON inputs:</p><table><tr><th style="text-align: left">Accepted <code>json</code> sources</th><th style="text-align: left">Notes</th></tr><tr><td style="text-align: left"><code>AbstractString</code></td><td style="text-align: left">UTF‑8; UTF‑8‑BOM handled automatically</td></tr><tr><td style="text-align: left"><code>AbstractVector{UInt8}</code></td><td style="text-align: left">zero‑copy if already bytes</td></tr><tr><td style="text-align: left"><code>IO</code>, <code>IOStream</code>, <code>Base.AbstractCmd</code></td><td style="text-align: left">stream fully read into a byte vector</td></tr></table><p>The core JSON parsing machinery is hence built around having an <code>AbstractVector{UInt8}</code> or <code>AbstractString</code> JSON input where individual bytes can be parsed to identify JSON structure, validate syntax, and ultimately produce Julia-level values.</p><p>Each entrypoint function first calls <a href="../reference/#JSON.lazy"><code>JSON.lazy</code></a>, which will consume the JSON input until the type of the next JSON value can be identified (<code>{</code> for objects, <code>[</code> for arrays, <code>&quot;</code> for strings, <code>t</code> for true, <code>f</code> for false, <code>n</code> for null, and <code>-</code> or a digit for numbers). <a href="../reference/#JSON.lazy"><code>JSON.lazy</code></a> returns a <a href="../reference/#JSON.LazyValue"><code>JSON.LazyValue</code></a>, which wraps the JSON input buffer (<code>AbstractVector{UInt8}</code> or <code>AbstractString</code>), and marks the byte position the value starts at, the type of the value, and any keyword arguments that were provided that may affect parsing. Currently supported parsing-specific keyword arguments to <a href="../reference/#JSON.lazy"><code>JSON.lazy</code></a> (and thus all other entrypoint functions) include:</p><ul><li><code>allownan::Bool = false</code>: whether &quot;special&quot; float values shoudl be allowed while parsing (<code>NaN</code>, <code>Inf</code>, <code>-Inf</code>); these values are specifically <em>not allowed</em> in the JSON spec, but many JSON libraries allow reading/writing</li><li><code>ninf::String = &quot;-Infinity&quot;</code>: the string that will be used to parse <code>-Inf</code> if <code>allownan=true</code></li><li><code>inf::String = &quot;Infinity&quot;</code>: the string that will be used to parse <code>Inf</code> if <code>allownan=true</code></li><li><code>nan::String = &quot;NaN&quot;</code>: the string that will be sued to parse <code>NaN</code> if <code>allownan=true</code></li><li><code>jsonlines::Bool = false</code>: whether the JSON input should be treated as an implicit array, with newlines separating individual JSON elements with no leading <code>&#39;[&#39;</code> or trailing <code>&#39;]&#39;</code> characters. Common in logging or streaming workflows. Defaults to <code>true</code> when used with <a href="../reference/#JSON.parsefile"><code>JSON.parsefile</code></a> and the filename extension is <code>.jsonl</code> or <code>ndjson</code>. Note this ensures that parsing will <em>always</em> return an array at the root-level.</li><li>Materialization-specific keyword arguments (i.e. they affect materialization, but not parsing)<ul><li><code>dicttype = JSON.Object{String, Any}</code>: type to parse JSON objects as by default (recursively)</li><li><code>null = nothing</code>: value to return for JSON <code>null</code> value</li></ul></li></ul><p>So what can we do with a <a href="../reference/#JSON.LazyValue"><code>JSON.LazyValue</code></a>?</p><pre><code class="language-julia-repl hljs">julia&gt; x = JSON.lazy(&quot;{\&quot;a\&quot;: 1, \&quot;b\&quot;: null, \&quot;c\&quot;: true, \&quot;d\&quot;: false, \&quot;e\&quot;: \&quot;\&quot;, \&quot;f\&quot;: [1,2,3], \&quot;g\&quot;: {\&quot;h\&quot;:{\&quot;i\&quot;:\&quot;foo\&quot;}}}&quot;)
+LazyObject{String} with 7 entries:
+  &quot;a&quot; =&gt; JSON.LazyValue(1)
+  &quot;b&quot; =&gt; JSON.LazyValue(nothing)
+  &quot;c&quot; =&gt; JSON.LazyValue(true)
+  &quot;d&quot; =&gt; JSON.LazyValue(false)
+  &quot;e&quot; =&gt; JSON.LazyValue(&quot;&quot;)
+  &quot;f&quot; =&gt; LazyValue[JSON.LazyValue(1), JSON.LazyValue(2), JSON.LazyValue(3)]
+  &quot;g&quot; =&gt; LazyObject{String}(&quot;h&quot;=&gt;LazyObject{String}(&quot;i&quot;=&gt;JSON.LazyValue(&quot;foo&quot;)))</code></pre><p>Note that for convenience at the REPL, special <code>show</code> overloads enable displaying the full contents of lazy values. In reality, remember the <code>LazyValue</code> only marks the <em>position</em> of a value within the JSON. <code>LazyValue</code>s support convenient syntax for both <em>navigating</em> their structure and <em>materializing</em>, with an aim to support lazy workflows. Examples include:</p><pre><code class="language-julia-repl hljs"># convenient &quot;get&quot; syntax on lazy objects
+julia&gt; x.a
+JSON.LazyValue(1)
+
+julia&gt; x[:b]
+JSON.LazyValue(nothing)
+
+julia&gt; x[&quot;c&quot;]
+JSON.LazyValue(true)
+
+julia&gt; propertynames(x)
+7-element Vector{Symbol}:
+ :a
+ :b
+ :c
+ :d
+ :e
+ :f
+ :g
+
+julia&gt; x.g.h.i
+JSON.LazyValue(&quot;foo&quot;)
+
+# array indexing on lazy arrays
+julia&gt; x.f[1]
+JSON.LazyValue(1)
+
+julia&gt; x.f[end]
+JSON.LazyValue(3)
+
+julia&gt; x.f[1:3]
+3-element StructUtils.Selectors.List{Any}:
+ JSON.LazyValue(1)
+ JSON.LazyValue(2)
+ JSON.LazyValue(3)
+
+# default materialization of any LazyValue via empty getindex
+julia&gt; x.a[]
+1
+
+julia&gt; x[]
+JSON.Object{String, Any} with 7 entries:
+  &quot;a&quot; =&gt; 1
+  &quot;b&quot; =&gt; nothing
+  &quot;c&quot; =&gt; true
+  &quot;d&quot; =&gt; false
+  &quot;e&quot; =&gt; &quot;&quot;
+  &quot;f&quot; =&gt; Any[1, 2, 3]
+  &quot;g&quot; =&gt; Object{String, Any}(&quot;h&quot;=&gt;Object{String, Any}(&quot;i&quot;=&gt;&quot;foo&quot;))</code></pre><p>Let&#39;s take a closer look at one of these examples and talk through what&#39;s going on under the hood. For <code>x.g.h.i</code>, this deeply nested access of the <code>&quot;foo&quot;</code> value, is a chain of <code>getproperty</code> calls, with each call (i.e. <code>y = x.g</code>, then <code>z = y.h</code>, etc.) returning a <code>LazyValue</code> of where the next nested object begins in the raw JSON. With the final <code>getproperty</code> call (<code>h.i</code>), a non-object <code>LazyValue(&quot;foo&quot;)</code> is returned. In our raw JSON, the <code>&quot;foo&quot;</code> value is located near the end, so we can infer that by doing <code>x.g.h.i</code>, the underlying JSON was parsed or <em>navigated</em> until the <code>i</code> key was found and its value returned. In this example, <code>&quot;foo&quot;</code> is indeed the last value in our raw JSON, but in the example of <code>x.c</code>, we can also be assured that only as much JSON as necessary was parsed/navigated before returning <code>LazyValue(true)</code>. In this way, the various syntax calls (<code>getproperty</code>, <code>getindex</code>, etc.) on <code>LazyValue</code>s can be thought of as purely <em>navigational</em> as opposed to anything related to <em>materialization</em>. Indeed, the very purpose of the lazy machinery in JSON.jl is to <em>allow</em> lazily navigating, specifically <em>without</em> needing to materialize anything along the way.</p><p>Ok, but at some point, we <em>do</em> actually need Julia values to operate on, so let&#39;s shift to how <em>materialization</em> works in JSON.jl.</p><h2 id="JSON.parse-Untyped-materialization"><a class="docs-heading-anchor" href="#JSON.parse-Untyped-materialization"><code>JSON.parse</code> - Untyped materialization</a><a id="JSON.parse-Untyped-materialization-1"></a><a class="docs-heading-anchor-permalink" href="#JSON.parse-Untyped-materialization" title="Permalink"></a></h2><p>In the <code>LazyValue</code> syntax example, it was shown that empty <code>getindex</code> will result in a &quot;default&quot; materialization of a <code>LazyValue</code>:</p><pre><code class="language-julia-repl hljs">julia&gt; x[]
+JSON.Object{String, Any} with 7 entries:
+  &quot;a&quot; =&gt; 1
+  &quot;b&quot; =&gt; nothing
+  &quot;c&quot; =&gt; true
+  &quot;d&quot; =&gt; false
+  &quot;e&quot; =&gt; &quot;&quot;
+  &quot;f&quot; =&gt; Any[1, 2, 3]
+  &quot;g&quot; =&gt; Object{String, Any}(&quot;h&quot;=&gt;Object{String, Any}(&quot;i&quot;=&gt;&quot;foo&quot;))</code></pre><p>Under the hood, this <code>getindex</code> call is really calling <code>JSON.parse(lazyvalue)</code>. <a href="../reference/#JSON.parse"><code>JSON.parse</code></a> can also be called as a main entrypoint function with all the same input types as <a href="../reference/#JSON.lazy"><code>JSON.lazy</code></a>. This form of <code>parse</code> is referred to as &quot;untyped parsing&quot; or &quot;untyped materialization&quot;. It allocates and <em>materializes</em> the raw JSON values into appropriate &quot;default&quot; Julia-level values. In particular:</p><table><tr><th style="text-align: left">JSON construct</th><th style="text-align: left">Default Julia value</th></tr><tr><td style="text-align: left">object</td><td style="text-align: left"><code>JSON.Object{String,Any}</code> (order‑preserving drop-in replacement for Dict)</td></tr><tr><td style="text-align: left">array</td><td style="text-align: left"><code>Vector{Any}</code></td></tr><tr><td style="text-align: left">string</td><td style="text-align: left"><code>String</code></td></tr><tr><td style="text-align: left">number</td><td style="text-align: left"><code>Int64</code>, <code>BigInt</code>, <code>Float64</code>, or <code>BigFloat</code></td></tr><tr><td style="text-align: left"><code>null</code></td><td style="text-align: left"><code>nothing</code></td></tr><tr><td style="text-align: left"><code>true/false</code></td><td style="text-align: left"><code>Bool</code></td></tr></table><p>Mostly vanilla, but what is <code>JSON.Object</code>? It is a custom <code>AbstractDict</code> using an internal linked-list implementation that preserves insertion order, behaves as a drop-in replacement for <code>Dict</code>, and allows memory and performance benefits vs. <code>Dict</code> for small # of entries. It also supports natural JSON-object-like syntax for accessing or setting values, like <code>x.g.h.i</code> and <code>x.c = false</code>.</p><p>Because <code>Object</code> uses a linked-list implementation, key lookups are <code>O(n)</code>, performing a linear scan on each access. For small number of entries (dozens), the real-performance difference vs. <code>Dict</code> hash-lookup is negligible, but for large objects, this can be prohibitive. For these cases, it&#39;s recommended to materialize JSON objects as regular Julia <code>Dict</code>, by utilizing the <code>dicttype</code> keyword argument, like: <code>JSON.parse(json; dicttype=Dict{String, Any})</code>.</p><h2 id="JSON.parse-Typed-materialization"><a class="docs-heading-anchor" href="#JSON.parse-Typed-materialization"><code>JSON.parse</code> - Typed materialization</a><a id="JSON.parse-Typed-materialization-1"></a><a class="docs-heading-anchor-permalink" href="#JSON.parse-Typed-materialization" title="Permalink"></a></h2><p>While untyped materialization is convenient for quick exploration, one of the most powerful features of JSON.jl is its ability to directly parse JSON into concrete Julia types. This is done by providing a type as the second argument to <a href="../reference/#JSON.parse"><code>JSON.parse</code></a> and opens up a world of type-safe JSON parsing with minimal boilerplate.</p><h3 id="Basic-usage-with-structs"><a class="docs-heading-anchor" href="#Basic-usage-with-structs">Basic usage with structs</a><a id="Basic-usage-with-structs-1"></a><a class="docs-heading-anchor-permalink" href="#Basic-usage-with-structs" title="Permalink"></a></h3><p>Let&#39;s start with a simple example. Suppose we have a Julia struct and a JSON string we want to parse into that type:</p><pre><code class="language-julia hljs">struct Person
+    name::String
+    age::Int
+end
+
+json = &quot;&quot;&quot;{&quot;name&quot;: &quot;Alice&quot;, &quot;age&quot;: 30}&quot;&quot;&quot;
+person = JSON.parse(json, Person)
+# Person(&quot;Alice&quot;, 30)</code></pre><p>With this approach, JSON.jl automatically:</p><ul><li>Matches JSON object keys to struct field names</li><li>Converts values to the appropriate field types</li><li>Constructs the struct with the parsed values</li></ul><p>This works for nested structs too:</p><pre><code class="language-julia hljs">struct Address
+    street::String
+    city::String
+    country::String
+end
+
+struct Employee
+    name::String
+    age::Int
+    address::Address
+end
+
+json = &quot;&quot;&quot;
+{
+    &quot;name&quot;: &quot;Bob&quot;,
+    &quot;age&quot;: 42,
+    &quot;address&quot;: {
+        &quot;street&quot;: &quot;123 Main St&quot;,
+        &quot;city&quot;: &quot;Anytown&quot;,
+        &quot;country&quot;: &quot;USA&quot;
+    }
+}
+&quot;&quot;&quot;
+
+employee = JSON.parse(json, Employee)</code></pre><h3 id="Arrays-and-collections"><a class="docs-heading-anchor" href="#Arrays-and-collections">Arrays and collections</a><a id="Arrays-and-collections-1"></a><a class="docs-heading-anchor-permalink" href="#Arrays-and-collections" title="Permalink"></a></h3><p>You can parse JSON arrays directly into Julia arrays with a specific element type:</p><pre><code class="language-julia hljs"># Parse into a Vector of integers
+ints = JSON.parse(&quot;[1, 2, 3, 4, 5]&quot;, Vector{Int})
+# 5-element Vector{Int64}: [1, 2, 3, 4, 5]
+
+# Parse into a Vector of custom structs
+people = JSON.parse(&quot;&quot;&quot;
+[
+    {&quot;name&quot;: &quot;Alice&quot;, &quot;age&quot;: 30},
+    {&quot;name&quot;: &quot;Bob&quot;, &quot;age&quot;: 42}
+]
+&quot;&quot;&quot;, Vector{Person})
+# 2-element Vector{Person}: [Person(&quot;Alice&quot;, 30), Person(&quot;Bob&quot;, 42)]</code></pre><p>A particularly powerful feature is the ability to parse nested arrays into multi-dimensional arrays:</p><pre><code class="language-julia hljs"># Parse a nested array into a Matrix
+matrix = JSON.parse(&quot;[[1, 2], [3, 4]]&quot;, Matrix{Int})
+# 2×2 Matrix{Int64}:
+#  1  3
+#  2  4</code></pre><p>Note that for matrices, JSON.jl expects column-major order (Julia&#39;s native format). The innermost arrays become the columns of the matrix.</p><h3 id="Primitive-and-simple-types"><a class="docs-heading-anchor" href="#Primitive-and-simple-types">Primitive and simple types</a><a id="Primitive-and-simple-types-1"></a><a class="docs-heading-anchor-permalink" href="#Primitive-and-simple-types" title="Permalink"></a></h3><p>JSON.jl can also parse JSON values directly into primitive types:</p><pre><code class="language-julia hljs"># Parse a JSON number into an Int
+n = JSON.parse(&quot;42&quot;, Int)
+# 42
+
+# Parse a JSON string into a String
+s = JSON.parse(&quot;\&quot;hello\&quot;&quot;, String)
+# &quot;hello&quot;
+
+# Parse a JSON string into a custom type like UUID
+uuid = JSON.parse(&quot;\&quot;123e4567-e89b-12d3-a456-426614174000\&quot;&quot;, UUID)
+# UUID(&quot;123e4567-e89b-12d3-a456-426614174000&quot;)
+
+# Parse a JSON string into a Date
+date = JSON.parse(&quot;\&quot;2023-05-08\&quot;&quot;, Date)
+# Date(&quot;2023-05-08&quot;)</code></pre><h3 id="Type-conversions-and-handling-nulls"><a class="docs-heading-anchor" href="#Type-conversions-and-handling-nulls">Type conversions and handling nulls</a><a id="Type-conversions-and-handling-nulls-1"></a><a class="docs-heading-anchor-permalink" href="#Type-conversions-and-handling-nulls" title="Permalink"></a></h3><p>JSON.jl provides smart handling for Union types, especially for dealing with potentially null values:</p><pre><code class="language-julia hljs">struct OptionalData
+    id::Int
+    description::Union{String, Nothing}
+    score::Union{Float64, Missing}
+end
+
+json = &quot;&quot;&quot;
+{
+    &quot;id&quot;: 123,
+    &quot;description&quot;: null,
+    &quot;score&quot;: null
+}
+&quot;&quot;&quot;
+
+data = JSON.parse(json, OptionalData)
+# OptionalData(123, nothing, missing)</code></pre><p>Note how JSON.jl automatically:</p><ul><li>Converts JSON <code>null</code> to Julia <code>nothing</code> for <code>Union{T, Nothing}</code> fields</li><li>Converts JSON <code>null</code> to Julia <code>missing</code> for <code>Union{T, Missing}</code> fields</li></ul><h3 id="Field-customization-through-tags"><a class="docs-heading-anchor" href="#Field-customization-through-tags">Field customization through tags</a><a id="Field-customization-through-tags-1"></a><a class="docs-heading-anchor-permalink" href="#Field-customization-through-tags" title="Permalink"></a></h3><p>You can customize how JSON fields map to struct fields using &quot;field tags&quot; from StructUtils.jl via the struct macros (<code>@tags</code>, <code>@defaults</code>, <code>@kwarg</code>, or <code>@noarg</code>):</p><pre><code class="language-julia hljs">using JSON, StructUtils
+
+@tags struct UserProfile
+    user_id::Int &amp;(json=(name=&quot;id&quot;,),)
+    first_name::String &amp;(json=(name=&quot;firstName&quot;,),)
+    last_name::String &amp;(json=(name=&quot;lastName&quot;,),)
+    birth_date::Date &amp;(json=(dateformat=dateformat&quot;yyyy/mm/dd&quot;,),)
+end
+
+json = &quot;&quot;&quot;
+{
+    &quot;id&quot;: 42,
+    &quot;firstName&quot;: &quot;Jane&quot;,
+    &quot;lastName&quot;: &quot;Doe&quot;,
+    &quot;birth_date&quot;: &quot;1990/01/15&quot;
+}
+&quot;&quot;&quot;
+
+user = JSON.parse(json, UserProfile)
+# UserProfile(42, &quot;Jane&quot;, &quot;Doe&quot;, Date(&quot;1990-01-15&quot;))</code></pre><p>The <code>&amp;(json=(name=&quot;...&quot;,),)</code> syntax lets you:</p><ul><li>Map differently named JSON keys to your struct fields</li><li>Specify custom date formats for parsing dates</li><li>And many other customizations</li></ul><p>Field tags are really named tuples of values, prefixed with the <code>&amp;</code> character, so note the trailing <code>,</code> when the named tuple has a single element. Also note that in this example, we &quot;namespaced&quot; our field tags with the <code>json=(...)</code> key. Then when &quot;making&quot; our struct, only the <code>json=(...)</code> field tags are considered. This is because JSON.jl defines <code>json</code> as a &quot;field tag key&quot; for its custom <code>JSONStyle</code>, then passes a <code>JSONStyle</code> to be used when parsing. That means you could specify the field tag like <code>&amp;(name=&quot;id,)</code>, but if the field then is also used by any other package, it would also see that name. Sometimes that may be desirable, but there are also cases where you want the namespacing, like: <code>&amp;(json=(name=&quot;id&quot;,), postgres=(name=&quot;user_id&quot;,))</code>.</p><h3 id="Default-values-with-@defaults"><a class="docs-heading-anchor" href="#Default-values-with-@defaults">Default values with <code>@defaults</code></a><a id="Default-values-with-@defaults-1"></a><a class="docs-heading-anchor-permalink" href="#Default-values-with-@defaults" title="Permalink"></a></h3><p>When some JSON fields might be missing, you can provide default values similar to field tags using any of the struct macros (<code>@tags</code>, <code>@defaults</code>, <code>@kwarg</code>, or <code>@noarg</code>):</p><pre><code class="language-julia hljs">@defaults struct Configuration
+    port::Int = 8080
+    host::String = &quot;localhost&quot;
+    debug::Bool = false
+    timeout::Int = 30
+end
+
+# Even with missing fields, parsing succeeds with defaults
+json = &quot;&quot;&quot;{&quot;port&quot;: 9000}&quot;&quot;&quot;
+config = JSON.parse(json, Configuration)
+# Configuration(9000, &quot;localhost&quot;, false, 30)</code></pre><h3 id="Non-struct-like-types-with-@nonstruct"><a class="docs-heading-anchor" href="#Non-struct-like-types-with-@nonstruct">Non-struct-like types with <code>@nonstruct</code></a><a id="Non-struct-like-types-with-@nonstruct-1"></a><a class="docs-heading-anchor-permalink" href="#Non-struct-like-types-with-@nonstruct" title="Permalink"></a></h3><p>What if you have a custom struct that you want to behave more like a primitive type rather than a struct? For example, you might want a custom email type that should be serialized as a JSON string rather than a JSON object.</p><p>The <code>@nonstruct</code> macro is perfect for this use case. By marking your struct as non-struct-like, you tell JSON.jl to treat it as a primitive type that should be converted directly using <code>lift</code> and <code>lower</code> methods rather than constructing it from field values.</p><p>Here&#39;s an example of a custom email type that should be serialized as a JSON string:</p><pre><code class="language-julia hljs">using JSON
+
+@nonstruct struct Email
+    value::String
+    
+    function Email(value::String)
+        # Validate email format
+        if !occursin(r&quot;^[^@]+@[^@]+\.[^@]+$&quot;, value)
+            throw(ArgumentError(&quot;Invalid email format: $value&quot;))
+        end
+        new(value)
+    end
+end
+
+# Define how to convert from various sources to Email
+JSON.lift(::Type{Email}, x::String) = Email(x)
+
+# Define how to convert Email to a serializable format
+JSON.lower(x::Email) = x.value
+
+# Now you can use Email in your structs and it will be serialized as a string
+@defaults struct User
+    id::Int = 1
+    name::String = &quot;default&quot;
+    email::Email
+end
+
+# Create a user with an email
+user = User(email=Email(&quot;alice@example.com&quot;))
+
+# Convert to JSON - email will be a string, not an object
+json_string = JSON.json(user)
+# Result: {&quot;id&quot;:1,&quot;name&quot;:&quot;default&quot;,&quot;email&quot;:&quot;alice@example.com&quot;}
+
+# Parse back from JSON
+user_again = JSON.parse(json_string, User)</code></pre><p>Another example - a custom numeric type that represents a percentage:</p><pre><code class="language-julia hljs">@nonstruct struct Percent &lt;: Number
+    value::Float64
+    
+    function Percent(value::Real)
+        if value &lt; 0 || value &gt; 100
+            throw(ArgumentError(&quot;Percentage must be between 0 and 100&quot;))
+        end
+        new(Float64(value))
+    end
+end
+
+# Convert from various numeric types
+JSON.lift(::Type{Percent}, x::Number) = Percent(x)
+JSON.lift(::Type{Percent}, x::String) = Percent(parse(Float64, x))
+
+# Convert to a simple number for serialization
+JSON.lower(x::Percent) = x.value
+
+# Use in a struct
+@defaults struct Product
+    name::String = &quot;default&quot;
+    discount::Percent = Percent(0.0)
+end
+
+# Create and serialize
+product = Product(discount=Percent(15.5))
+json_string = JSON.json(product)
+# Result: {&quot;name&quot;:&quot;default&quot;,&quot;discount&quot;:15.5}</code></pre><p>The key points about <code>@nonstruct</code>:</p><ol><li><p><strong>No field defaults or tags</strong>: Since you&#39;re opting out of struct-like behavior, field defaults and tags are not supported.</p></li><li><p><strong>Requires <code>lift</code> and <code>lower</code> methods</strong>: You must define how to convert to/from your type.</p></li><li><p><strong>Fields are private</strong>: The struct&#39;s fields are considered implementation details for the parsing process.</p></li><li><p><strong>Perfect for wrapper types</strong>: Great for types that wrap primitives but need custom validation or behavior.</p></li></ol><h3 id="Advanced-Example:-The-FrankenStruct"><a class="docs-heading-anchor" href="#Advanced-Example:-The-FrankenStruct">Advanced Example: The FrankenStruct</a><a id="Advanced-Example:-The-FrankenStruct-1"></a><a class="docs-heading-anchor-permalink" href="#Advanced-Example:-The-FrankenStruct" title="Permalink"></a></h3><p>Let&#39;s explore a more comprehensive example that showcases many of JSON.jl&#39;s advanced typed parsing features:</p><pre><code class="language-julia hljs">using Dates, JSON, StructUtils
+
+# First, define some types for polymorphic parsing
+abstract type AbstractMonster end
+
+struct Dracula &lt;: AbstractMonster
+    num_victims::Int
+end
+
+struct Werewolf &lt;: AbstractMonster
+    witching_hour::DateTime
+end
+
+# Define a custom type chooser for AbstractMonster
+JSON.@choosetype AbstractMonster x -&gt; x.monster_type[] == &quot;vampire&quot; ? Dracula : Werewolf
+
+# Define a custom numeric type with special parsing
+@nonstruct struct Percent &lt;: Number
+    value::Float64
+end
+
+# Custom lifting for the Percent type
+JSON.lift(::Type{Percent}, x) = Percent(Float64(x))
+StructUtils.liftkey(::Type{Percent}, x::String) = Percent(parse(Float64, x))
+
+# Our complex struct with various field types and defaults
+@defaults struct FrankenStruct
+    id::Int = 0
+    name::String = &quot;Jim&quot;
+    address::Union{Nothing, String} = nothing
+    rate::Union{Missing, Float64} = missing
+    type::Symbol = :a &amp;(json=(name=&quot;franken_type&quot;,),)
+    notsure::Any = nothing
+    monster::AbstractMonster = Dracula(0)
+    percent::Percent = Percent(0.0)
+    birthdate::Date = Date(0) &amp;(json=(dateformat=&quot;yyyy/mm/dd&quot;,),)
+    percentages::Dict{Percent, Int} = Dict{Percent, Int}()
+    json_properties::JSONText = JSONText(&quot;&quot;)
+    matrix::Matrix{Float64} = Matrix{Float64}(undef, 0, 0)
+end
+
+# A complex JSON input with various features to demonstrate
+json = &quot;&quot;&quot;
+{
+    &quot;id&quot;: 1,
+    &quot;address&quot;: &quot;123 Main St&quot;,
+    &quot;rate&quot;: null,
+    &quot;franken_type&quot;: &quot;b&quot;,
+    &quot;notsure&quot;: {&quot;key&quot;: &quot;value&quot;},
+    &quot;monster&quot;: {
+        &quot;monster_type&quot;: &quot;vampire&quot;,
+        &quot;num_victims&quot;: 10
+    },
+    &quot;percent&quot;: 0.1,
+    &quot;birthdate&quot;: &quot;2023/10/01&quot;,
+    &quot;percentages&quot;: {
+        &quot;0.1&quot;: 1,
+        &quot;0.2&quot;: 2
+    },
+    &quot;json_properties&quot;: {&quot;key&quot;: &quot;value&quot;},
+    &quot;matrix&quot;: [[1.0, 2.0], [3.0, 4.0]],
+    &quot;extra_key&quot;: &quot;extra_value&quot;
+}
+&quot;&quot;&quot;
+
+franken = JSON.parse(json, FrankenStruct)</code></pre><p>Let&#39;s walk through some notable features of the example above:</p><ul><li>The <code>name</code> field isn&#39;t present in the JSON input, so the default value of <code>&quot;Jim&quot;</code> is used.</li><li>The <code>address</code> field uses a default <code>@choosetype</code> to determine that the JSON value is not <code>null</code>, so a <code>String</code> should be parsed for the field value.</li><li>The <code>rate</code> field has a <code>null</code> JSON value, so the default <code>@choosetype</code> recognizes it should be &quot;lifted&quot; to <code>Missing</code>, which then uses a predefined <code>lift</code> definition for <code>Missing</code>.</li><li>The <code>type</code> field is a <code>Symbol</code>, and has a fieldtag <code>json=(name=&quot;franken_type&quot;,)</code> which means the JSON key <code>franken_type</code> will be used to set the field value instead of the default <code>type</code> field name. A default <code>lift</code> definition for <code>Symbol</code> is used to convert the JSON string value to a <code>Symbol</code>.</li><li>The <code>notsure</code> field is of type <code>Any</code>, so the default object type <code>JSON.Object{String, Any}</code> is used to materialize the JSON value.</li><li>The <code>monster</code> field is a polymorphic type, and the JSON value has a <code>monster_type</code> key that determines which concrete type to use. The <code>@choosetype</code> macro is used to define the logic for choosing the concrete type based on the JSON input. Note that teh <code>x</code> in <code>@choosetype</code> is a <code>LazyValue</code>, so we materialize via <code>x.monster_type[]</code> in order to compare with the string <code>&quot;vampire&quot;</code>.</li><li>The <code>percent</code> field is a custom type <code>Percent</code> and the <code>JSON.lift</code> macro defines how to construct a <code>Percent</code> from the JSON value, which is a <code>Float64</code> in this case.</li><li>The <code>birthdate</code> field uses a custom date format for parsing, specified in the JSON input.</li><li>The <code>percentages</code> field is a dictionary with keys of type <code>Percent</code>, which is a custom type. The <code>liftkey</code> function is defined to convert the JSON string keys to <code>Percent</code> types (parses the Float64 manually)</li><li>The <code>json_properties</code> field has a type of <code>JSONText</code>, which means the raw JSON will be preserved as a String of the <code>JSONText</code> type.</li><li>The <code>matrix</code> field is a <code>Matrix{Float64}</code>, so the JSON input array-of-arrays are materialized as such.</li><li>The <code>extra_key</code> field is not defined in the <code>FrankenStruct</code> type, so it is ignored and skipped over.</li></ul></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../writing/">« JSON Writing</a><a class="docs-footer-nextpage" href="../migrate/">Migration Guides »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.16.1 on <span class="colophon-date" title="Wednesday 14 January 2026 07:07">Wednesday 14 January 2026</span>. Using Julia version 1.12.3.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
