@@ -251,7 +251,7 @@ end
 StructUtils.lowerkey(::JSONStyle, s::AbstractString) = s
 StructUtils.lowerkey(::JSONStyle, sym::Symbol) = String(sym)
 StructUtils.lowerkey(::JSONStyle, n::Union{Integer, Union{Float16, Float32, Float64}}) = string(n)
-StructUtils.lowerkey(::JSONStyle, x) = throw(ArgumentError("No key representation for $(typeof(x)). Define StructUtils.lowerkey(::$(typeof(x)))"))
+StructUtils.lowerkey(::JSONStyle, x) = throw(ArgumentError("No key representation for $(typeof(x)). Define StructUtils.lowerkey(::JSON.JSONStyle, ::$(typeof(x)))"))
 
 """
     JSON.json(x) -> String
