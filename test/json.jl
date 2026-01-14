@@ -363,6 +363,49 @@ end
     @test_throws LoadError eval(:(@omit_empty "not_a_type"))
 end
 
+@testset "@omit_null/@omit_empty parametric types" begin
+    # Test that @omit_null on parametric struct definition works for all instantiations
+    @omit_null struct OmitNullParametric{T}
+        id::Int
+        value::Union{Nothing, T}
+    end
+
+    # Should work for any type parameter, not just a specific one
+    @test JSON.json(OmitNullParametric{String}(1, nothing)) == "{\"id\":1}"
+    @test JSON.json(OmitNullParametric{String}(1, "test")) == "{\"id\":1,\"value\":\"test\"}"
+    @test JSON.json(OmitNullParametric{Int}(1, nothing)) == "{\"id\":1}"
+    @test JSON.json(OmitNullParametric{Int}(1, 42)) == "{\"id\":1,\"value\":42}"
+    @test JSON.json(OmitNullParametric{Float64}(1, nothing)) == "{\"id\":1}"
+    @test JSON.json(OmitNullParametric{Float64}(1, 3.14)) == "{\"id\":1,\"value\":3.14}"
+
+    # Verify omit_null can be overridden at callsite
+    @test JSON.json(OmitNullParametric{String}(1, nothing); omit_null=false) == "{\"id\":1,\"value\":null}"
+
+    # Test that @omit_empty on parametric struct definition works for all instantiations
+    @omit_empty struct OmitEmptyParametric{T}
+        id::Int
+        items::Vector{T}
+    end
+
+    @test JSON.json(OmitEmptyParametric{String}(1, String[])) == "{\"id\":1}"
+    @test JSON.json(OmitEmptyParametric{String}(1, ["a", "b"])) == "{\"id\":1,\"items\":[\"a\",\"b\"]}"
+    @test JSON.json(OmitEmptyParametric{Int}(1, Int[])) == "{\"id\":1}"
+    @test JSON.json(OmitEmptyParametric{Int}(1, [1, 2, 3])) == "{\"id\":1,\"items\":[1,2,3]}"
+
+    # Verify omit_empty can be overridden at callsite
+    @test JSON.json(OmitEmptyParametric{String}(1, String[]); omit_empty=false) == "{\"id\":1,\"items\":[]}"
+
+    # Test chaining @omit_null with @defaults on parametric type
+    @omit_null @defaults struct ChainedParametric{T}
+        id::Int = 0
+        value::Union{Nothing, T} = nothing
+    end
+
+    @test JSON.json(ChainedParametric{String}()) == "{\"id\":0}"
+    @test JSON.json(ChainedParametric{Int}()) == "{\"id\":0}"
+    @test JSON.json(ChainedParametric{String}(1, "test")) == "{\"id\":1,\"value\":\"test\"}"
+end
+
 @testset "Buffered IO" begin
     # Helper function to create large test data
     function create_large_object(size::Int)
