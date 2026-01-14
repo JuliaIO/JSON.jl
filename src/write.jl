@@ -449,11 +449,17 @@ float_precision_check(fs, fp) = (fs == :shortest || fp > 0) || float_precision_t
 _jsonlines_pretty_check(jsonlines, pretty) = jsonlines && pretty !== false && !iszero(pretty) && _jsonlines_pretty_throw()
 @noinline _root_omit_throw() = throw(ArgumentError("JSON.Omit() is only valid inside arrays or objects"))
 
-function json(io::IO, x::T; pretty::Union{Integer,Bool}=false, kw...) where {T}
-    opts = WriteOptions(; pretty=pretty === true ? 2 : Int(pretty), kw...)
+# throw an error if opts is not a valid WriteOptions
+function _write_options_check(opts::WriteOptions)
     _jsonlines_pretty_check(opts.jsonlines, opts.pretty)
     float_style_check(opts.float_style)
     float_precision_check(opts.float_style, opts.float_precision)
+    nothing
+end
+
+function json(io::IO, x::T; pretty::Union{Integer,Bool}=false, kw...) where {T}
+    opts = WriteOptions(; pretty=pretty === true ? 2 : Int(pretty), kw...)
+    _write_options_check(opts)
     y = StructUtils.lower(opts.style, x)
     # Use smaller initial buffer size, limited by bufsize
     initial_size = min(sizeguess(y), opts.bufsize)
@@ -474,9 +480,7 @@ end
 
 function json(x; pretty::Union{Integer,Bool}=false, kw...)
     opts = WriteOptions(; pretty=pretty === true ? 2 : Int(pretty), kw...)
-    _jsonlines_pretty_check(opts.jsonlines, opts.pretty)
-    float_style_check(opts.float_style)
-    float_precision_check(opts.float_style, opts.float_precision)
+    _write_options_check(opts)
     y = StructUtils.lower(opts.style, x)
     buf = stringvec(sizeguess(y))
     pos = json!(buf, 1, y, opts, Any[y], nothing)
