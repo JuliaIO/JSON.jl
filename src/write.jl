@@ -142,6 +142,16 @@ macro omit_empty(expr)
     return _omit_macro_impl(expr, :omit_empty, __module__)
 end
 
+# Helper function to generate the appropriate type signature for omit functions
+function _make_omit_type_sig(T, is_parametric)
+    if is_parametric
+        # For parametric types, use <: to match all instantiations
+        return :(<:$T)
+    else
+        return T
+    end
+end
+
 # Helper function for both @omit_null and @omit_empty macros
 function _omit_macro_impl(expr, omit_func_name, module_context)
     original_expr = expr
@@ -149,20 +159,22 @@ function _omit_macro_impl(expr, omit_func_name, module_context)
     # Case 1: Just a type name (Symbol or more complex type expression)
     if isa(expr, Symbol) || (Meta.isexpr(expr, :curly) || Meta.isexpr(expr, :where))
         # Extract the base type name
-        T = _extract_type_name(expr)
+        T, is_parametric = _extract_type_name(expr)
+        type_sig = _make_omit_type_sig(T, is_parametric)
         return esc(quote
-            JSON.$omit_func_name(::Type{$T}) = true
+            JSON.$omit_func_name(::Type{$type_sig}) = true
         end)
     end
     # Case 2: Struct definition (possibly from macro expansion)
     if Meta.isexpr(expr, :struct)
         ismutable, T, fieldsblock = expr.args
-        T = _extract_type_name(T)
+        T, is_parametric = _extract_type_name(T)
+        type_sig = _make_omit_type_sig(T, is_parametric)
         return esc(quote
             # insert original expr as-is
             $expr
             # omit function overload
-            JSON.$omit_func_name(::Type{$T}) = true
+            JSON.$omit_func_name(::Type{$type_sig}) = true
         end)
     end
     # Case 3: Block expression (from complex macros like @defaults)
@@ -171,12 +183,13 @@ function _omit_macro_impl(expr, omit_func_name, module_context)
         struct_expr = _find_struct_in_block(expr)
         if struct_expr !== nothing
             ismutable, T, fieldsblock = struct_expr.args
-            T = _extract_type_name(T)
+            T, is_parametric = _extract_type_name(T)
+            type_sig = _make_omit_type_sig(T, is_parametric)
             return esc(quote
                 # insert original expr as-is
                 $original_expr
                 # omit function overload
-                JSON.$omit_func_name(::Type{$T}) = true
+                JSON.$omit_func_name(::Type{$type_sig}) = true
             end)
         end
     end
@@ -185,12 +198,13 @@ function _omit_macro_impl(expr, omit_func_name, module_context)
         # Try to see if the expanded form is a struct
         if Meta.isexpr(expr, :struct)
             ismutable, T, fieldsblock = expr.args
-            T = _extract_type_name(T)
+            T, is_parametric = _extract_type_name(T)
+            type_sig = _make_omit_type_sig(T, is_parametric)
             return esc(quote
                 # insert original expr as-is
                 $original_expr
                 # omit function overload
-                JSON.$omit_func_name(::Type{$T}) = true
+                JSON.$omit_func_name(::Type{$type_sig}) = true
             end)
         else
             throw(ArgumentError("Macro $(original_expr.args[1]) did not expand to a struct definition"))
@@ -215,20 +229,22 @@ function _find_struct_in_block(expr)
 end
 
 # Helper function to extract the base type name from various type expressions
+# Returns (base_type, is_parametric) tuple
 function _extract_type_name(T)
     if isa(T, Symbol)
-        return T
+        return (T, false)
     elseif Meta.isexpr(T, :<:)
         # Handle subtyping: struct Foo <: Bar
         return _extract_type_name(T.args[1])
     elseif Meta.isexpr(T, :curly)
-        # Handle parametric types: keep the full parametric type Foo{T}
-        return T
+        # Handle parametric types: return just the base type name (e.g., Foo from Foo{T})
+        # and indicate it's parametric
+        return (T.args[1], true)
     elseif Meta.isexpr(T, :where)
         # Handle where clauses: struct Foo{T} where T
         return _extract_type_name(T.args[1])
     else
-        return T
+        return (T, false)
     end
 end
 
