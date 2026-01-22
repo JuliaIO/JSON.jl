@@ -70,6 +70,8 @@ x = JSON.parse("[1,2,3]", JSONText)
 struct JSONText
     value::String
 end
+JSON.JSONText(js::Symbol) = JSONText(String(js))
+JSON.JSONText(js::JSONText) = js
 
 include("lazy.jl")
 include("parse.jl")
