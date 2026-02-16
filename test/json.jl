@@ -27,6 +27,8 @@ end
     dropped::Union{Nothing, JSON.Omit}
 end
 
+@enum JsonFruit Apple Orange
+
 @testset "JSON.json" begin
 
 @testset "Basics" begin
@@ -261,6 +263,18 @@ end
     @test JSON.json((a=1, b=nothing); omit_null=false) == "{\"a\":1,\"b\":null}"
     @test JSON.json((a=1, b=[]); omit_empty=true) == "{\"a\":1}"
     @test JSON.json((a=1, b=[]); omit_empty=false) == "{\"a\":1,\"b\":[]}"
+    @testset "All string-like types as keys" begin
+        date = Dates.DateTime(1970)
+        @test JSON.json([
+            UUID(0) => "uuid",
+            'c' => "char",
+            v"0.0.1" => "ver",
+            Apple => "Enum 1",
+            Orange => "Enum 2",
+            date => "date"
+        ]) == """{"00000000-0000-0000-0000-000000000000":"uuid","c":"char","0.0.1":"ver","Apple":"Enum 1","Orange":"Enum 2","1970-01-01T00:00:00":"date"}"""
+    end
+
     @testset "Sentinel overrides" begin
         @test JSON.json(JSON.Null()) == "null"
         @test_throws ArgumentError JSON.json(JSON.Omit())
