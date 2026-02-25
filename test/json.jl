@@ -107,7 +107,7 @@ end
     arr[3] = "b"
     @test JSON.json(arr) == "[\"a\",null,\"b\"]"
     # test custom struct writing
-    # defined in the test/struct.jl file
+    # defined in the test/parse.jl file
     a = A(1, 2, 3, 4)
     @test JSON.json(a) == "{\"a\":1,\"b\":2,\"c\":3,\"d\":4}"
     x = LotsOfFields("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "27", "28", "29", "30", "31", "32", "33", "34", "35")
@@ -256,6 +256,7 @@ end
     @test JSON.json(Dict(Point(1, 2) => "hi")) == "{\"1_2\":\"hi\"}"
     x = JSONText("[1,2,3]")
     @test JSON.json(x) == "[1,2,3]"
+    @test JSONText(x) == x
     @test JSON.json((a=1, b=nothing)) == "{\"a\":1,\"b\":null}"
     @test JSON.json((a=1, b=nothing); omit_null=true) == "{\"a\":1}"
     @test JSON.json((a=1, b=nothing); omit_null=false) == "{\"a\":1,\"b\":null}"
