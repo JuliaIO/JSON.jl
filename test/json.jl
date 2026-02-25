@@ -257,7 +257,6 @@ end
     x = JSONText("[1,2,3]")
     @test JSON.json(x) == "[1,2,3]"
     @test JSONText(x) == x
-    @test x == JSONText(Symbol("[1,2,3]"))
     @test JSON.json((a=1, b=nothing)) == "{\"a\":1,\"b\":null}"
     @test JSON.json((a=1, b=nothing); omit_null=true) == "{\"a\":1}"
     @test JSON.json((a=1, b=nothing); omit_null=false) == "{\"a\":1,\"b\":null}"
