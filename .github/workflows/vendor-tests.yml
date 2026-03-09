@@ -43,7 +43,7 @@ jobs:
         arch: ${{ matrix.arch }}
 
     - name: Cache Julia packages
-      uses: julia-actions/cache@v2
+      uses: julia-actions/cache@v3
 
     - name: Run vendor tests
       run: |
