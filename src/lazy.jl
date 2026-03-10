@@ -59,6 +59,7 @@ Currently supported keyword arguments include:
   - `inf::String = "Infinity"`: the string that will be used to parse `Inf` if `allownan=true`
   - `nan::String = "NaN"`: the string that will be sued to parse `NaN` if `allownan=true`
   - `jsonlines::Bool = false`: whether the JSON input should be treated as an implicit array, with newlines separating individual JSON elements with no leading `'['` or trailing `']'` characters. Common in logging or streaming workflows. Defaults to `true` when used with `JSON.parsefile` and the filename extension is `.jsonl` or `ndjson`. Note this ensures that parsing will _always_ return an array at the root-level.
+  - `allowtrailing::Bool = false`: whether to tolerate trailing characters after parsing a valid JSON element
 
 Note that validation is only fully done on `null`, `true`, and `false`,
 while other values are only lazily inferred from the first non-whitespace character:
@@ -80,6 +81,7 @@ function lazy end
     inf::String = "Infinity"
     nan::String = "NaN"
     jsonlines::Bool = false
+    allowtrailing::Bool = false
 end
 
 lazy(io::Union{IO, Base.AbstractCmd}; kw...) = lazy(Base.read(io); kw...)
@@ -163,6 +165,7 @@ getpos(x) = getfield(x, :pos)
 gettype(x) = getfield(x, :type)
 getopts(x) = getfield(x, :opts)
 getisroot(x) = getfield(x, :isroot)
+getallowtrailing(x) = getopts(x).allowtrailing
 
 const LazyValues{T} = Union{LazyValue{T}, LazyObject{T}, LazyArray{T}}
 
@@ -376,7 +379,7 @@ function applyarray(keyvalfunc, x::LazyValues)
         # for jsonlines, we need to make sure that recursive
         # lazy values *don't* consider individual lines *also*
         # to be jsonlines
-        opts = LazyOptions(; allownan=opts.allownan, ninf=opts.ninf, inf=opts.inf, nan=opts.nan, jsonlines=false)
+        opts = LazyOptions(; allownan=opts.allownan, ninf=opts.ninf, inf=opts.inf, nan=opts.nan, jsonlines=false, allowtrailing=opts.allowtrailing)
     end
     i = 1
     while true
