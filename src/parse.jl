@@ -191,7 +191,7 @@ parse(x::LazyValue, ::Type{T}=Any; dicttype::Type{O}=DEFAULT_OBJECT_TYPE, null=n
 
 function _parse(x::LazyValue, ::Type{T}, dicttype::Type{O}, null, style::StructStyle) where {T,O}
     y, pos = StructUtils.make(style, T, x)
-    getisroot(x) && checkendpos(x, T, pos)
+    getisroot(x) && !getallowtrailing(x) && checkendpos(x, T, pos)
     return y
 end
 
@@ -205,7 +205,7 @@ end
 function _parse(x::LazyValue, ::Type{Any}, ::Type{DEFAULT_OBJECT_TYPE}, null, ::StructStyle)
     out = ValueClosure()
     pos = applyvalue(out, x, null)
-    getisroot(x) && checkendpos(x, Any, pos)
+    getisroot(x) && !getallowtrailing(x) && checkendpos(x, Any, pos)
     return out.value
 end
 
