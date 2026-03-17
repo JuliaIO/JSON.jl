@@ -59,7 +59,7 @@ Currently supported keyword arguments include:
   - `inf::String = "Infinity"`: the string that will be used to parse `Inf` if `allownan=true`
   - `nan::String = "NaN"`: the string that will be sued to parse `NaN` if `allownan=true`
   - `jsonlines::Bool = false`: whether the JSON input should be treated as an implicit array, with newlines separating individual JSON elements with no leading `'['` or trailing `']'` characters. Common in logging or streaming workflows. Defaults to `true` when used with `JSON.parsefile` and the filename extension is `.jsonl` or `ndjson`. Note this ensures that parsing will _always_ return an array at the root-level.
-  - `allowtrailing::Bool = false`: whether to tolerate trailing characters after parsing a valid JSON element
+  - `isroot::Bool = true`: whether this is the root LazyValue encompassing the entire json buffer. If `false` parses only the first JSON value and ignores trailing characters.
 
 Note that validation is only fully done on `null`, `true`, and `false`,
 while other values are only lazily inferred from the first non-whitespace character:
@@ -81,7 +81,6 @@ function lazy end
     inf::String = "Infinity"
     nan::String = "NaN"
     jsonlines::Bool = false
-    allowtrailing::Bool = false
 end
 
 lazy(io::Union{IO, Base.AbstractCmd}; kw...) = lazy(Base.read(io); kw...)
@@ -90,7 +89,7 @@ lazyfile(file; jsonlines::Union{Bool, Nothing}=nothing, kw...) = open(io -> lazy
 
 @doc (@doc lazy) lazyfile
 
-function lazy(buf::Union{AbstractVector{UInt8}, AbstractString}; kw...)
+function lazy(buf::Union{AbstractVector{UInt8}, AbstractString}; isroot::Bool=true, kw...)
     if !applicable(pointer, buf, 1) || (buf isa AbstractVector{UInt8} && !isone(only(strides(buf))))
         if buf isa AbstractString
             buf = String(buf)
@@ -118,7 +117,7 @@ function lazy(buf::Union{AbstractVector{UInt8}, AbstractString}; kw...)
     # detect and ignore UTF-8 BOM
     pos = (len >= 3 && getbyte(buf, pos) == 0xef && getbyte(buf, pos + 1) == 0xbb && getbyte(buf, pos + 2) == 0xbf) ? pos + 3 : pos
     @nextbyte
-    return _lazy(buf, pos, len, b, LazyOptions(; kw...), true)
+    return _lazy(buf, pos, len, b, LazyOptions(; kw...), isroot)
 
 @label invalid
     invalid(error, buf, pos, Any)
@@ -165,7 +164,6 @@ getpos(x) = getfield(x, :pos)
 gettype(x) = getfield(x, :type)
 getopts(x) = getfield(x, :opts)
 getisroot(x) = getfield(x, :isroot)
-getallowtrailing(x) = getopts(x).allowtrailing
 
 const LazyValues{T} = Union{LazyValue{T}, LazyObject{T}, LazyArray{T}}
 
@@ -379,7 +377,7 @@ function applyarray(keyvalfunc, x::LazyValues)
         # for jsonlines, we need to make sure that recursive
         # lazy values *don't* consider individual lines *also*
         # to be jsonlines
-        opts = LazyOptions(; allownan=opts.allownan, ninf=opts.ninf, inf=opts.inf, nan=opts.nan, jsonlines=false, allowtrailing=opts.allowtrailing)
+        opts = LazyOptions(; allownan=opts.allownan, ninf=opts.ninf, inf=opts.inf, nan=opts.nan, jsonlines=false)
     end
     i = 1
     while true

@@ -772,17 +772,17 @@ end
     @test_throws ArgumentError JSON.parse("{\"a\":1,\"b\":2}", Tuple{Int, Int, Int})
 end
 
-@testset "allowtrailing" begin
+@testset "isroot=false allows trailing" begin
     # default behavior: trailing content causes an error
     @test_throws ArgumentError JSON.parse("{\"hello\": \"world\"} asdaa")
     @test_throws ArgumentError JSON.parse("[1,2,3] extra")
     @test_throws ArgumentError JSON.parse("123 {}")
 
-    # allowtrailing=true: trailing content is ignored
-    @test JSON.parse("{\"hello\": \"world\"} asdaa", allowtrailing=true) == JSON.Object("hello" => "world")
-    @test JSON.parse("[1,2,3] extra", allowtrailing=true) == Any[1, 2, 3]
-    @test JSON.parse("123 {}", allowtrailing=true) == 123
+    # isroot=false: trailing content is ignored
+    @test JSON.parse("{\"hello\": \"world\"} asdaa", isroot=false) == JSON.Object("hello" => "world")
+    @test JSON.parse("[1,2,3] extra", isroot=false) == Any[1, 2, 3]
+    @test JSON.parse("123 {}", isroot=false) == 123
 
-    # allowtrailing=true with typed parse
-    @test JSON.parse("{\"a\": 1, \"b\": 2.0, \"c\": \"hi\"} trailing", D; allowtrailing=true) == D(1, 2.0, "hi")
+    # isroot=false with typed parse
+    @test JSON.parse("{\"a\": 1, \"b\": 2.0, \"c\": \"hi\"} trailing", D; isroot=false) == D(1, 2.0, "hi")
 end
