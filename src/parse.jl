@@ -15,6 +15,7 @@ Currently supported keyword arguments include:
   * `inf`: string to use for `Inf` (default: `"Infinity"`)
   * `nan`: string to use for `NaN` (default: `"NaN"`)
   * `jsonlines`: treat the `json` input as an implicit JSON array, delimited by newlines, each element being parsed from each row/line in the input
+  * `isroot`: whether this is the root LazyValue encompassing the entire json buffer. If `false` parses only the first JSON value and ignores trailing characters. (default: `true`)
   * `dicttype`: a custom `AbstractDict` type to use instead of `$DEFAULT_OBJECT_TYPE` as the default type for JSON object materialization
   * `null`: a custom value to use for JSON null values (default: `nothing`)
   * `style`: a custom `StructUtils.StructStyle` subtype instance to be used in calls to `StructUtils.make` and `StructUtils.lift`. This allows overriding
