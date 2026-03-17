@@ -664,41 +664,47 @@ end
 end
 
 @testset "sort_keys" begin
-    # basic alphabetical sorting
-    @test JSON.json(Dict("c" => 3, "a" => 1, "b" => 2); sort_keys=true) == "{\"a\":1,\"b\":2,\"c\":3}"
+    # default (nothing): Dict keys are sorted, Object preserves insertion order
+    @test JSON.json(Dict("c" => 3, "a" => 1, "b" => 2)) == "{\"a\":1,\"b\":2,\"c\":3}"
+    obj = JSON.Object("c" => 3, "a" => 1, "b" => 2)
+    @test JSON.json(obj) == "{\"c\":3,\"a\":1,\"b\":2}"
 
-    # sort_keys=false is default (no sorting guarantee, but should not error)
-    @test JSON.json(Dict("a" => 1); sort_keys=false) == "{\"a\":1}"
+    # sort_keys=true: all AbstractDicts sorted, including Object
+    @test JSON.json(Dict("c" => 3, "a" => 1, "b" => 2); sort_keys=true) == "{\"a\":1,\"b\":2,\"c\":3}"
+    @test JSON.json(obj; sort_keys=true) == "{\"a\":1,\"b\":2,\"c\":3}"
+
+    # sort_keys=false: no sorting for any AbstractDict
+    @test JSON.json(obj; sort_keys=false) == "{\"c\":3,\"a\":1,\"b\":2}"
 
     # empty dict
+    @test JSON.json(Dict{String,Any}()) == "{}"
     @test JSON.json(Dict{String,Any}(); sort_keys=true) == "{}"
 
     # single key
-    @test JSON.json(Dict("only" => 42); sort_keys=true) == "{\"only\":42}"
+    @test JSON.json(Dict("only" => 42)) == "{\"only\":42}"
 
-    # nested dicts are sorted recursively
-    @test JSON.json(Dict("z" => Dict("b" => 2, "a" => 1), "a" => 3); sort_keys=true) == "{\"a\":3,\"z\":{\"a\":1,\"b\":2}}"
+    # nested dicts are sorted recursively by default
+    @test JSON.json(Dict("z" => Dict("b" => 2, "a" => 1), "a" => 3)) == "{\"a\":3,\"z\":{\"a\":1,\"b\":2}}"
 
     # arrays are not affected, but dicts inside arrays are sorted
-    @test JSON.json([Dict("b" => 2, "a" => 1), Dict("d" => 4, "c" => 3)]; sort_keys=true) == "[{\"a\":1,\"b\":2},{\"c\":3,\"d\":4}]"
+    @test JSON.json([Dict("b" => 2, "a" => 1), Dict("d" => 4, "c" => 3)]) == "[{\"a\":1,\"b\":2},{\"c\":3,\"d\":4}]"
 
     # Symbol keys (lowered to strings via lowerkey, sorted as strings)
-    @test JSON.json(Dict(:zebra => 1, :apple => 2); sort_keys=true) == "{\"apple\":2,\"zebra\":1}"
+    @test JSON.json(Dict(:zebra => 1, :apple => 2)) == "{\"apple\":2,\"zebra\":1}"
 
     # Integer keys (lowered to strings, sorted lexicographically as strings)
-    @test JSON.json(Dict(3 => "c", 1 => "a", 2 => "b"); sort_keys=true) == "{\"1\":\"a\",\"2\":\"b\",\"3\":\"c\"}"
+    @test JSON.json(Dict(3 => "c", 1 => "a", 2 => "b")) == "{\"1\":\"a\",\"2\":\"b\",\"3\":\"c\"}"
 
-    # JSON.Object (preserves insertion order normally, but sort_keys overrides)
-    obj = JSON.Object("c" => 3, "a" => 1, "b" => 2)
-    @test JSON.json(obj; sort_keys=true) == "{\"a\":1,\"b\":2,\"c\":3}"
-    # without sort_keys, Object preserves insertion order
-    @test JSON.json(obj) == "{\"c\":3,\"a\":1,\"b\":2}"
+    # nested Object inside Dict: Dict sorted, Object preserves order (default)
+    @test JSON.json(Dict("z" => JSON.Object("b" => 2, "a" => 1), "a" => 3)) == "{\"a\":3,\"z\":{\"b\":2,\"a\":1}}"
+    # with sort_keys=true, both are sorted
+    @test JSON.json(Dict("z" => JSON.Object("b" => 2, "a" => 1), "a" => 3); sort_keys=true) == "{\"a\":3,\"z\":{\"a\":1,\"b\":2}}"
 
     # sort_keys + pretty printing
-    @test JSON.json(Dict("c" => 3, "a" => 1, "b" => 2); sort_keys=true, pretty=true) == "{\n  \"a\": 1,\n  \"b\": 2,\n  \"c\": 3\n}"
+    @test JSON.json(Dict("c" => 3, "a" => 1, "b" => 2); pretty=true) == "{\n  \"a\": 1,\n  \"b\": 2,\n  \"c\": 3\n}"
 
     # sort_keys + omit_null
-    @test JSON.json(Dict("c" => nothing, "a" => 1, "b" => 2); sort_keys=true, omit_null=true) == "{\"a\":1,\"b\":2}"
+    @test JSON.json(Dict("c" => nothing, "a" => 1, "b" => 2); omit_null=true) == "{\"a\":1,\"b\":2}"
 
     # sort_keys does not affect structs (struct field order is deterministic)
     @test JSON.json(A(1, 2, 3, 4); sort_keys=true) == "{\"a\":1,\"b\":2,\"c\":3,\"d\":4}"
@@ -711,26 +717,26 @@ end
 
     # deeply nested mixed structures
     deep = Dict("z" => [Dict("b" => Dict("d" => 4, "c" => 3), "a" => 1)], "m" => 2)
-    @test JSON.json(deep; sort_keys=true) == "{\"m\":2,\"z\":[{\"a\":1,\"b\":{\"c\":3,\"d\":4}}]}"
+    @test JSON.json(deep) == "{\"m\":2,\"z\":[{\"a\":1,\"b\":{\"c\":3,\"d\":4}}]}"
 
     # IO path
     io = IOBuffer()
-    JSON.json(io, Dict("c" => 3, "a" => 1, "b" => 2); sort_keys=true)
+    JSON.json(io, Dict("c" => 3, "a" => 1, "b" => 2))
     @test String(take!(io)) == "{\"a\":1,\"b\":2,\"c\":3}"
 
     # file path
     fname = tempname()
-    JSON.json(fname, Dict("c" => 3, "a" => 1); sort_keys=true)
+    JSON.json(fname, Dict("c" => 3, "a" => 1))
     @test read(fname, String) == "{\"a\":1,\"c\":3}"
     rm(fname)
 
     # sort_keys + jsonlines (dicts inside array should be sorted)
-    @test JSON.json([Dict("b" => 2, "a" => 1), Dict("d" => 4, "c" => 3)]; sort_keys=true, jsonlines=true) == "{\"a\":1,\"b\":2}\n{\"c\":3,\"d\":4}\n"
+    @test JSON.json([Dict("b" => 2, "a" => 1), Dict("d" => 4, "c" => 3)]; jsonlines=true) == "{\"a\":1,\"b\":2}\n{\"c\":3,\"d\":4}\n"
 
     # sort_keys + buffered IO (small buffer forces flushes)
     io = IOBuffer()
     large = Dict(string(Char('a' + i)) => i for i in 0:25)
-    JSON.json(io, large; sort_keys=true, bufsize=64)
+    JSON.json(io, large; bufsize=64)
     result = String(take!(io))
     parsed_keys = [m.match for m in eachmatch(r"\"([a-z])\"", result)]
     @test parsed_keys == sort(parsed_keys)

@@ -434,7 +434,7 @@ function json end
     inline_limit::Int = 0
     float_style::Symbol = :shortest # :shortest, :fixed, :exp
     float_precision::Int = 1
-    sort_keys::Bool = false
+    sort_keys::Union{Bool, Nothing} = nothing
     bufsize::Int = 2^22 # 4MB default buffer size for IO flushing
     style::S = JSONWriteStyle()
 end
@@ -669,7 +669,8 @@ function json!(buf, pos, x, opts::WriteOptions, ancestor_stack::Union{Nothing, V
         wroteanyref = Ref(false)
         GC.@preserve ref wroteanyref begin
             c = WriteClosure{typeof(opts), al, typeof(x), typeof(io)}(buf, Base.unsafe_convert(Ptr{Int}, ref), Base.unsafe_convert(Ptr{Bool}, wroteanyref), local_ind, depth + 1, opts, ancestor_stack, io, bufsize)
-            if opts.sort_keys && !al && x isa AbstractDict
+            _sort_keys = opts.sort_keys === true || (opts.sort_keys === nothing && !al && x isa AbstractDict && !(x isa Object))
+            if _sort_keys && !al && x isa AbstractDict
                 sorted_keys = sort!(collect(keys(x)), by=k -> StructUtils.lowerkey(opts.style, k))
                 for k in sorted_keys
                     c(StructUtils.lowerkey(opts.style, k), StructUtils.lower(opts.style, x[k]))
