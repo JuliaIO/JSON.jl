@@ -770,4 +770,100 @@ end
     @test JSON.parse("{\"a\":1,\"b\":2,\"c\":3,\"d\":4}", Tuple{Int, Int, Int}) == (1, 2, 3)
     @test_throws ArgumentError JSON.parse("{}", Tuple{Int, Int, Int})
     @test_throws ArgumentError JSON.parse("{\"a\":1,\"b\":2}", Tuple{Int, Int, Int})
+
+    # https://github.com/JuliaIO/JSON.jl/issues/436
+    # Union{T, Vector{T}} disambiguation via arraylike source check
+    @testset "Union{scalar, array} disambiguation" begin
+        # original issue: Tuple with Union{Vector{Float64}, Float64} fields
+        struct Foo436
+            params::Tuple{Union{Float64, Nothing}, Union{Vector{Float64}, Float64}, Union{Vector{Float64}, Float64, Nothing}}
+        end
+        x = JSON.parse("""{"params":[null, [1.0, 2.0, 3.0], null]}""", Foo436)
+        @test x.params[1] === nothing
+        @test x.params[2] == [1.0, 2.0, 3.0]
+        @test x.params[2] isa Vector{Float64}
+        @test x.params[3] === nothing
+
+        # same tuple, scalar values instead of arrays
+        x = JSON.parse("""{"params":[1.0, 2.0, 3.0]}""", Foo436)
+        @test x.params[1] === 1.0
+        @test x.params[2] === 2.0
+        @test x.params[3] === 3.0
+
+        # direct Union field (not in a tuple)
+        struct Bar436
+            val::Union{Float64, Vector{Float64}}
+        end
+        @test JSON.parse("""{"val": 3.14}""", Bar436).val === 3.14
+        x = JSON.parse("""{"val": [1.0, 2.0]}""", Bar436)
+        @test x.val isa Vector{Float64}
+        @test x.val == [1.0, 2.0]
+
+        # Union{String, Vector{String}} — different scalar type
+        struct Baz436
+            val::Union{String, Vector{String}}
+        end
+        @test JSON.parse("""{"val": "hello"}""", Baz436).val == "hello"
+        x = JSON.parse("""{"val": ["a", "b"]}""", Baz436)
+        @test x.val isa Vector{String}
+        @test x.val == ["a", "b"]
+
+        # Union{Int, Vector{Int}} — integer variant
+        struct Qux436
+            val::Union{Int, Vector{Int}}
+        end
+        @test JSON.parse("""{"val": 42}""", Qux436).val === 42
+        x = JSON.parse("""{"val": [1, 2, 3]}""", Qux436)
+        @test x.val isa Vector{Int}
+        @test x.val == [1, 2, 3]
+
+        # Union{T, Vector{T}, Nothing} — with Nothing, array source
+        struct WithNothing436
+            val::Union{Int, Vector{Int}, Nothing}
+        end
+        @test JSON.parse("""{"val": null}""", WithNothing436).val === nothing
+        @test JSON.parse("""{"val": 5}""", WithNothing436).val === 5
+        x = JSON.parse("""{"val": [1, 2]}""", WithNothing436)
+        @test x.val isa Vector{Int}
+        @test x.val == [1, 2]
+
+        # Union{T, Vector{T}, Missing} — with Missing
+        struct WithMissing436
+            val::Union{Float64, Vector{Float64}, Missing}
+        end
+        @test JSON.parse("""{"val": null}""", WithMissing436).val === missing
+        @test JSON.parse("""{"val": 1.5}""", WithMissing436).val === 1.5
+        x = JSON.parse("""{"val": [1.0, 2.0]}""", WithMissing436)
+        @test x.val isa Vector{Float64}
+        @test x.val == [1.0, 2.0]
+
+        # ambiguous case: Union{Vector{Int}, Set{Int}} — two arraylike types
+        # should fall through (not be handled by the new logic)
+        # this would require @choosetype to resolve
+        @test_throws Exception JSON.parse("""{"val": [1, 2]}""", @NamedTuple{val::Union{Vector{Int}, Set{Int}}})
+
+        # empty array materializes to the array type
+        x = JSON.parse("""{"val": []}""", Bar436)
+        @test x.val isa Vector{Float64}
+        @test isempty(x.val)
+
+        # nested: struct field that is Union{T, Vector{T}} inside another struct
+        struct Outer436
+            id::Int
+            data::Union{Float64, Vector{Float64}}
+        end
+        x = JSON.parse("""{"id": 1, "data": [1.0, 2.0, 3.0]}""", Outer436)
+        @test x.id == 1
+        @test x.data isa Vector{Float64}
+        @test x.data == [1.0, 2.0, 3.0]
+        x = JSON.parse("""{"id": 1, "data": 3.14}""", Outer436)
+        @test x.id == 1
+        @test x.data === 3.14
+
+        # Vector of structs with Union fields
+        results = JSON.parse("""[{"val": 1.0}, {"val": [2.0, 3.0]}]""", Vector{Bar436})
+        @test results[1].val === 1.0
+        @test results[2].val isa Vector{Float64}
+        @test results[2].val == [2.0, 3.0]
+    end
 end
