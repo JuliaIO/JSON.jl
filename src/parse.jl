@@ -168,7 +168,7 @@ StructUtils.fieldtagkey(::JSONStyle) = :json
 "See [`parse`](@ref)."
 function parsefile end
 
-"See [`parse!`](@ref)."
+"See [`parse`](@ref)."
 function parsefile! end
 
 parsefile(file; jsonlines::Union{Bool,Nothing}=nothing, kw...) = open(io -> parse(io; jsonlines=(jsonlines === nothing ? isjsonl(file) : jsonlines), kw...), file)
