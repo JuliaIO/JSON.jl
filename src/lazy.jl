@@ -87,7 +87,8 @@ lazy(io::Union{IO, Base.AbstractCmd}; kw...) = lazy(Base.read(io); kw...)
 
 lazyfile(file; jsonlines::Union{Bool, Nothing}=nothing, kw...) = open(io -> lazy(io; jsonlines=(jsonlines === nothing ? isjsonl(file) : jsonlines), kw...), file)
 
-@doc (@doc lazy) lazyfile
+"See [`lazy`](@ref)."
+lazyfile
 
 function lazy(buf::Union{AbstractVector{UInt8}, AbstractString}; isroot::Bool=true, kw...)
     if !applicable(pointer, buf, 1) || (buf isa AbstractVector{UInt8} && !isone(only(strides(buf))))

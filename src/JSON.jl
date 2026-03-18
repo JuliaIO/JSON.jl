@@ -107,7 +107,9 @@ end
 # convenience aliases for pre-1.0 JSON compat
 print(io::IO, obj, indent=nothing) = json(io, obj; pretty=something(indent, 0))
 print(a, indent=nothing) = print(stdout, a, indent)
-@doc (@doc json) print
+
+"See [`json`](@ref)."
+print
 
 @compile_workload begin
     x = JSON.parse("{\"a\": 1, \"b\": null, \"c\": true, \"d\": false, \"e\": \"\", \"f\": [1,null,true], \"g\": {\"key\": \"value\"}}")
