@@ -282,7 +282,7 @@ All methods accept the following keyword arguments:
   If `false`, throw an error if `Inf`, `-Inf`, or `NaN` is encountered.
 
 - `jsonlines::Bool=false`: If `true`, input must be array-like and the output will be written in the JSON Lines format,
-  where each element of the array is written on a separate line (i.e. separated by a single newline character `\n`).
+  where each element of the array is written on a separate line (i.e. separated by a single newline character '\`\\n\`').
   If `false`, the output will be written in the standard JSON format.
 
 - `pretty::Union{Integer,Bool}=false`: Controls pretty printing of the JSON output.
