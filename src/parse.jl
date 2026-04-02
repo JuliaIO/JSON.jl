@@ -165,11 +165,11 @@ nullvalue(st::JSONReadStyle) = st.null
 # this allows struct fields to specify tags under the json key specifically to override JSON behavior
 StructUtils.fieldtagkey(::JSONStyle) = :json
 
+"See [`parse`](@ref)."
 function parsefile end
-@doc (@doc parse) parsefile
 
+"See [`parse`](@ref)."
 function parsefile! end
-@doc (@doc parse) parsefile!
 
 parsefile(file; jsonlines::Union{Bool,Nothing}=nothing, kw...) = open(io -> parse(io; jsonlines=(jsonlines === nothing ? isjsonl(file) : jsonlines), kw...), file)
 parsefile(file, ::Type{T}; jsonlines::Union{Bool,Nothing}=nothing, kw...) where {T} = open(io -> parse(io, T; jsonlines=(jsonlines === nothing ? isjsonl(file) : jsonlines), kw...), file)
