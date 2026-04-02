@@ -29,9 +29,11 @@ sizeguess(::Null) = 4
 sizeguess(::Omit) = 0
 sizeguess(_) = 512
 
+const StringLike = Union{Enum, AbstractChar, VersionNumber, Cstring, Cwstring, UUID, Dates.TimeType, Type, Logging.LogLevel}
+
 StructUtils.lower(::JSONStyle, ::Missing) = nothing
 StructUtils.lower(::JSONStyle, x::Symbol) = String(x)
-StructUtils.lower(::JSONStyle, x::Union{Enum, AbstractChar, VersionNumber, Cstring, Cwstring, UUID, Dates.TimeType, Type, Logging.LogLevel}) = string(x)
+StructUtils.lower(::JSONStyle, x::StringLike) = string(x)
 StructUtils.lower(::JSONStyle, x::Regex) = x.pattern
 StructUtils.lower(::JSONStyle, x::AbstractArray{<:Any,0}) = x[1]
 StructUtils.lower(::JSONStyle, x::AbstractArray{<:Any, N}) where {N} = (view(x, ntuple(_ -> :, N - 1)..., j) for j in axes(x, N))
@@ -250,9 +252,8 @@ end
 
 StructUtils.lowerkey(::JSONStyle, s::AbstractString) = s
 StructUtils.lowerkey(::JSONStyle, sym::Symbol) = String(sym)
-StructUtils.lowerkey(::JSONStyle, n::Union{Integer, Union{Float16, Float32, Float64}}) = string(n)
+StructUtils.lowerkey(::JSONStyle, s::Union{StringLike, Real}) = string(s)
 StructUtils.lowerkey(::JSONStyle, x) = throw(ArgumentError("No key representation for $(typeof(x)). Define StructUtils.lowerkey(::JSON.JSONStyle, ::$(typeof(x)))"))
-
 """
     JSON.json(x) -> String
     JSON.json(io, x)
