@@ -293,6 +293,25 @@ using JSON, Test
         @test !haskey(empty_obj, "anything")
     end
 
+    @testset "AbstractString key support for parsed String objects" begin
+        obj = JSON.parse("{\"foo\": \"bar\"}")
+        s = "abc.foo.xyz"
+        k = split(s, ".")[2]
+
+        @test k isa SubString{String}
+        @test haskey(obj, k)
+        @test get(obj, k, nothing) == "bar"
+        @test obj[k] == "bar"
+
+        obj[k] = "baz"
+        @test obj["foo"] == "baz"
+
+        delete!(obj, k)
+        @test !haskey(obj, "foo")
+        @test get(obj, k, "default") == "default"
+        @test_throws KeyError obj[k]
+    end
+
     # Test enhanced haskey for Symbol objects with String keys
     @testset "Enhanced haskey for Symbol Objects" begin
         obj = JSON.Object{Symbol, Any}()
