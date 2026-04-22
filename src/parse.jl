@@ -155,11 +155,11 @@ abstract type JSONStyle <: StructStyle end
 struct JSONReadStyle{O,T,S} <: JSONStyle
     null::T
     style::S
-    unknown_fields::Symbol
+    ignore_unknown_fields::Bool
 end
 
-JSONReadStyle{O}(null::T, style::S=StructUtils.DefaultStyle(), unknown_fields::Symbol=:ignore) where {O,T,S} =
-    JSONReadStyle{O,T,S}(null, style, unknown_fields)
+JSONReadStyle{O}(null::T, style::S=StructUtils.DefaultStyle(), ignore_unknown_fields::Bool=true) where {O,T,S} =
+    JSONReadStyle{O,T,S}(null, style, ignore_unknown_fields)
 
 objecttype(::StructStyle) = DEFAULT_OBJECT_TYPE
 objecttype(::JSONReadStyle{OT}) where {OT} = OT
@@ -170,25 +170,22 @@ nullvalue(st::JSONReadStyle) = st.null
 StructUtils.fieldtagkey(::JSONStyle) = :json
 StructUtils.defaultstate(st::JSONReadStyle) = StructUtils.defaultstate(st.style)
 
-validate_unknown_fields(unknown_fields::Symbol) =
-    unknown_fields === :ignore || unknown_fields === :error ? unknown_fields :
-    throw(ArgumentError("`unknown_fields` must be `:ignore` or `:error`, got `$(repr(unknown_fields))`"))
-
 function jsonreadstyle(::Type{T}, ::Type{O}, null, style::StructStyle, unknown_fields::Symbol) where {T,O}
-    uf = validate_unknown_fields(unknown_fields)
-    if T === Any && uf !== :ignore
+    ignore_unknown_fields =
+        unknown_fields === :ignore ? true :
+        unknown_fields === :error ? false :
+        throw(ArgumentError("`unknown_fields` must be `:ignore` or `:error`, got `$(repr(unknown_fields))`"))
+    if T === Any && !ignore_unknown_fields
         throw(ArgumentError("`unknown_fields` is only supported when parsing into a target type or existing object"))
     end
-    return JSONReadStyle{O}(null, style, uf)
+    return JSONReadStyle{O}(null, style, ignore_unknown_fields)
 end
 
-unknownfielderrormsg(::Type{T}, key) where {T} =
-    "encountered unknown JSON member $(repr(key)) while parsing `$T`"
+@noinline unknownfielderror(::Type{T}, key) where {T} =
+    ArgumentError("encountered unknown JSON member $(repr(key)) while parsing `$T`")
 
 function StructUtils.unknownfield(st::JSONReadStyle, ::Type{T}, key, value) where {T}
-    if st.unknown_fields === :error
-        throw(ArgumentError(unknownfielderrormsg(T, key)))
-    end
+    st.ignore_unknown_fields || throw(unknownfielderror(T, key))
     return StructUtils.unknownfield(st.style, T, key, value)
 end
 
