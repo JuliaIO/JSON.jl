@@ -501,6 +501,7 @@ end
     @testset "JSON.parse with types" begin
         obj = JSON.parse("""{ "a": 1,"b": 2,"c": 3,"d": 4}""", A)
         @test obj == A(1, 2, 3, 4)
+        @test JSON.parse("""{ "a": 1,"b": 2,"c": 3,"d": 4, "e": 5}""", A) == A(1, 2, 3, 4)
         # test order doesn't matter
         obj2 = JSON.parse("""{ "d": 1,"b": 2,"c": 3,"a": 4}""", A)
         @test obj2 == A(4, 2, 3, 1)
@@ -552,6 +553,13 @@ end
         @test obj.id == 1 && !isdefined(obj, :name)
         obj = JSON.parse("""{ "id": 1, "a": {"a": 1, "b": 2, "c": 3, "d": 4}}""", E)
         @test obj == E(1, A(1, 2, 3, 4))
+        @test_throws ArgumentError JSON.parse("""{ "a": 1,"b": 2,"c": 3,"d": 4, "e": 5}""", A; unknown_fields=:error)
+        @test_throws ArgumentError JSON.parse("""{ "id": 1, "a": {"a": 1, "b": 2, "c": 3, "d": 4, "e": 5}}""", E; unknown_fields=:error)
+        obj = B()
+        @test_throws ArgumentError JSON.parse!("""{ "a": 1,"b": 2,"c": 3,"d": 4, "e": 5}""", obj; unknown_fields=:error)
+        @test_throws ArgumentError JSON.parse("""[1, 2, 3, 4, 5]""", A; unknown_fields=:error)
+        @test_throws ArgumentError JSON.parse("""{ "a": 1,"b": 2,"c": 3,"d": 4}""", A; unknown_fields=:boom)
+        @test_throws ArgumentError JSON.parse("""{ "a": 1}"""; unknown_fields=:error)
         obj = JSON.parse("""{ "id": 1, "rate": 2.0, "name": "3"}""", F)
         @test obj == F(1, 2.0, "3")
         obj = JSON.parse("""{ "id": 1, "rate": 2.0, "name": "3", "f": {"id": 1, "rate": 2.0, "name": "3"}}""", G)
@@ -756,6 +764,7 @@ end
     # test custom JSONStyle overload
     JSON.lift(::CustomJSONStyle, ::Type{Rational}, x) = Rational(x.num[], x.den[])
     @test JSON.parse("{\"num\": 1,\"den\":3}", Rational; style=CustomJSONStyle()) == 1//3
+    @test JSON.parse("{\"num\": 1,\"den\":3}", Rational; style=CustomJSONStyle(), unknown_fields=:error) == 1//3
     @test isequal(JSON.parse("{\"num\": 1,\"den\":null}", @NamedTuple{num::Int, den::Union{Int, Missing}}; null=missing, style=StructUtils.DefaultStyle()), (num=1, den=missing))
     # choosetype field tag on Any struct field
     @test JSON.parse("{\"id\":1,\"any\":{\"type\":\"int\",\"value\":10}}", Q) == Q(1, (type="int", value=10))

@@ -17,6 +17,7 @@ Currently supported keyword arguments include:
   * `jsonlines`: treat the `json` input as an implicit JSON array, delimited by newlines, each element being parsed from each row/line in the input
   * `dicttype`: a custom `AbstractDict` type to use instead of `$DEFAULT_OBJECT_TYPE` as the default type for JSON object materialization
   * `null`: a custom value to use for JSON null values (default: `nothing`)
+  * `unknown_fields`: controls how unmatched JSON object keys or positional values are handled when parsing into a target type or existing object; supported values are `:ignore` (default) and `:error`
   * `style`: a custom `StructUtils.StructStyle` subtype instance to be used in calls to `StructUtils.make` and `StructUtils.lift`. This allows overriding
     default behaviors for non-owned types.
 
@@ -36,7 +37,7 @@ of type `T` will be attempted utilizing machinery and interfaces provided by the
   * If `T` was defined with the `@noarg` macro, an empty instance will be constructed, and field values set as JSON keys match field names
   * If `T` had default field values defined using the `@defaults` or `@kwarg` macros (from StructUtils.jl package), those will be set in the value of `T` unless different values are parsed from the JSON
   * If `T` was defined with the `@nonstruct` macro, the struct will be treated as a primitive type and constructed using the `lift` function rather than from field values
-  * JSON keys that don't match field names in `T` will be ignored (skipped over)
+  * JSON keys that don't match field names in `T` will be ignored (skipped over) by default; pass `unknown_fields=:error` to reject them
   * If a field in `T` has a `name` fieldtag, the `name` value will be used to match JSON keys instead
   * If `T` or any recursive field type of `T` is abstract, an appropriate `JSON.@choosetype T x -> ...` definition should exist for "choosing" a concrete type at runtime; default type choosing exists for `Union{T, Missing}` and `Union{T, Nothing}` where the JSON value is checked if `null`. If the `Any` type is encountered, the default materialization types will be used (`JSON.Object`, `Vector{Any}`, etc.)
   * For any non-JSON-standard non-aggregate (i.e. non-object, non-array) field type of `T`, a `JSON.lift(::Type{T}, x) = ...` definition can be defined for how to "lift" the default JSON value (String, Number, Bool, `nothing`) to the type `T`; a default lift definition exists, for example, for `JSON.lift(::Type{Missing}, x) = missing` where the standard JSON value for `null` is `nothing` and it can be "lifted" to `missing`
@@ -149,12 +150,16 @@ import StructUtils: StructStyle
 
 abstract type JSONStyle <: StructStyle end
 
-# defining a custom style allows us to pass a non-default dicttype `O` through JSON.parse
-struct JSONReadStyle{O,T} <: JSONStyle
+# defining a custom style allows us to pass a non-default dicttype `O` through JSON.parse,
+# while still delegating custom behavior to an inner StructStyle if one was provided
+struct JSONReadStyle{O,T,S} <: JSONStyle
     null::T
+    style::S
+    unknown_fields::Symbol
 end
 
-JSONReadStyle{O}(null::T) where {O,T} = JSONReadStyle{O,T}(null)
+JSONReadStyle{O}(null::T, style::S=StructUtils.DefaultStyle(), unknown_fields::Symbol=:ignore) where {O,T,S} =
+    JSONReadStyle{O,T,S}(null, style, unknown_fields)
 
 objecttype(::StructStyle) = DEFAULT_OBJECT_TYPE
 objecttype(::JSONReadStyle{OT}) where {OT} = OT
@@ -163,6 +168,29 @@ nullvalue(st::JSONReadStyle) = st.null
 
 # this allows struct fields to specify tags under the json key specifically to override JSON behavior
 StructUtils.fieldtagkey(::JSONStyle) = :json
+StructUtils.defaultstate(st::JSONReadStyle) = StructUtils.defaultstate(st.style)
+
+validate_unknown_fields(unknown_fields::Symbol) =
+    unknown_fields === :ignore || unknown_fields === :error ? unknown_fields :
+    throw(ArgumentError("`unknown_fields` must be `:ignore` or `:error`, got `$(repr(unknown_fields))`"))
+
+function jsonreadstyle(::Type{T}, ::Type{O}, null, style::StructStyle, unknown_fields::Symbol) where {T,O}
+    uf = validate_unknown_fields(unknown_fields)
+    if T === Any && uf !== :ignore
+        throw(ArgumentError("`unknown_fields` is only supported when parsing into a target type or existing object"))
+    end
+    return JSONReadStyle{O}(null, style, uf)
+end
+
+unknownfielderrormsg(::Type{T}, key) where {T} =
+    "encountered unknown JSON member $(repr(key)) while parsing `$T`"
+
+function StructUtils.unknownfield(st::JSONReadStyle, ::Type{T}, key, value) where {T}
+    if st.unknown_fields === :error
+        throw(ArgumentError(unknownfielderrormsg(T, key)))
+    end
+    return StructUtils.unknownfield(st.style, T, key, value)
+end
 
 function parsefile end
 @doc (@doc parse) parsefile
@@ -179,15 +207,19 @@ parse(io::Union{IO,Base.AbstractCmd}, ::Type{T}=Any; kw...) where {T} = parse(Ba
 parse!(io::Union{IO,Base.AbstractCmd}, x::T; kw...) where {T} = parse!(Base.read(io), x; kw...)
 
 parse(buf::Union{AbstractVector{UInt8},AbstractString}, ::Type{T}=Any;
-    dicttype::Type{O}=DEFAULT_OBJECT_TYPE, null=nothing,
-    style::StructStyle=JSONReadStyle{dicttype}(null), kw...) where {T,O} =
-    @inline parse(lazy(buf; kw...), T; dicttype, null, style)
+    dicttype::Type{O}=DEFAULT_OBJECT_TYPE, null=nothing, style::StructStyle=StructUtils.DefaultStyle(),
+    unknown_fields::Symbol=:ignore, kw...) where {T,O} =
+    @inline parse(lazy(buf; kw...), T; dicttype, null, style, unknown_fields)
 
-parse!(buf::Union{AbstractVector{UInt8},AbstractString}, x::T; dicttype::Type{O}=DEFAULT_OBJECT_TYPE, null=nothing, style::StructStyle=JSONReadStyle{dicttype}(null), kw...) where {T,O} =
-    @inline parse!(lazy(buf; kw...), x; dicttype, null, style)
+parse!(buf::Union{AbstractVector{UInt8},AbstractString}, x::T;
+    dicttype::Type{O}=DEFAULT_OBJECT_TYPE, null=nothing, style::StructStyle=StructUtils.DefaultStyle(),
+    unknown_fields::Symbol=:ignore, kw...) where {T,O} =
+    @inline parse!(lazy(buf; kw...), x; dicttype, null, style, unknown_fields)
 
-parse(x::LazyValue, ::Type{T}=Any; dicttype::Type{O}=DEFAULT_OBJECT_TYPE, null=nothing, style::StructStyle=JSONReadStyle{dicttype}(null)) where {T,O} =
-    @inline _parse(x, T, dicttype, null, style)
+parse(x::LazyValue, ::Type{T}=Any;
+    dicttype::Type{O}=DEFAULT_OBJECT_TYPE, null=nothing, style::StructStyle=StructUtils.DefaultStyle(),
+    unknown_fields::Symbol=:ignore) where {T,O} =
+    @inline _parse(x, T, dicttype, null, jsonreadstyle(T, O, null, style, unknown_fields))
 
 function _parse(x::LazyValue, ::Type{T}, dicttype::Type{O}, null, style::StructStyle) where {T,O}
     y, pos = StructUtils.make(style, T, x)
@@ -209,7 +241,10 @@ function _parse(x::LazyValue, ::Type{Any}, ::Type{DEFAULT_OBJECT_TYPE}, null, ::
     return out.value
 end
 
-parse!(x::LazyValue, obj::T; dicttype::Type{O}=DEFAULT_OBJECT_TYPE, null=nothing, style::StructStyle=JSONReadStyle{dicttype}(null)) where {T,O} = StructUtils.make!(style, obj, x)
+parse!(x::LazyValue, obj::T;
+    dicttype::Type{O}=DEFAULT_OBJECT_TYPE, null=nothing, style::StructStyle=StructUtils.DefaultStyle(),
+    unknown_fields::Symbol=:ignore) where {T,O} =
+    StructUtils.make!(jsonreadstyle(T, O, null, style, unknown_fields), obj, x)
 
 # for LazyValue, if x started at the beginning of the JSON input,
 # then we want to ensure that the entire input was consumed
@@ -331,25 +366,28 @@ function StructUtils.make(st::StructStyle, ::Type{Any}, x::LazyValues)
 end
 
 # catch PtrString via lift or make! so we can ensure it never "escapes" to user-level
-StructUtils.liftkey(st::StructStyle, ::Type{T}, x::PtrString) where {T} =
+StructUtils.liftkey(st::JSONReadStyle, ::Type{T}, x::PtrString) where {T} =
     StructUtils.liftkey(st, T, convert(String, x))
-StructUtils.lift(st::StructStyle, ::Type{T}, x::PtrString, tags) where {T} =
+StructUtils.lift(st::JSONReadStyle, ::Type{T}, x::PtrString, tags) where {T} =
     StructUtils.lift(st, T, convert(String, x), tags)
-StructUtils.lift(st::StructStyle, ::Type{T}, x::PtrString) where {T} =
+StructUtils.lift(st::JSONReadStyle, ::Type{T}, x::PtrString) where {T} =
     StructUtils.lift(st, T, convert(String, x))
 
 # liftkey for numeric dict key types to enable round-tripping Dict{Int,V}, Dict{Float64,V}, etc.
 # these correspond to the lowerkey definitions in write.jl that convert numeric keys to strings
-StructUtils.liftkey(::JSONStyle, ::Type{T}, x::AbstractString) where {T<:Integer} = Base.parse(T, x)
-StructUtils.liftkey(::JSONStyle, ::Type{T}, x::AbstractString) where {T<:AbstractFloat} = Base.parse(T, x)
+StructUtils.liftkey(::JSONReadStyle, ::Type{T}, x::AbstractString) where {T<:Integer} = Base.parse(T, x)
+StructUtils.liftkey(::JSONReadStyle, ::Type{T}, x::AbstractString) where {T<:AbstractFloat} = Base.parse(T, x)
 
-function StructUtils.lift(style::StructStyle, ::Type{T}, x::LazyValues) where {T<:AbstractArray{E,0}} where {E}
+StructUtils.lift(style::JSONReadStyle, ::Type{T}, x, tags) where {T} = StructUtils.lift(style.style, T, x, tags)
+StructUtils.lift(style::JSONReadStyle, ::Type{T}, x) where {T} = StructUtils.lift(style.style, T, x)
+
+function StructUtils.lift(style::JSONReadStyle, ::Type{T}, x::LazyValues) where {T<:AbstractArray{E,0}} where {E}
     m = T(undef)
     m[1], pos = StructUtils.lift(style, E, x)
     return m, pos
 end
 
-function StructUtils.lift(style::StructStyle, ::Type{T}, x::LazyValues, tags=(;)) where {T}
+function StructUtils.lift(style::JSONReadStyle, ::Type{T}, x::LazyValues, tags=(;)) where {T}
     type = gettype(x)
     buf = getbuf(x)
     if type == JSONTypes.STRING

@@ -164,6 +164,14 @@ With this approach, JSON.jl automatically:
 - Converts values to the appropriate field types
 - Constructs the struct with the parsed values
 
+By default, any extra JSON keys that don't match fields in the target type are
+ignored. If you want those to error instead, pass `unknown_fields=:error`:
+
+```julia
+JSON.parse("""{"name": "Alice", "age": 30, "admin": true}""", Person; unknown_fields=:error)
+# ERROR: ArgumentError: encountered unknown JSON member "admin" while parsing `Person`
+```
+
 This works for nested structs too:
 
 ```julia
@@ -505,4 +513,4 @@ Let's walk through some notable features of the example above:
   * The `percentages` field is a dictionary with keys of type `Percent`, which is a custom type. The `liftkey` function is defined to convert the JSON string keys to `Percent` types (parses the Float64 manually)
   * The `json_properties` field has a type of `JSONText`, which means the raw JSON will be preserved as a String of the `JSONText` type.
   * The `matrix` field is a `Matrix{Float64}`, so the JSON input array-of-arrays are materialized as such.
-  * The `extra_key` field is not defined in the `FrankenStruct` type, so it is ignored and skipped over.
+  * The `extra_key` field is not defined in the `FrankenStruct` type, so it is ignored and skipped over by default. Pass `unknown_fields=:error` if you want unknown keys to throw instead.
