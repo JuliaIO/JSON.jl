@@ -292,6 +292,11 @@ All methods accept the following keyword arguments:
   If `false` or `0`, the output will be compact.
   Note: Pretty printing is not supported when `jsonlines=true`.
 
+- `sort_keys::Union{Bool, Nothing}=nothing`: Controls whether dictionary keys are sorted before writing.
+  If `true`, keys for all `AbstractDict` objects are sorted by their lowered string representation.
+  If `false`, dictionary iteration order is preserved. If `nothing`, plain `Dict` keys are sorted
+  by default while other dictionary-like containers preserve their iteration order.
+
 - `inline_limit::Int=0`: For arrays shorter than this limit, pretty printing will be disabled (indentation set to 0).
 
 - `ninf::String="-Infinity"`: Custom string representation for negative infinity.
@@ -547,6 +552,8 @@ end
 
 checkkey(s) = s isa AbstractString || throw(ArgumentError("Value returned from `StructUtils.lowerkey` must be a string: $(typeof(s))"))
 
+_sort_keys_by_default(x) = x isa Dict
+
 function (f::WriteClosure{JS, arraylike, T, I})(key, val) where {JS, arraylike, T, I}
     track_ref = ismutabletype(typeof(val))
     is_circ_ref = track_ref && any(x -> x === val, f.ancestor_stack)
@@ -670,7 +677,7 @@ function json!(buf, pos, x, opts::WriteOptions, ancestor_stack::Union{Nothing, V
         wroteanyref = Ref(false)
         GC.@preserve ref wroteanyref begin
             c = WriteClosure{typeof(opts), al, typeof(x), typeof(io)}(buf, Base.unsafe_convert(Ptr{Int}, ref), Base.unsafe_convert(Ptr{Bool}, wroteanyref), local_ind, depth + 1, opts, ancestor_stack, io, bufsize)
-            _sort_keys = opts.sort_keys === true || (opts.sort_keys === nothing && !al && x isa AbstractDict && !(x isa Object))
+            _sort_keys = opts.sort_keys === true || (opts.sort_keys === nothing && !al && _sort_keys_by_default(x))
             if _sort_keys && !al && x isa AbstractDict
                 sorted_keys = sort!(collect(keys(x)), by=k -> StructUtils.lowerkey(opts.style, k))
                 for k in sorted_keys

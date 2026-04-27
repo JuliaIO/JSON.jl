@@ -27,6 +27,19 @@ end
     dropped::Union{Nothing, JSON.Omit}
 end
 
+struct Issue447OrderedDict{K,V} <: AbstractDict{K,V}
+    entries::Vector{Pair{K,V}}
+end
+
+Base.length(d::Issue447OrderedDict) = length(d.entries)
+Base.iterate(d::Issue447OrderedDict, state=1) = state > length(d.entries) ? nothing : (d.entries[state], state + 1)
+function Base.getindex(d::Issue447OrderedDict, key)
+    for (k, v) in d
+        isequal(k, key) && return v
+    end
+    throw(KeyError(key))
+end
+
 @enum JsonFruit Apple Orange
 
 @testset "JSON.json" begin
@@ -678,17 +691,21 @@ end
 end
 
 @testset "sort_keys" begin
-    # default (nothing): Dict keys are sorted, Object preserves insertion order
+    # default (nothing): Dict keys are sorted, Object and other AbstractDicts preserve iteration order
     @test JSON.json(Dict("c" => 3, "a" => 1, "b" => 2)) == "{\"a\":1,\"b\":2,\"c\":3}"
     obj = JSON.Object("c" => 3, "a" => 1, "b" => 2)
     @test JSON.json(obj) == "{\"c\":3,\"a\":1,\"b\":2}"
+    ordered = Issue447OrderedDict([:b => 2, :a => 1])
+    @test JSON.json(ordered) == "{\"b\":2,\"a\":1}"
 
     # sort_keys=true: all AbstractDicts sorted, including Object
     @test JSON.json(Dict("c" => 3, "a" => 1, "b" => 2); sort_keys=true) == "{\"a\":1,\"b\":2,\"c\":3}"
     @test JSON.json(obj; sort_keys=true) == "{\"a\":1,\"b\":2,\"c\":3}"
+    @test JSON.json(ordered; sort_keys=true) == "{\"a\":1,\"b\":2}"
 
     # sort_keys=false: no sorting for any AbstractDict
     @test JSON.json(obj; sort_keys=false) == "{\"c\":3,\"a\":1,\"b\":2}"
+    @test JSON.json(ordered; sort_keys=false) == "{\"b\":2,\"a\":1}"
 
     # empty dict
     @test JSON.json(Dict{String,Any}()) == "{}"
