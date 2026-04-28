@@ -70,6 +70,35 @@ x = JSON.parse("[1,2,3]", JSONText)
 struct JSONText
     value::String
 end
+JSON.JSONText(js::JSONText) = js
+
+VERSION >= v"1.11" && eval(Meta.parse("public @js_str"))
+
+"""
+    js" -> JSONText
+
+Construct a JSONText. String interpolation is supported via the `i` flag.
+### Examples
+```
+js\"\"\"alert("Hello World")\"\"\"
+# JSONText("alert(\"Hello World\")")
+
+js\"\"\"alert("1 + 2 == \$(1 + 2)")\"\"\"i
+# JSONText("alert(\"1 + 2 == 3\")")
+```
+"""
+macro js_str(s)
+    :( JSONText($(esc(s))) )
+end
+
+macro js_str(s, flags)
+    flags == "i" || @warn "Only 'i' flag currently supported (string interpolation)."
+    if 'i' in flags
+        :( JSONText($(esc(Meta.parse("\"$s\"")))) )
+    else
+        :( JSONText($(esc(s))) )
+    end
+end
 
 include("lazy.jl")
 include("parse.jl")
