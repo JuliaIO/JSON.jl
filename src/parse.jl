@@ -171,6 +171,11 @@ nullvalue(st::JSONReadStyle) = st.null
 StructUtils.fieldtagkey(::JSONStyle) = :json
 StructUtils.defaultstate(st::JSONReadStyle) = StructUtils.defaultstate(st.style)
 
+# forward StructUtils API to the inner style so user-provided JSONStyle dispatches are honored
+StructUtils.dictlike(st::JSONReadStyle, ::Type{T}) where {T} = StructUtils.dictlike(st.style, T)
+StructUtils.arraylike(st::JSONReadStyle, ::Type{T}) where {T} = StructUtils.arraylike(st.style, T)
+StructUtils.nulllike(st::JSONReadStyle, ::Type{T}) where {T} = StructUtils.nulllike(st.style, T)
+
 function jsonreadstyle(::Type{T}, ::Type{O}, null, style::StructStyle, unknown_fields::Symbol) where {T,O}
     ignore_unknown_fields =
         unknown_fields === :ignore ? true :
