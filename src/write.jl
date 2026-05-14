@@ -35,6 +35,7 @@ StructUtils.lower(::JSONStyle, ::Missing) = nothing
 StructUtils.lower(::JSONStyle, x::Symbol) = String(x)
 StructUtils.lower(::JSONStyle, x::StringLike) = string(x)
 StructUtils.lower(::JSONStyle, x::Regex) = x.pattern
+StructUtils.lower(::JSONStyle, x::Complex) = (re=real(x), im=imag(x))
 StructUtils.lower(::JSONStyle, x::AbstractArray{<:Any,0}) = x[1]
 StructUtils.lower(::JSONStyle, x::AbstractArray{<:Any, N}) where {N} = (view(x, ntuple(_ -> :, N - 1)..., j) for j in axes(x, N))
 StructUtils.lower(::JSONStyle, x::AbstractVector) = x
