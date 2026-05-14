@@ -167,6 +167,8 @@ objecttype(::JSONReadStyle{OT}) where {OT} = OT
 nullvalue(::StructStyle) = nothing
 nullvalue(st::JSONReadStyle) = st.null
 
+StructUtils.initialize(::JSONReadStyle, ::Type{Object}, source) = DEFAULT_OBJECT_TYPE()
+
 # this allows struct fields to specify tags under the json key specifically to override JSON behavior
 StructUtils.fieldtagkey(::JSONStyle) = :json
 StructUtils.defaultstate(st::JSONReadStyle) = StructUtils.defaultstate(st.style)
