@@ -3,6 +3,7 @@ uuid = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
 version = "1.4.0"
 
 [deps]
+Chairmarks = "0ca39b1e-fe0b-4e98-acfc-b1656634c4de"
 Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
 Logging = "56ddb016-857b-54e1-b83d-db4d58db5568"
 Parsers = "69de0a69-1ddd-5017-9359-2bf0b02dc9f0"
@@ -20,6 +21,7 @@ JSONArrowExt = ["ArrowTypes"]
 [compat]
 Arrow = "2.8.0"
 ArrowTypes = "2.2"
+Chairmarks = "1.3.1"
 Parsers = "1, 2"
 PrecompileTools = "1"
 StructUtils = "2.3"

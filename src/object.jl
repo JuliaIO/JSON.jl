@@ -121,7 +121,7 @@ Base.isempty(obj::Object) = _k(obj) === notset && _ch(obj) === notset
 Base.empty(::Object{K,V}) where {K,V} = Object{K,V}() # empty object
 
 # linear node lookup
-@inline function find_node_by_key(obj::Object{K,V}, key::K) where {K,V}
+@inline function find_node_by_key(obj::Object{K,V}, key) where {K,V}
     while true
         _k(obj) !== notset && isequal(_k(obj)::K, key) && return obj
         _ch(obj) === notset && break
@@ -142,9 +142,11 @@ Base.get(f::Base.Callable, obj::Object{Symbol}, key::String) = get(f, obj, Symbo
 Base.getindex(obj::Object, key) = get(() -> throw(KeyError(key)), obj, key)
 Base.getindex(obj::Object{String}, key::Symbol) = get(() -> throw(KeyError(key)), obj, String(key))
 Base.getindex(obj::Object{Symbol}, key::String) = get(() -> throw(KeyError(key)), obj, Symbol(key))
-Base.setindex!(obj::Object{String}, value, key::Symbol) = setindex!(obj, value, String(key))
+Base.setindex!(obj::Object{String,V}, value, key::AbstractString) where {V} = _setindex!(obj, value, String(key))
+Base.setindex!(obj::Object{String,V}, value, key::Symbol) where {V} = _setindex!(obj, value, String(key))
 Base.setindex!(obj::Object{Symbol}, value, key::String) = setindex!(obj, value, Symbol(key))
-Base.delete!(obj::Object{String}, key::Symbol) = delete!(obj, String(key))
+Base.delete!(obj::Object{String,V}, key::AbstractString) where {V} = _delete!(obj, String(key))
+Base.delete!(obj::Object{String,V}, key::Symbol) where {V} = _delete!(obj, String(key))
 Base.delete!(obj::Object{Symbol}, key::String) = delete!(obj, Symbol(key))
 Base.get(obj::Object, key, default) = get(() -> default, obj, key)
 Base.get(obj::Object{String}, key::Symbol, default) = get(obj, String(key), default)
@@ -166,7 +168,7 @@ Base.haskey(obj::Object{String}, key::Symbol) = haskey(obj, String(key))
 Base.haskey(obj::Object{Symbol}, key::String) = haskey(obj, Symbol(key))
 
 # setindex! finds node with key and sets value or inserts a new node
-function Base.setindex!(obj::Object{K,V}, value, key::K) where {K,V}
+function _setindex!(obj::Object{K,V}, value, key::K) where {K,V}
     root = obj
     while true
         if _k(obj) !== notset && isequal(_k(obj)::K, key)
@@ -180,9 +182,10 @@ function Base.setindex!(obj::Object{K,V}, value, key::K) where {K,V}
     Object{K,V}(obj, key, value)
     return value
 end
+Base.setindex!(obj::Object{K,V}, value, key::K) where {K,V} = _setindex!(obj, value, key)
 
 # delete! removes node
-function Base.delete!(obj::Object{K,V}, key::K) where {K,V}
+function _delete!(obj::Object{K,V}, key::K) where {K,V}
     # check empty case
     _ch(obj) === notset && return obj
     root = parent = obj
@@ -204,6 +207,7 @@ function Base.delete!(obj::Object{K,V}, key::K) where {K,V}
     end
     return root
 end
+Base.delete!(obj::Object{K,V}, key::K) where {K,V} = _delete!(obj, key)
 
 function Base.empty!(obj::Object)
     setfield!(obj, :child, notset)
