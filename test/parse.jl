@@ -303,6 +303,9 @@ StructUtils.dictlike(::CustomJSONStyle, ::Type{DictlikeViaCustomStyle}) = true
     @test !isempty(x) && x["a"] == 1 && typeof(x) == JSON.Object{String, Any}
     x = JSON.parse("{\"a\": 1, \"b\": null, \"c\": true, \"d\": false, \"e\": \"\", \"f\": [], \"g\": {}}")
     @test !isempty(x) && x["a"] == 1 && x["b"] === nothing && x["c"] === true && x["d"] === false && x["e"] == "" && x["f"] == Any[] && x["g"] == JSON.Object{String, Any}()
+    # https://github.com/JuliaIO/JSON.jl/issues/456
+    x = JSON.parse("{\"a\": 1}", JSON.Object)
+    @test x isa JSON.Object{String, Any} && x["a"] == 1
     # custom dicttype
     x = JSON.parse("{\"a\": 1, \"b\": null, \"c\": true, \"d\": false, \"e\": \"\", \"f\": [], \"g\": {}}"; dicttype=Dict{String, Any})
     # test that x isa Dict and nested x.g is also a Dict
