@@ -1,6 +1,8 @@
 using JSON, StructUtils, UUIDs, Dates, Test
 
 struct CustomJSONStyle <: JSON.JSONStyle end
+struct DateStringStyle <: JSON.JSONStyle end
+struct DateObjectStyle <: JSON.JSONStyle end
 
 struct A
     a::Int
@@ -236,6 +238,11 @@ Base.valtype(::DictlikeViaCustomStyle) = Int
 StructUtils.addkeyval!(a::DictlikeViaCustomStyle, k, v) = StructUtils.addkeyval!(a.vals, k, v)
 StructUtils.dictlike(::CustomJSONStyle, ::Type{DictlikeViaCustomStyle}) = true
 
+JSON.lower(::DateStringStyle, d::Date) = string(d)
+JSON.lift(::DateStringStyle, ::Type{Date}, x::String) = Date(x)
+JSON.lower(::DateObjectStyle, d::Date) = (; time=string(d))
+JSON.lift(::DateObjectStyle, ::Type{Date}, x::JSON.LazyValue) = Date(x.time[])
+
 @testset "JSON.parse" begin
     @testset "errors" begin
         # Unexpected character in array
@@ -303,6 +310,9 @@ StructUtils.dictlike(::CustomJSONStyle, ::Type{DictlikeViaCustomStyle}) = true
     @test !isempty(x) && x["a"] == 1 && typeof(x) == JSON.Object{String, Any}
     x = JSON.parse("{\"a\": 1, \"b\": null, \"c\": true, \"d\": false, \"e\": \"\", \"f\": [], \"g\": {}}")
     @test !isempty(x) && x["a"] == 1 && x["b"] === nothing && x["c"] === true && x["d"] === false && x["e"] == "" && x["f"] == Any[] && x["g"] == JSON.Object{String, Any}()
+    # https://github.com/JuliaIO/JSON.jl/issues/456
+    x = JSON.parse("{\"a\": 1}", JSON.Object)
+    @test x isa JSON.Object{String, Any} && x["a"] == 1
     # custom dicttype
     x = JSON.parse("{\"a\": 1, \"b\": null, \"c\": true, \"d\": false, \"e\": \"\", \"f\": [], \"g\": {}}"; dicttype=Dict{String, Any})
     # test that x isa Dict and nested x.g is also a Dict
@@ -774,6 +784,9 @@ StructUtils.dictlike(::CustomJSONStyle, ::Type{DictlikeViaCustomStyle}) = true
     JSON.lift(::CustomJSONStyle, ::Type{Rational}, x) = Rational(x.num[], x.den[])
     @test JSON.parse("{\"num\": 1,\"den\":3}", Rational; style=CustomJSONStyle()) == 1//3
     @test JSON.parse("{\"num\": 1,\"den\":3}", Rational; style=CustomJSONStyle(), unknown_fields=:error) == 1//3
+    # https://github.com/JuliaIO/JSON.jl/issues/434
+    @test JSON.parse(JSON.json(Date(2023, 1, 1); style=DateStringStyle()), Date; style=DateStringStyle()) == Date(2023, 1, 1)
+    @test JSON.parse(JSON.json(Date(2023, 1, 1); style=DateObjectStyle()), Date; style=DateObjectStyle()) == Date(2023, 1, 1)
     # https://github.com/JuliaIO/JSON.jl/issues/453 - dictlike dispatch on custom JSONStyle must reach user method
     let res = JSON.parse("""{"a": 1, "b": 2}""", DictlikeViaCustomStyle; style=CustomJSONStyle())
         @test res.vals == Dict("a" => 1, "b" => 2)
