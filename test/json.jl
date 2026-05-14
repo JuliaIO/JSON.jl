@@ -244,6 +244,9 @@ end
     @test_throws MethodError JSON.json(CustomNumber(3.14))
     JSON.tostring(x::CustomNumber) = string(x.x)
     @test JSON.json(CustomNumber(3.14)) == "3.14"
+    # https://github.com/JuliaIO/JSON.jl/issues/440
+    @test JSON.json(1 + 2im) == "{\"re\":1,\"im\":2}"
+    @test JSON.parse(JSON.json(1.0 + 2.0im), ComplexF64) == 1.0 + 2.0im
     # jsonlines output
     @test JSON.json([1, 2, 3]; jsonlines=true) == "1\n2\n3\n"
     # jsonlines output with pretty not allowed
