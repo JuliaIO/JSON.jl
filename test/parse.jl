@@ -1,6 +1,7 @@
 using JSON, StructUtils, UUIDs, Dates, Test
 
 struct CustomJSONStyle <: JSON.JSONStyle end
+struct RefValueStyle <: JSON.JSONStyle end
 
 struct A
     a::Int
@@ -235,6 +236,10 @@ Base.keytype(::DictlikeViaCustomStyle) = String
 Base.valtype(::DictlikeViaCustomStyle) = Int
 StructUtils.addkeyval!(a::DictlikeViaCustomStyle, k, v) = StructUtils.addkeyval!(a.vals, k, v)
 StructUtils.dictlike(::CustomJSONStyle, ::Type{DictlikeViaCustomStyle}) = true
+
+StructUtils.structlike(::RefValueStyle, ::Type{Base.RefValue{Int}}) = false
+StructUtils.lower(::RefValueStyle, x::Base.RefValue{Int}) = x[]
+StructUtils.lift(::RefValueStyle, ::Type{Base.RefValue{Int}}, x::Integer) = Ref{Int}(x), nothing
 
 @testset "JSON.parse" begin
     @testset "errors" begin
@@ -780,6 +785,11 @@ StructUtils.dictlike(::CustomJSONStyle, ::Type{DictlikeViaCustomStyle}) = true
     # https://github.com/JuliaIO/JSON.jl/issues/453 - dictlike dispatch on custom JSONStyle must reach user method
     let res = JSON.parse("""{"a": 1, "b": 2}""", DictlikeViaCustomStyle; style=CustomJSONStyle())
         @test res.vals == Dict("a" => 1, "b" => 2)
+    end
+    # https://github.com/JuliaIO/JSON.jl/issues/462 - structlike dispatch on custom JSONStyle must reach user method
+    let json = JSON.json(Ref{Int}(1); style=RefValueStyle())
+        @test json == "1"
+        @test JSON.parse(json, Base.RefValue{Int}; style=RefValueStyle())[] == 1
     end
     @test isequal(JSON.parse("{\"num\": 1,\"den\":null}", @NamedTuple{num::Int, den::Union{Int, Missing}}; null=missing, style=StructUtils.DefaultStyle()), (num=1, den=missing))
     # choosetype field tag on Any struct field
