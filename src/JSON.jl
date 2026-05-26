@@ -9,6 +9,20 @@ using PrecompileTools, Parsers, StructUtils
 import StructUtils: @noarg, @kwarg, @defaults, @tags, @choosetype, @nonstruct, lower, lift
 export JSONText, StructUtils, @noarg, @kwarg, @defaults, @tags, @choosetype, @nonstruct, @omit_null, @omit_empty
 
+# Mark documented API as `public` on Julia versions that support it (>= 1.11).
+# Wrapped in `eval(Expr(...))` because `public` is a parse error on older versions.
+@static if VERSION >= v"1.11"
+    eval(Expr(:public,
+        :parse, :parse!, :parsefile, :parsefile!,
+        :lazy, :lazyfile, :LazyValue,
+        :isvalidjson,
+        :json, :print,
+        :lower, :lift,
+        :omit_null, :omit_empty,
+        :Object, :Null, :Omit, :JSONStyle,
+    ))
+end
+
 @enum Error InvalidJSON UnexpectedEOF ExpectedOpeningObjectChar ExpectedOpeningQuoteChar ExpectedOpeningArrayChar ExpectedClosingArrayChar ExpectedComma ExpectedColon ExpectedNewline InvalidChar InvalidNumber InvalidUTF16
 
 @noinline function invalid(error, buf, pos::Int, T)
