@@ -177,6 +177,12 @@ StructUtils.defaultstate(st::JSONReadStyle) = StructUtils.defaultstate(st.style)
 StructUtils.dictlike(st::JSONReadStyle, ::Type{T}) where {T} = StructUtils.dictlike(st.style, T)
 StructUtils.arraylike(st::JSONReadStyle, ::Type{T}) where {T} = StructUtils.arraylike(st.style, T)
 StructUtils.nulllike(st::JSONReadStyle, ::Type{T}) where {T} = StructUtils.nulllike(st.style, T)
+# Keep structlike forwarding specific to custom JSONStyle wrappers so type-level StructStyle
+# specializations (for example @nonstruct types) continue to dispatch without ambiguity.
+StructUtils.structlike(st::JSONReadStyle{O,N,S}, ::Type{T}) where {O,N,S<:JSONStyle,T} =
+    StructUtils.structlike(st.style, T)
+StructUtils.structlike(st::JSONReadStyle{O,N,S}, ::Type{T}) where {O,N,S<:JSONStyle,T<:NamedTuple} =
+    StructUtils.structlike(st.style, T)
 
 function jsonreadstyle(::Type{T}, ::Type{O}, null, style::StructStyle, unknown_fields::Symbol) where {T,O}
     ignore_unknown_fields =
