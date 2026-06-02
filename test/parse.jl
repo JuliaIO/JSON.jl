@@ -2,6 +2,9 @@ using JSON, StructUtils, UUIDs, Dates, Test
 
 struct CustomJSONStyle <: JSON.JSONStyle end
 struct RefValueStyle <: JSON.JSONStyle end
+struct DateStringStyle <: JSON.JSONStyle end
+struct DateObjectStyle <: JSON.JSONStyle end
+struct DateMaterializedObjectStyle <: JSON.JSONStyle end
 
 struct A
     a::Int
@@ -240,6 +243,13 @@ StructUtils.dictlike(::CustomJSONStyle, ::Type{DictlikeViaCustomStyle}) = true
 StructUtils.structlike(::RefValueStyle, ::Type{Base.RefValue{Int}}) = false
 StructUtils.lower(::RefValueStyle, x::Base.RefValue{Int}) = x[]
 StructUtils.lift(::RefValueStyle, ::Type{Base.RefValue{Int}}, x::Integer) = Ref{Int}(x), nothing
+
+JSON.lower(::DateStringStyle, d::Date) = string(d)
+JSON.lift(::DateStringStyle, ::Type{Date}, x::String) = Date(x)
+JSON.lower(::DateObjectStyle, d::Date) = (; time=string(d))
+JSON.lift(::DateObjectStyle, ::Type{Date}, x::JSON.LazyValue) = Date(x.time[])
+JSON.lower(::DateMaterializedObjectStyle, d::Date) = (; time=string(d))
+JSON.lift(::DateMaterializedObjectStyle, ::Type{Date}, x::JSON.Object) = Date(x["time"])
 
 @testset "JSON.parse" begin
     @testset "errors" begin
@@ -782,6 +792,10 @@ StructUtils.lift(::RefValueStyle, ::Type{Base.RefValue{Int}}, x::Integer) = Ref{
     JSON.lift(::CustomJSONStyle, ::Type{Rational}, x) = Rational(x.num[], x.den[])
     @test JSON.parse("{\"num\": 1,\"den\":3}", Rational; style=CustomJSONStyle()) == 1//3
     @test JSON.parse("{\"num\": 1,\"den\":3}", Rational; style=CustomJSONStyle(), unknown_fields=:error) == 1//3
+    # https://github.com/JuliaIO/JSON.jl/issues/434
+    @test JSON.parse(JSON.json(Date(2023, 1, 1); style=DateStringStyle()), Date; style=DateStringStyle()) == Date(2023, 1, 1)
+    @test JSON.parse(JSON.json(Date(2023, 1, 1); style=DateObjectStyle()), Date; style=DateObjectStyle()) == Date(2023, 1, 1)
+    @test JSON.parse(JSON.json(Date(2023, 1, 1); style=DateMaterializedObjectStyle()), Date; style=DateMaterializedObjectStyle()) == Date(2023, 1, 1)
     # https://github.com/JuliaIO/JSON.jl/issues/453 - dictlike dispatch on custom JSONStyle must reach user method
     let res = JSON.parse("""{"a": 1, "b": 2}""", DictlikeViaCustomStyle; style=CustomJSONStyle())
         @test res.vals == Dict("a" => 1, "b" => 2)
