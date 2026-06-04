@@ -240,6 +240,38 @@ Base.valtype(::DictlikeViaCustomStyle) = Int
 StructUtils.addkeyval!(a::DictlikeViaCustomStyle, k, v) = StructUtils.addkeyval!(a.vals, k, v)
 StructUtils.dictlike(::CustomJSONStyle, ::Type{DictlikeViaCustomStyle}) = true
 
+# https://github.com/JuliaIO/JSON.jl/issues/464 - broad style dispatch should not
+# become ambiguous with JSONReadStyle's custom style wrapper
+struct DictlikeViaStructStyle
+    vals::Dict{String,Int}
+end
+Base.keytype(::DictlikeViaStructStyle) = String
+Base.valtype(::DictlikeViaStructStyle) = Int
+StructUtils.initialize(::StructUtils.StructStyle, ::Type{DictlikeViaStructStyle}, source) =
+    DictlikeViaStructStyle(Dict{String,Int}())
+StructUtils.addkeyval!(a::DictlikeViaStructStyle, k, v) = StructUtils.addkeyval!(a.vals, k, v)
+StructUtils.dictlike(::StructUtils.StructStyle, ::Type{DictlikeViaStructStyle}) = true
+
+struct DictlikeViaAbstractJSONStyle
+    vals::Dict{String,Int}
+end
+Base.keytype(::DictlikeViaAbstractJSONStyle) = String
+Base.valtype(::DictlikeViaAbstractJSONStyle) = Int
+StructUtils.initialize(::JSON.JSONStyle, ::Type{DictlikeViaAbstractJSONStyle}, source) =
+    DictlikeViaAbstractJSONStyle(Dict{String,Int}())
+StructUtils.addkeyval!(a::DictlikeViaAbstractJSONStyle, k, v) = StructUtils.addkeyval!(a.vals, k, v)
+StructUtils.dictlike(::JSON.JSONStyle, ::Type{DictlikeViaAbstractJSONStyle}) = true
+
+struct DictlikeStringViaStructStyle
+    vals::Dict{String,String}
+end
+Base.keytype(::DictlikeStringViaStructStyle) = String
+Base.valtype(::DictlikeStringViaStructStyle) = String
+StructUtils.initialize(::StructUtils.StructStyle, ::Type{DictlikeStringViaStructStyle}, source) =
+    DictlikeStringViaStructStyle(Dict{String,String}())
+StructUtils.addkeyval!(a::DictlikeStringViaStructStyle, k, v) = StructUtils.addkeyval!(a.vals, k, v)
+StructUtils.dictlike(::StructUtils.StructStyle, ::Type{DictlikeStringViaStructStyle}) = true
+
 StructUtils.structlike(::RefValueStyle, ::Type{Base.RefValue{Int}}) = false
 StructUtils.lower(::RefValueStyle, x::Base.RefValue{Int}) = x[]
 StructUtils.lift(::RefValueStyle, ::Type{Base.RefValue{Int}}, x::Integer) = Ref{Int}(x), nothing
@@ -799,6 +831,23 @@ JSON.lift(::DateMaterializedObjectStyle, ::Type{Date}, x::JSON.Object) = Date(x[
     # https://github.com/JuliaIO/JSON.jl/issues/453 - dictlike dispatch on custom JSONStyle must reach user method
     let res = JSON.parse("""{"a": 1, "b": 2}""", DictlikeViaCustomStyle; style=CustomJSONStyle())
         @test res.vals == Dict("a" => 1, "b" => 2)
+    end
+    # https://github.com/JuliaIO/JSON.jl/issues/464 - broad style-level dictlike methods must
+    # not conflict with JSONReadStyle's custom style wrapper
+    let res = JSON.parse("""{"a": 1, "b": 2}""", DictlikeViaStructStyle)
+        @test res.vals == Dict("a" => 1, "b" => 2)
+    end
+    let res = JSON.parse("""{"a": 1, "b": 2}""", DictlikeViaAbstractJSONStyle)
+        @test res.vals == Dict("a" => 1, "b" => 2)
+    end
+    let res = JSON.parse("""{"a": 1, "b": 2}""", DictlikeViaStructStyle; style=CustomJSONStyle())
+        @test res.vals == Dict("a" => 1, "b" => 2)
+    end
+    let res = JSON.parse("""{"a": 1, "b": 2}""", DictlikeViaAbstractJSONStyle; style=CustomJSONStyle())
+        @test res.vals == Dict("a" => 1, "b" => 2)
+    end
+    let res = JSON.parse("""{"a": "x", "b": "y"}""", DictlikeStringViaStructStyle; style=CustomJSONStyle())
+        @test res.vals == Dict("a" => "x", "b" => "y")
     end
     # https://github.com/JuliaIO/JSON.jl/issues/462 - structlike dispatch on custom JSONStyle must reach user method
     let json = JSON.json(Ref{Int}(1); style=RefValueStyle())
