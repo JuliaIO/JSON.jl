@@ -174,9 +174,12 @@ StructUtils.fieldtagkey(::JSONStyle) = :json
 StructUtils.defaultstate(st::JSONReadStyle) = StructUtils.defaultstate(st.style)
 
 # forward StructUtils API to the inner style so user-provided JSONStyle dispatches are honored
-StructUtils.dictlike(st::JSONReadStyle, ::Type{T}) where {T} = StructUtils.dictlike(st.style, T)
-StructUtils.arraylike(st::JSONReadStyle, ::Type{T}) where {T} = StructUtils.arraylike(st.style, T)
-StructUtils.nulllike(st::JSONReadStyle, ::Type{T}) where {T} = StructUtils.nulllike(st.style, T)
+StructUtils.dictlike(st::JSONReadStyle{O,N,S}, ::Type{T}) where {O,N,S<:JSONStyle,T} =
+    StructUtils.dictlike(st.style, T)
+StructUtils.arraylike(st::JSONReadStyle{O,N,S}, ::Type{T}) where {O,N,S<:JSONStyle,T} =
+    StructUtils.arraylike(st.style, T)
+StructUtils.nulllike(st::JSONReadStyle{O,N,S}, ::Type{T}) where {O,N,S<:JSONStyle,T} =
+    StructUtils.nulllike(st.style, T)
 # Keep structlike forwarding specific to custom JSONStyle wrappers so type-level StructStyle
 # specializations (for example @nonstruct types) continue to dispatch without ambiguity.
 StructUtils.structlike(st::JSONReadStyle{O,N,S}, ::Type{T}) where {O,N,S<:JSONStyle,T} =
@@ -191,6 +194,12 @@ function jsonreadstyle(::Type{T}, ::Type{O}, null, style::StructStyle, unknown_f
         throw(ArgumentError("`unknown_fields` must be `:ignore` or `:error`, got `$(repr(unknown_fields))`"))
     if T === Any && !ignore_unknown_fields
         throw(ArgumentError("`unknown_fields` is only supported when parsing into a target type or existing object"))
+    end
+    # Avoid wrapping aggregate targets whose broad style methods would otherwise
+    # become ambiguous with JSONReadStyle's custom-style forwarding.
+    if O === DEFAULT_OBJECT_TYPE && null === nothing && ignore_unknown_fields && style isa JSONStyle &&
+            (StructUtils.dictlike(style, T) || StructUtils.arraylike(style, T) || StructUtils.nulllike(style, T))
+        return style
     end
     return JSONReadStyle{O}(null, style, ignore_unknown_fields)
 end
@@ -377,8 +386,12 @@ function StructUtils.make(st::StructStyle, ::Type{Any}, x::LazyValues)
 end
 
 # catch PtrString via lift or make! so we can ensure it never "escapes" to user-level
+StructUtils.liftkey(st::JSONStyle, ::Type{T}, x::PtrString) where {T} =
+    StructUtils.liftkey(st, T, convert(String, x))
 StructUtils.liftkey(st::JSONReadStyle, ::Type{T}, x::PtrString) where {T} =
     StructUtils.liftkey(st, T, convert(String, x))
+StructUtils.lift(st::JSONStyle, ::Type{T}, x::PtrString, tags) where {T} =
+    StructUtils.lift(st, T, convert(String, x), tags)
 StructUtils.lift(st::JSONReadStyle, ::Type{T}, x::PtrString, tags) where {T} =
     StructUtils.lift(st, T, convert(String, x), tags)
 StructUtils.lift(st::JSONReadStyle, ::Type{T}, x::PtrString) where {T} =
@@ -386,8 +399,8 @@ StructUtils.lift(st::JSONReadStyle, ::Type{T}, x::PtrString) where {T} =
 
 # liftkey for numeric dict key types to enable round-tripping Dict{Int,V}, Dict{Float64,V}, etc.
 # these correspond to the lowerkey definitions in write.jl that convert numeric keys to strings
-StructUtils.liftkey(::JSONReadStyle, ::Type{T}, x::AbstractString) where {T<:Integer} = Base.parse(T, x)
-StructUtils.liftkey(::JSONReadStyle, ::Type{T}, x::AbstractString) where {T<:AbstractFloat} = Base.parse(T, x)
+StructUtils.liftkey(::JSONStyle, ::Type{T}, x::AbstractString) where {T<:Integer} = Base.parse(T, x)
+StructUtils.liftkey(::JSONStyle, ::Type{T}, x::AbstractString) where {T<:AbstractFloat} = Base.parse(T, x)
 
 _isliftpair(x) = x isa Tuple && !(x isa NamedTuple) && length(x) == 2
 _liftresult(x, st) = _isliftpair(x) ? x : (x, StructUtils.defaultstate(st))
@@ -396,8 +409,10 @@ _liftresult(x, pos::Int) = _isliftpair(x) ? x : (x, pos)
 struct _NoCustomLazyLift end
 const _NO_CUSTOM_LAZY_LIFT = _NoCustomLazyLift()
 
-StructUtils.lift(::JSONStyle, ::Type{T}, ::LazyValues, tags) where {T} = _NO_CUSTOM_LAZY_LIFT
-StructUtils.lift(::JSONStyle, ::Type{T}, ::LazyValues) where {T} = _NO_CUSTOM_LAZY_LIFT
+StructUtils.lift(style::JSONStyle, ::Type{T}, x::LazyValues, tags) where {T} =
+    _maybeliftjsonvalue(style, T, x, tags)
+StructUtils.lift(style::JSONStyle, ::Type{T}, x::LazyValues) where {T} =
+    _maybeliftjsonvalue(style, T, x, (;))
 
 StructUtils.lift(style::JSONReadStyle, ::Type{T}, x, tags) where {T} =
     _liftresult(StructUtils.lift(style.style, T, x, tags), style)
@@ -420,7 +435,20 @@ function StructUtils.lift(style::JSONReadStyle, ::Type{T}, x::LazyValues) where 
     return m, pos
 end
 
-function StructUtils.lift(style::JSONReadStyle, ::Type{T}, x::LazyValues, tags=(;)) where {T}
+StructUtils.lift(style::JSONReadStyle, ::Type{T}, x::LazyValues, tags) where {T} =
+    _liftjsonvalue(style, T, x, tags)
+StructUtils.lift(style::JSONReadStyle, ::Type{T}, x::LazyValues) where {T} =
+    _liftjsonvalue(style, T, x, (;))
+
+function _maybeliftjsonvalue(style::JSONStyle, ::Type{T}, x::LazyValues, tags) where {T}
+    type = gettype(x)
+    if type == JSONTypes.OBJECT || type == JSONTypes.ARRAY
+        return _NO_CUSTOM_LAZY_LIFT
+    end
+    return _liftjsonvalue(style, T, x, tags)
+end
+
+function _liftjsonvalue(style::JSONStyle, ::Type{T}, x::LazyValues, tags) where {T}
     type = gettype(x)
     buf = getbuf(x)
     if type == JSONTypes.OBJECT || type == JSONTypes.ARRAY
