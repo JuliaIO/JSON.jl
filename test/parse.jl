@@ -240,6 +240,42 @@ Base.valtype(::DictlikeViaCustomStyle) = Int
 StructUtils.addkeyval!(a::DictlikeViaCustomStyle, k, v) = StructUtils.addkeyval!(a.vals, k, v)
 StructUtils.dictlike(::CustomJSONStyle, ::Type{DictlikeViaCustomStyle}) = true
 
+# https://github.com/JuliaIO/JSON.jl/issues/464 - traits defined broadly on the style axis
+# (::StructUtils.StructStyle / ::JSON.JSONStyle) must dispatch without ambiguity when
+# parsing with a custom style, regardless of other parse kwargs or nesting depth
+struct DictlikeViaStructStyle
+    vals::Dict{String,Int}
+end
+Base.keytype(::DictlikeViaStructStyle) = String
+Base.valtype(::DictlikeViaStructStyle) = Int
+StructUtils.initialize(::StructUtils.StructStyle, ::Type{DictlikeViaStructStyle}, source) =
+    DictlikeViaStructStyle(Dict{String,Int}())
+StructUtils.addkeyval!(a::DictlikeViaStructStyle, k, v) = StructUtils.addkeyval!(a.vals, k, v)
+StructUtils.dictlike(::StructUtils.StructStyle, ::Type{DictlikeViaStructStyle}) = true
+
+struct DictlikeViaAbstractJSONStyle
+    vals::Dict{String,Int}
+end
+Base.keytype(::DictlikeViaAbstractJSONStyle) = String
+Base.valtype(::DictlikeViaAbstractJSONStyle) = Int
+StructUtils.initialize(::JSON.JSONStyle, ::Type{DictlikeViaAbstractJSONStyle}, source) =
+    DictlikeViaAbstractJSONStyle(Dict{String,Int}())
+StructUtils.addkeyval!(a::DictlikeViaAbstractJSONStyle, k, v) = StructUtils.addkeyval!(a.vals, k, v)
+StructUtils.dictlike(::JSON.JSONStyle, ::Type{DictlikeViaAbstractJSONStyle}) = true
+
+struct NestedDictlikeHolder
+    a::DictlikeViaStructStyle
+end
+
+# hooks must receive the exact style instance passed to JSON.parse (never a wrapper)
+struct IdentityCheckStyle <: JSON.JSONStyle end
+struct IdentityChecked
+    x::Int
+end
+StructUtils.structlike(::IdentityCheckStyle, ::Type{IdentityChecked}) = false
+StructUtils.lift(st::StructUtils.StructStyle, ::Type{IdentityChecked}, x::Integer) =
+    (@assert typeof(st) === IdentityCheckStyle; IdentityChecked(x))
+
 StructUtils.structlike(::RefValueStyle, ::Type{Base.RefValue{Int}}) = false
 StructUtils.lower(::RefValueStyle, x::Base.RefValue{Int}) = x[]
 StructUtils.lift(::RefValueStyle, ::Type{Base.RefValue{Int}}, x::Integer) = Ref{Int}(x), nothing
@@ -804,6 +840,33 @@ JSON.lift(::DateMaterializedObjectStyle, ::Type{Date}, x::JSON.Object) = Date(x[
     let json = JSON.json(Ref{Int}(1); style=RefValueStyle())
         @test json == "1"
         @test JSON.parse(json, Base.RefValue{Int}; style=RefValueStyle())[] == 1
+    end
+    # https://github.com/JuliaIO/JSON.jl/issues/464 - broad style-level trait methods must
+    # not be ambiguous with JSON internals, for any combination of parse kwargs or nesting
+    for kws in ((;), (; null=missing), (; dicttype=Dict{String,Any}), (; unknown_fields=:error))
+        let res = JSON.parse("""{"a": 1, "b": 2}""", DictlikeViaStructStyle; kws...)
+            @test res.vals == Dict("a" => 1, "b" => 2)
+        end
+        let res = JSON.parse("""{"a": 1, "b": 2}""", DictlikeViaStructStyle; style=CustomJSONStyle(), kws...)
+            @test res.vals == Dict("a" => 1, "b" => 2)
+        end
+        let res = JSON.parse("""{"a": 1, "b": 2}""", DictlikeViaAbstractJSONStyle; style=CustomJSONStyle(), kws...)
+            @test res.vals == Dict("a" => 1, "b" => 2)
+        end
+        # dictlike type nested as a struct field (the trait is queried mid-recursion)
+        let res = JSON.parse("""{"a": {"x": 1}}""", NestedDictlikeHolder; style=CustomJSONStyle(), kws...)
+            @test res.a.vals == Dict("x" => 1)
+        end
+    end
+    # hooks receive the exact style instance passed to parse (no wrapper substitution)
+    @test JSON.parse("3", IdentityChecked; style=IdentityCheckStyle()).x == 3
+    @test JSON.parse("""{"k": 3}""", Dict{String,IdentityChecked}; style=IdentityCheckStyle())["k"].x == 3
+    # the packages themselves must be ambiguity-free; methods defined by this test file
+    # (module Main) intentionally exercise the legacy lazy-lift crossing, which resolves
+    # at runtime but is conservatively reported by detect_ambiguities
+    let ambs = Test.detect_ambiguities(JSON)
+        filter!(((m1, m2),) -> m1.module !== Main && m2.module !== Main, ambs)
+        @test isempty(ambs)
     end
     @test isequal(JSON.parse("{\"num\": 1,\"den\":null}", @NamedTuple{num::Int, den::Union{Int, Missing}}; null=missing, style=StructUtils.DefaultStyle()), (num=1, den=missing))
     # choosetype field tag on Any struct field

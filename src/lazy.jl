@@ -75,12 +75,22 @@ function lazy end
 
 # helper struct we pack lazy-parsing keyword args into
 # held by LazyValues for access
-@kwdef struct LazyOptions
-    allownan::Bool = false
-    ninf::String = "-Infinity"
-    inf::String = "Infinity"
-    nan::String = "NaN"
-    jsonlines::Bool = false
+# NOTE: a mutable struct with const fields, so LazyValues carry a single
+# pointer and sub-value creation during traversal copies 8 bytes instead of
+# the whole options payload; the options object itself is allocated once per
+# parse and shared by all sub-values
+@kwdef mutable struct LazyOptions
+    const allownan::Bool = false
+    const ninf::String = "-Infinity"
+    const inf::String = "Infinity"
+    const nan::String = "NaN"
+    const jsonlines::Bool = false
+    # materialization options set by JSON.parse/parse! keyword arguments; they
+    # ride with the source (sub-values inherit them during traversal) so they
+    # are available at every recursion point without entering style dispatch
+    const null::Any = nothing
+    const dicttype::Type = DEFAULT_OBJECT_TYPE
+    const ignore_unknown::Bool = true
 end
 
 lazy(io::Union{IO, Base.AbstractCmd}; kw...) = lazy(Base.read(io); kw...)
@@ -178,7 +188,7 @@ Selectors.@selectors LazyValues
 Base.lastindex(x::LazyValues) = length(x)
 
 # this ensures LazyValues can be "sources" in StructUtils.make
-@inline function StructUtils.applyeach(::StructUtils.StructStyle, f, x::LazyValues)
+@inline function _applyeach_lazy(f, x::LazyValues)
     type = gettype(x)
     if type == JSONTypes.OBJECT
         return applyobject(f, x)
@@ -187,6 +197,11 @@ Base.lastindex(x::LazyValues) = length(x)
     end
     throw(ArgumentError("applyeach not applicable for `$(typeof(x))` with JSON type = `$type`"))
 end
+
+@inline StructUtils.applyeach(::StructUtils.StructStyle, f, x::LazyValues) = _applyeach_lazy(f, x)
+# disambiguate vs StructUtils' argument-order convenience `applyeach(f, style, x)` for the
+# degenerate case where `f` is itself a StructStyle: style-first wins for lazy sources
+@inline StructUtils.applyeach(::StructUtils.StructStyle, f::StructUtils.StructStyle, x::LazyValues) = _applyeach_lazy(f, x)
 
 @inline function Base.foreach(f, x::LazyValues)
     type = gettype(x)
@@ -378,7 +393,8 @@ function applyarray(keyvalfunc, x::LazyValues)
         # for jsonlines, we need to make sure that recursive
         # lazy values *don't* consider individual lines *also*
         # to be jsonlines
-        opts = LazyOptions(; allownan=opts.allownan, ninf=opts.ninf, inf=opts.inf, nan=opts.nan, jsonlines=false)
+        opts = LazyOptions(; allownan=opts.allownan, ninf=opts.ninf, inf=opts.inf, nan=opts.nan, jsonlines=false,
+            null=opts.null, dicttype=opts.dicttype, ignore_unknown=opts.ignore_unknown)
     end
     i = 1
     while true
@@ -451,6 +467,8 @@ Base.isequal(x::PtrString, y::PtrString) = x == y
 StructUtils.keyeq(x::PtrString, y::AbstractString) = x == y
 StructUtils.keyeq(x::PtrString, y::String) = x == y
 StructUtils.keyeq(x::PtrString, y::Symbol) = convert(Symbol, x) == y
+# PtrString is internal-only: materialize before dict keys reach user-level liftkey
+StructUtils.preparekey(x::PtrString) = convert(String, x)
 
 # core JSON string parsing function
 # returns a PtrString and the next position to parse

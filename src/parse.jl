@@ -19,8 +19,10 @@ Currently supported keyword arguments include:
   * `dicttype`: a custom `AbstractDict` type to use instead of `$DEFAULT_OBJECT_TYPE` as the default type for JSON object materialization
   * `null`: a custom value to use for JSON null values (default: `nothing`)
   * `unknown_fields`: controls how unmatched JSON object keys or positional values are handled when parsing into a target type or existing object; supported values are `:ignore` (default) and `:error`
-  * `style`: a custom `StructUtils.StructStyle` subtype instance to be used in calls to `StructUtils.make` and `StructUtils.lift`. This allows overriding
-    default behaviors for non-owned types.
+  * `style`: a custom style instance (ideally subtyping `JSON.JSONStyle`, like `struct MyStyle <: JSON.JSONStyle end`) that is passed as-is to all
+    StructUtils.jl interface methods (`StructUtils.make`, `StructUtils.lift`, trait queries like `StructUtils.dictlike`, etc.). This allows overriding
+    default behaviors for non-owned types. Subtyping `JSON.JSONStyle` (rather than `StructUtils.StructStyle` directly) ensures JSON-specific defaults,
+    like the `json` fieldtag namespace and numeric dict-key lifting, still apply when parsing with the custom style.
 
 The methods without a type specified (`JSON.parse(json)`, `JSON.parsefile(filename)`), do a generic materialization into
 predefined default types, including:
@@ -151,56 +153,48 @@ import StructUtils: StructStyle
 
 abstract type JSONStyle <: StructStyle end
 
-# defining a custom style allows us to pass a non-default dicttype `O` through JSON.parse,
-# while still delegating custom behavior to an inner StructStyle if one was provided
-struct JSONReadStyle{O,T,S} <: JSONStyle
-    null::T
-    style::S
-    ignore_unknown_fields::Bool
-end
+# Default style used by JSON.parse when no custom style is provided. It carries
+# no state: all per-call parse configuration (dicttype, null, unknown_fields)
+# travels with the LazyValue source options (see LazyOptions), never in the
+# style. The style passed to JSON.parse — user-provided or this default — is
+# handed to all StructUtils interface methods as-is, so user method overloads
+# of any breadth (::StructStyle, ::JSON.JSONStyle, ::MyStyle) dispatch
+# naturally, without wrapper-forwarding ambiguities (see issue #464).
+struct JSONReadStyle <: JSONStyle end
 
-JSONReadStyle{O}(null::T, style::S=StructUtils.DefaultStyle(), ignore_unknown_fields::Bool=true) where {O,T,S} =
-    JSONReadStyle{O,T,S}(null, style, ignore_unknown_fields)
-
-objecttype(::StructStyle) = DEFAULT_OBJECT_TYPE
-objecttype(::JSONReadStyle{OT}) where {OT} = OT
-nullvalue(::StructStyle) = nothing
-nullvalue(st::JSONReadStyle) = st.null
-
-StructUtils.initialize(::JSONReadStyle, ::Type{Object}, source) = DEFAULT_OBJECT_TYPE()
+StructUtils.initialize(::StructStyle, ::Type{Object}, source) = DEFAULT_OBJECT_TYPE()
 
 # this allows struct fields to specify tags under the json key specifically to override JSON behavior
 StructUtils.fieldtagkey(::JSONStyle) = :json
-StructUtils.defaultstate(st::JSONReadStyle) = StructUtils.defaultstate(st.style)
 
-# forward StructUtils API to the inner style so user-provided JSONStyle dispatches are honored
-StructUtils.dictlike(st::JSONReadStyle, ::Type{T}) where {T} = StructUtils.dictlike(st.style, T)
-StructUtils.arraylike(st::JSONReadStyle, ::Type{T}) where {T} = StructUtils.arraylike(st.style, T)
-StructUtils.nulllike(st::JSONReadStyle, ::Type{T}) where {T} = StructUtils.nulllike(st.style, T)
-# Keep structlike forwarding specific to custom JSONStyle wrappers so type-level StructStyle
-# specializations (for example @nonstruct types) continue to dispatch without ambiguity.
-StructUtils.structlike(st::JSONReadStyle{O,N,S}, ::Type{T}) where {O,N,S<:JSONStyle,T} =
-    StructUtils.structlike(st.style, T)
-StructUtils.structlike(st::JSONReadStyle{O,N,S}, ::Type{T}) where {O,N,S<:JSONStyle,T<:NamedTuple} =
-    StructUtils.structlike(st.style, T)
+@noinline _unknown_fields_arg_error(uf) =
+    throw(ArgumentError("`unknown_fields` must be `:ignore` or `:error`, got `$(repr(uf))`"))
+@noinline _unknown_fields_any_error() =
+    throw(ArgumentError("`unknown_fields` is only supported when parsing into a target type or existing object"))
 
-function jsonreadstyle(::Type{T}, ::Type{O}, null, style::StructStyle, unknown_fields::Symbol) where {T,O}
-    ignore_unknown_fields =
-        unknown_fields === :ignore ? true :
-        unknown_fields === :error ? false :
-        throw(ArgumentError("`unknown_fields` must be `:ignore` or `:error`, got `$(repr(unknown_fields))`"))
-    if T === Any && !ignore_unknown_fields
-        throw(ArgumentError("`unknown_fields` is only supported when parsing into a target type or existing object"))
-    end
-    return JSONReadStyle{O}(null, style, ignore_unknown_fields)
+function _ignore_unknown(::Type{T}, unknown_fields::Symbol) where {T}
+    ignore = unknown_fields === :ignore ? true :
+             unknown_fields === :error ? false : _unknown_fields_arg_error(unknown_fields)
+    T === Any && !ignore && _unknown_fields_any_error()
+    return ignore
+end
+
+# rebuild a LazyValue with the parse-level configuration stored in its options;
+# sub-values created during traversal inherit these options automatically
+function withopts(x::LazyValue, ::Type{O}, null, ignore_unknown::Bool) where {O}
+    opts = getopts(x)
+    newopts = LazyOptions(; allownan=opts.allownan, ninf=opts.ninf, inf=opts.inf, nan=opts.nan,
+        jsonlines=opts.jsonlines, null=null, dicttype=O, ignore_unknown=ignore_unknown)
+    return LazyValue(getbuf(x), getpos(x), gettype(x), newopts, getisroot(x))
 end
 
 @noinline unknownfielderror(::Type{T}, key) where {T} =
     ArgumentError("encountered unknown JSON member $(repr(key)) while parsing `$T`")
 
-function StructUtils.unknownfield(st::JSONReadStyle, ::Type{T}, key, value) where {T}
-    st.ignore_unknown_fields || throw(unknownfielderror(T, key))
-    return StructUtils.unknownfield(st.style, T, key, value)
+function StructUtils.unknownfield(st::StructStyle, ::Type{T}, key, value::LazyValues) where {T}
+    getopts(value).ignore_unknown ||
+        throw(unknownfielderror(T, key isa PtrString ? convert(String, key) : key))
+    return StructUtils.defaultstate(st)
 end
 
 "See [`parse`](@ref)."
@@ -218,21 +212,21 @@ parse(io::Union{IO,Base.AbstractCmd}, ::Type{T}=Any; kw...) where {T} = parse(Ba
 parse!(io::Union{IO,Base.AbstractCmd}, x::T; kw...) where {T} = parse!(Base.read(io), x; kw...)
 
 parse(buf::Union{AbstractVector{UInt8},AbstractString}, ::Type{T}=Any;
-    dicttype::Type{O}=DEFAULT_OBJECT_TYPE, null=nothing, style::StructStyle=StructUtils.DefaultStyle(),
+    dicttype::Type{O}=DEFAULT_OBJECT_TYPE, null=nothing, style::StructStyle=JSONReadStyle(),
     unknown_fields::Symbol=:ignore, kw...) where {T,O} =
     @inline parse(lazy(buf; kw...), T; dicttype, null, style, unknown_fields)
 
 parse!(buf::Union{AbstractVector{UInt8},AbstractString}, x::T;
-    dicttype::Type{O}=DEFAULT_OBJECT_TYPE, null=nothing, style::StructStyle=StructUtils.DefaultStyle(),
+    dicttype::Type{O}=DEFAULT_OBJECT_TYPE, null=nothing, style::StructStyle=JSONReadStyle(),
     unknown_fields::Symbol=:ignore, kw...) where {T,O} =
     @inline parse!(lazy(buf; kw...), x; dicttype, null, style, unknown_fields)
 
 parse(x::LazyValue, ::Type{T}=Any;
-    dicttype::Type{O}=DEFAULT_OBJECT_TYPE, null=nothing, style::StructStyle=StructUtils.DefaultStyle(),
+    dicttype::Type{O}=DEFAULT_OBJECT_TYPE, null=nothing, style::StructStyle=JSONReadStyle(),
     unknown_fields::Symbol=:ignore) where {T,O} =
-    @inline _parse(x, T, dicttype, null, jsonreadstyle(T, O, null, style, unknown_fields))
+    @inline _parse(withopts(x, O, null, _ignore_unknown(T, unknown_fields)), T, style)
 
-function _parse(x::LazyValue, ::Type{T}, dicttype::Type{O}, null, style::StructStyle) where {T,O}
+function _parse(x::LazyValue, ::Type{T}, style::StructStyle) where {T}
     y, pos = StructUtils.make(style, T, x)
     getisroot(x) && checkendpos(x, T, pos)
     return y
@@ -245,17 +239,26 @@ end
 
 (f::ValueClosure)(v) = setfield!(f, :value, v)
 
-function _parse(x::LazyValue, ::Type{Any}, ::Type{DEFAULT_OBJECT_TYPE}, null, ::StructStyle)
-    out = ValueClosure()
-    pos = applyvalue(out, x, null)
+function _parse(x::LazyValue, ::Type{Any}, style::StructStyle)
+    opts = getopts(x)
+    # fast path for default materialization; custom styles go through
+    # StructUtils.make so user lift/trait overloads apply under `Any` targets
+    if opts.dicttype === DEFAULT_OBJECT_TYPE &&
+            (style isa JSONReadStyle || style isa StructUtils.DefaultStyle)
+        out = ValueClosure()
+        pos = applyvalue(out, x, opts.null)
+        getisroot(x) && checkendpos(x, Any, pos)
+        return out.value
+    end
+    y, pos = StructUtils.make(style, Any, x)
     getisroot(x) && checkendpos(x, Any, pos)
-    return out.value
+    return y
 end
 
 parse!(x::LazyValue, obj::T;
-    dicttype::Type{O}=DEFAULT_OBJECT_TYPE, null=nothing, style::StructStyle=StructUtils.DefaultStyle(),
+    dicttype::Type{O}=DEFAULT_OBJECT_TYPE, null=nothing, style::StructStyle=JSONReadStyle(),
     unknown_fields::Symbol=:ignore) where {T,O} =
-    StructUtils.make!(jsonreadstyle(T, O, null, style, unknown_fields), obj, x)
+    StructUtils.make!(style, obj, withopts(x, O, null, _ignore_unknown(T, unknown_fields)))
 
 # for LazyValue, if x started at the beginning of the JSON input,
 # then we want to ensure that the entire input was consumed
@@ -355,72 +358,75 @@ function applyvalue(f, x::LazyValues, null)
     end
 end
 
-# we overload make! for Any for LazyValues because we can dispatch to more specific
-# types base on the LazyValue type
+# we overload make for Any for LazyValues because we can dispatch to more specific
+# types based on the LazyValue type
 function StructUtils.make(st::StructStyle, ::Type{Any}, x::LazyValues)
     type = gettype(x)
     if type == JSONTypes.OBJECT
-        return StructUtils.make(st, objecttype(st), x)
+        dt = getopts(x).dicttype
+        if dt === DEFAULT_OBJECT_TYPE
+            return StructUtils.make(st, DEFAULT_OBJECT_TYPE, x)
+        else
+            return StructUtils.make(st, dt, x)
+        end
     elseif type == JSONTypes.ARRAY
         return StructUtils.make(st, Vector{Any}, x)
     elseif type == JSONTypes.STRING
-        return StructUtils.lift(st, String, x)
+        return StructUtils.extract(st, String, x, (;))
     elseif type == JSONTypes.NUMBER
-        return StructUtils.lift(st, Number, x)
+        return StructUtils.extract(st, Number, x, (;))
     elseif type == JSONTypes.NULL
-        return StructUtils.lift(st, Nothing, x)
+        return StructUtils.extract(st, Nothing, x, (;))
     elseif type == JSONTypes.TRUE || type == JSONTypes.FALSE
-        return StructUtils.lift(st, Bool, x)
+        return StructUtils.extract(st, Bool, x, (;))
     else
         throw(ArgumentError("cannot parse $x"))
     end
 end
 
-# catch PtrString via lift or make! so we can ensure it never "escapes" to user-level
-StructUtils.liftkey(st::JSONReadStyle, ::Type{T}, x::PtrString) where {T} =
-    StructUtils.liftkey(st, T, convert(String, x))
-StructUtils.lift(st::JSONReadStyle, ::Type{T}, x::PtrString, tags) where {T} =
-    StructUtils.lift(st, T, convert(String, x), tags)
-StructUtils.lift(st::JSONReadStyle, ::Type{T}, x::PtrString) where {T} =
-    StructUtils.lift(st, T, convert(String, x))
-
 # liftkey for numeric dict key types to enable round-tripping Dict{Int,V}, Dict{Float64,V}, etc.
 # these correspond to the lowerkey definitions in write.jl that convert numeric keys to strings
-StructUtils.liftkey(::JSONReadStyle, ::Type{T}, x::AbstractString) where {T<:Integer} = Base.parse(T, x)
-StructUtils.liftkey(::JSONReadStyle, ::Type{T}, x::AbstractString) where {T<:AbstractFloat} = Base.parse(T, x)
+StructUtils.liftkey(::JSONStyle, ::Type{T}, x::AbstractString) where {T<:Integer} = Base.parse(T, x)
+StructUtils.liftkey(::JSONStyle, ::Type{T}, x::AbstractString) where {T<:AbstractFloat} = Base.parse(T, x)
 
-_isliftpair(x) = x isa Tuple && !(x isa NamedTuple) && length(x) == 2
-_liftresult(x, st) = _isliftpair(x) ? x : (x, StructUtils.defaultstate(st))
-_liftresult(x, pos::Int) = _isliftpair(x) ? x : (x, pos)
-
+# Legacy (1.x) support for user lift methods that take the raw LazyValue for
+# JSON objects/arrays, e.g. `JSON.lift(::MyStyle, ::Type{Date}, x::JSON.LazyValue)`.
+# These sentinel fallbacks let the extract driver below detect whether such a
+# method exists; if not, the aggregate is materialized (JSON.Object/Vector{Any})
+# before the user-level lift is called. Prefer lifting from the materialized
+# value, or overload `StructUtils.extract(::MyStyle, ::Type{T}, x::JSON.LazyValues, tags)`
+# for fully-lazy custom handling.
 struct _NoCustomLazyLift end
 const _NO_CUSTOM_LAZY_LIFT = _NoCustomLazyLift()
 
 StructUtils.lift(::JSONStyle, ::Type{T}, ::LazyValues, tags) where {T} = _NO_CUSTOM_LAZY_LIFT
 StructUtils.lift(::JSONStyle, ::Type{T}, ::LazyValues) where {T} = _NO_CUSTOM_LAZY_LIFT
+# disambiguate vs StructUtils' 0-dimensional array lift; 0-dim targets are handled by the
+# extract method below after the sentinel reports no custom lazy lift exists
+StructUtils.lift(::JSONStyle, ::Type{T}, ::LazyValues) where {T<:AbstractArray{E,0}} where {E} = _NO_CUSTOM_LAZY_LIFT
 
-StructUtils.lift(style::JSONReadStyle, ::Type{T}, x, tags) where {T} =
-    _liftresult(StructUtils.lift(style.style, T, x, tags), style)
-StructUtils.lift(style::JSONReadStyle, ::Type{T}, x) where {T} =
-    _liftresult(StructUtils.lift(style.style, T, x), style)
-
-function customlazylift(style::JSONReadStyle, ::Type{T}, x::LazyValues, tags) where {T}
-    inner = style.style
-    inner isa JSONStyle || return nothing
-    ret = StructUtils.lift(inner, T, x, tags)
-    ret === _NO_CUSTOM_LAZY_LIFT || return _liftresult(ret, skip(x))
-    ret = StructUtils.lift(inner, T, x)
-    ret === _NO_CUSTOM_LAZY_LIFT || return _liftresult(ret, skip(x))
+function customlazylift(style::JSONStyle, ::Type{T}, x::LazyValues, tags) where {T}
+    ret = StructUtils.lift(style, T, x, tags)
+    ret === _NO_CUSTOM_LAZY_LIFT || return StructUtils._normalizelift(ret, skip(x))
+    ret = StructUtils.lift(style, T, x)
+    ret === _NO_CUSTOM_LAZY_LIFT || return StructUtils._normalizelift(ret, skip(x))
     return nothing
 end
+customlazylift(::StructStyle, ::Type{T}, x::LazyValues, tags) where {T} = nothing
 
-function StructUtils.lift(style::JSONReadStyle, ::Type{T}, x::LazyValues) where {T<:AbstractArray{E,0}} where {E}
+function StructUtils.extract(style::StructStyle, ::Type{T}, x::LazyValues, tags) where {T<:AbstractArray{E,0}} where {E}
     m = T(undef)
-    m[1], pos = StructUtils.lift(style, E, x)
+    m[1], pos = StructUtils.extract(style, E, x, (;))
     return m, pos
 end
 
-function StructUtils.lift(style::JSONReadStyle, ::Type{T}, x::LazyValues, tags=(;)) where {T}
+# The driver connecting StructUtils.make's leaf conversion to lazy JSON values:
+# parses the scalar at the current position, calls user-level lift hooks with
+# the *materialized* value and the *user's own* style, and threads the byte
+# position back through make as the state. PtrString never escapes this
+# function; aggregates reaching here (i.e. targets that aren't dictlike/
+# arraylike/structlike) are materialized to default types before lifting.
+function StructUtils.extract(style::StructStyle, ::Type{T}, x::LazyValues, tags) where {T}
     type = gettype(x)
     buf = getbuf(x)
     if type == JSONTypes.OBJECT || type == JSONTypes.ARRAY
@@ -430,71 +436,83 @@ function StructUtils.lift(style::JSONReadStyle, ::Type{T}, x::LazyValues, tags=(
     if type == JSONTypes.STRING
         GC.@preserve buf begin
             ptrstr, pos = parsestring(x)
-            str, _ = StructUtils.lift(style, T, ptrstr, tags)
+            str, _ = StructUtils.extract(style, T, convert(String, ptrstr), tags)
         end
         return str, pos
     elseif type == JSONTypes.NUMBER
         num, pos = parsenumber(x)
         if isint(num)
             T === Int64 && return num.int, pos
-            int, _ = StructUtils.lift(style, T, num.int, tags)
+            int, _ = StructUtils.extract(style, T, num.int, tags)
             return int, pos
         elseif isfloat(num)
             T === Float64 && return num.float, pos
-            float, _ = StructUtils.lift(style, T, num.float, tags)
+            float, _ = StructUtils.extract(style, T, num.float, tags)
             return float, pos
         elseif isbigint(num)
             T === BigInt && return num.bigint, pos
-            bigint, _ = StructUtils.lift(style, T, num.bigint, tags)
+            bigint, _ = StructUtils.extract(style, T, num.bigint, tags)
             return bigint, pos
         else
             T === BigFloat && return num.bigfloat, pos
-            bigfloat, _ = StructUtils.lift(style, T, num.bigfloat, tags)
+            bigfloat, _ = StructUtils.extract(style, T, num.bigfloat, tags)
             return bigfloat, pos
         end
     elseif type == JSONTypes.NULL
-        null, _ = StructUtils.lift(style, T, nullvalue(style), tags)
+        # union-split on the configured null value (an Any-typed option field)
+        # so the common nothing/missing cases dispatch statically
+        nv = getopts(x).null
+        if nv === nothing
+            null, _ = StructUtils.extract(style, T, nothing, tags)
+        elseif nv === missing
+            null, _ = StructUtils.extract(style, T, missing, tags)
+        else
+            # cold path: `nv` is dynamically typed, so assert the lifted result
+            # to keep it from widening this function's return type (and boxing
+            # every other branch's value with it)
+            null = (StructUtils.extract(style, T, nv, tags)[1])::T
+        end
         return null, getpos(x) + 4
     elseif type == JSONTypes.TRUE
-        tr, _ = StructUtils.lift(style, T, true, tags)
+        tr, _ = StructUtils.extract(style, T, true, tags)
         return tr, getpos(x) + 4
     elseif type == JSONTypes.FALSE
-        fl, _ = StructUtils.lift(style, T, false, tags)
+        fl, _ = StructUtils.extract(style, T, false, tags)
         return fl, getpos(x) + 5
     elseif Base.issingletontype(T)
-        sglt, _ = StructUtils.lift(style, T, T(), tags)
+        sglt, _ = StructUtils.extract(style, T, T(), tags)
         return sglt, skip(x)
     else
         out = ValueClosure()
-        pos = applyvalue(out, x, nothing)
+        pos = applyvalue(out, x, getopts(x).null)
         val1 = out.value
         # big switch here for --trim verify-ability
         if val1 isa Object{String,Any}
-            val, _ = StructUtils.lift(style, T, val1, tags)
+            val, _ = StructUtils.extract(style, T, val1, tags)
             return val, pos
         elseif val1 isa Vector{Any}
-            val, _ = StructUtils.lift(style, T, val1, tags)
+            val, _ = StructUtils.extract(style, T, val1, tags)
             return val, pos
         elseif val1 isa String
-            val, _ = StructUtils.lift(style, T, val1)
+            val, _ = StructUtils.extract(style, T, val1, (;))
             return val, pos
         elseif val1 isa Int64
-            val, _ = StructUtils.lift(style, T, val1)
+            val, _ = StructUtils.extract(style, T, val1, (;))
             return val, pos
         elseif val1 isa Float64
-            val, _ = StructUtils.lift(style, T, val1)
+            val, _ = StructUtils.extract(style, T, val1, (;))
             return val, pos
         elseif val1 isa BigInt
-            val, _ = StructUtils.lift(style, T, val1)
+            val, _ = StructUtils.extract(style, T, val1, (;))
             return val, pos
         elseif val1 isa BigFloat
-            val, _ = StructUtils.lift(style, T, val1)
+            val, _ = StructUtils.extract(style, T, val1, (;))
             return val, pos
         elseif val1 isa Bool
-            val, _ = StructUtils.lift(style, T, val1)
+            val, _ = StructUtils.extract(style, T, val1, (;))
             return val, pos
         elseif val1 isa Nothing
-            val, _ = StructUtils.lift(style, T, val1)
+            val, _ = StructUtils.extract(style, T, val1, (;))
             return val, pos
         else
             throw(ArgumentError("cannot parse json"))

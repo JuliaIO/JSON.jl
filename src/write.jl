@@ -40,6 +40,9 @@ StructUtils.lower(::JSONStyle, x::AbstractArray{<:Any,0}) = x[1]
 StructUtils.lower(::JSONStyle, x::AbstractArray{<:Any, N}) where {N} = (view(x, ntuple(_ -> :, N - 1)..., j) for j in axes(x, N))
 StructUtils.lower(::JSONStyle, x::AbstractVector) = x
 StructUtils.arraylike(::JSONStyle, x::AbstractVector{<:Pair}) = false
+# Selectors.List is always arraylike, even when its elements are Pairs
+# (disambiguates against the AbstractVector{<:Pair} object-writing rule above)
+StructUtils.arraylike(::JSONStyle, x::StructUtils.Selectors.List) = true
 StructUtils.structlike(::JSONStyle, ::Type{<:NamedTuple}) = true
 
 # for pre-1.0 compat, which serialized Tuple object keys by default
