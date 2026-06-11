@@ -445,9 +445,12 @@ function Base.convert(::Type{T}, x::PtrString) where {T <: Enum}
 end
 
 Base.:(==)(x::PtrString, y::AbstractString) = x.len == sizeof(y) && ccall(:memcmp, Cint, (Ptr{UInt8}, Ptr{UInt8}, Csize_t), x.ptr, pointer(y), x.len) == 0
+Base.:(==)(x::AbstractString, y::PtrString) = y == x
 Base.:(==)(x::PtrString, y::PtrString) = x.len == y.len && ccall(:memcmp, Cint, (Ptr{UInt8}, Ptr{UInt8}, Csize_t), x.ptr, y.ptr, x.len) == 0
 Base.isequal(x::PtrString, y::AbstractString) = x == y
+Base.isequal(x::AbstractString, y::PtrString) = y == x
 Base.isequal(x::PtrString, y::PtrString) = x == y
+Base.hash(x::PtrString, h::UInt) = hash(unsafe_string(x.ptr, x.len), h)
 StructUtils.keyeq(x::PtrString, y::AbstractString) = x == y
 StructUtils.keyeq(x::PtrString, y::String) = x == y
 StructUtils.keyeq(x::PtrString, y::Symbol) = convert(Symbol, x) == y

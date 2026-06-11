@@ -71,6 +71,16 @@ end
     x = JSON.lazy("{}"; allownan=true)
     @test_throws ArgumentError JSON.parsenumber(x)
 
+    str = JSON.lazy("\"alpha\"")
+    key, _ = JSON.parsestring(str)
+    @test key == "alpha"
+    @test "alpha" == key
+    @test isequal(key, "alpha")
+    @test isequal("alpha", key)
+    @test hash(key) == hash("alpha")
+    @test haskey(Dict{Any,Int}(key => 1), "alpha")
+    @test "alpha" in Set{Any}([key])
+
     # lazy indexing selection support
     # examples from https://support.smartbear.com/alertsite/docs/monitors/api/endpoint/jsonpath.html
     json = """
