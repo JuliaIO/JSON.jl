@@ -90,6 +90,9 @@ include("jsonx.jl")
         @test JSONX.parse("\t\n\r null \t\n\r") === nothing
         @test JSONX.parse("[ 1 , 2 , 3 ]") == [1, 2, 3]
         @test JSONX.parse("{ \"key\" : \"value\" }") == Dict("key" => "value")
+        # Vertical tab and form feed are NOT valid JSON whitespace (RFC 8259 §2)
+        @test_throws ArgumentError JSONX.parse("\x0bnull")  # vertical tab
+        @test_throws ArgumentError JSONX.parse("\x0cnull")  # form feed
     end
     
     @testset "Error Cases" begin
@@ -108,6 +111,9 @@ include("jsonx.jl")
         # Test invalid escape sequences
         @test_throws ArgumentError JSONX.parse("\"\\x\"")
         @test_throws ArgumentError JSONX.parse("\"\\u123\"")
+        # Leading '+' is not valid JSON (only '-' is a valid leading sign)
+        @test_throws ArgumentError JSONX.parse("+1")
+        @test_throws ArgumentError JSONX.parse("+3.14")
     end
     
     @testset "JSON Writing" begin

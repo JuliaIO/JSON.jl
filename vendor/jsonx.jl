@@ -42,7 +42,10 @@ end
 
 # Helper function to skip whitespace
 function skip_whitespace(str::String, pos::Int, len::Int)
-    while pos <= len && isspace(Char(codeunit(str, pos)))
+    while pos <= len
+        c = codeunit(str, pos)
+        # JSON whitespace (RFC 8259): space, tab, newline, carriage return
+        (c == 0x20 || c == 0x09 || c == 0x0A || c == 0x0D) || break
         pos += 1
     end
     return pos
@@ -206,7 +209,7 @@ end
 function parse_array(str::String, pos::Int, len::Int)
     codeunit(str, pos) != UInt8('[') && throw(ArgumentError("Expected '[' at position $pos"))
     pos += 1
-    result = []
+    result = Any[]
     pos = skip_whitespace(str, pos, len)
     pos > len && throw(ArgumentError("Unexpected end of input in array"))
     codeunit(str, pos) == UInt8(']') && return result, pos + 1
@@ -259,7 +262,9 @@ function parse_number(str::String, pos::Int, len::Int)
     has_decimal_or_exp = false
     while pos <= len
         c = codeunit(str, pos)
-        if c == UInt8('-') || (UInt8('0') <= c <= UInt8('9')) || c == UInt8('+')
+        if c == UInt8('-') || (UInt8('0') <= c <= UInt8('9'))
+            pos += 1
+        elseif c == UInt8('+') && pos > start_pos  # '+' only valid after e/E
             pos += 1
         elseif c == UInt8('.') || c == UInt8('e') || c == UInt8('E')
             has_decimal_or_exp = true
@@ -270,21 +275,14 @@ function parse_number(str::String, pos::Int, len::Int)
     end
     num_str = @view str[start_pos:pos-1]
 
-    # Try parsing as Int64 if no decimal point or exponent
     if !has_decimal_or_exp
-        try
-            return Base.parse(Int64, num_str), pos
-        catch
-            # Fall back to Float64 if Int64 parsing fails (e.g., overflow)
-        end
+        n = tryparse(Int64, num_str)
+        n !== nothing && return n, pos
     end
 
-    # Parse as Float64
-    try
-        return Base.parse(Float64, num_str), pos
-    catch
-        throw(ArgumentError("Invalid number format"))
-    end
+    f = tryparse(Float64, num_str)
+    f !== nothing && return f, pos
+    throw(ArgumentError("Invalid number format: $num_str"))
 end
 
 # JSON writing functionality
