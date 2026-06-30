@@ -8,6 +8,7 @@ include(joinpath(dirname(pathof(JSON)), "../test/json.jl"))
 if Sys.WORD_SIZE == 64
     include(joinpath(dirname(pathof(JSON)), "../test/arrow.jl"))
 end
+include(joinpath(dirname(pathof(JSON)), "../test/trim_compile_tests.jl"))
 
 function tar_files(tarball::String)
     data = Dict{String, Vector{UInt8}}()
