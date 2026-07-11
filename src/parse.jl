@@ -188,15 +188,24 @@ function jsonreadstyle(::Type{T}, ::Type{O}, null, style::StructStyle, unknown_f
     ignore_unknown_fields =
         unknown_fields === :ignore ? true :
         unknown_fields === :error ? false :
-        throw(ArgumentError("`unknown_fields` must be `:ignore` or `:error`, got `$(repr(unknown_fields))`"))
+        # plain symbol interpolation (not `repr`): `show(::Symbol)` routes through the
+        # `@nospecialize`d Expr-show machinery, which drags hundreds of unresolvable
+        # dynamic calls into `--trim` builds from this error path alone
+        throw(ArgumentError("`unknown_fields` must be `:ignore` or `:error`, got `:$(unknown_fields)`"))
     if T === Any && !ignore_unknown_fields
         throw(ArgumentError("`unknown_fields` is only supported when parsing into a target type or existing object"))
     end
     return JSONReadStyle{O}(null, style, ignore_unknown_fields)
 end
 
+# explicit key formatting (not `repr` or plain interpolation): keys arrive as
+# `PtrString`, which has no `print`/`show` of its own, so both routes fall back to the
+# generic struct `show` — an unresolvable dynamic site under `--trim`. Keys can also be
+# `Int` (array-into-struct with extra elements) or other scalars, hence the fallback.
+unknownfieldkey(key::PtrString) = convert(String, key)
+unknownfieldkey(key) = string(key)
 @noinline unknownfielderror(::Type{T}, key) where {T} =
-    ArgumentError("encountered unknown JSON member $(repr(key)) while parsing `$T`")
+    ArgumentError("encountered unknown JSON member \"$(unknownfieldkey(key))\" while parsing `$T`")
 
 function StructUtils.unknownfield(st::JSONReadStyle, ::Type{T}, key, value) where {T}
     st.ignore_unknown_fields || throw(unknownfielderror(T, key))
@@ -372,7 +381,9 @@ function StructUtils.make(st::StructStyle, ::Type{Any}, x::LazyValues)
     elseif type == JSONTypes.TRUE || type == JSONTypes.FALSE
         return StructUtils.lift(st, Bool, x)
     else
-        throw(ArgumentError("cannot parse $x"))
+        # don't interpolate the lazy value: its `show` pulls the array-display machinery
+        # into `--trim` builds from this (unreachable in practice) fallback branch
+        throw(ArgumentError("cannot parse json"))
     end
 end
 
