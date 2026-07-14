@@ -105,3 +105,5 @@ end
     ]
     @test JSON.json(x, 2) isa String
 end
+
+include(joinpath(dirname(pathof(JSON)), "../test/trim_compile_tests.jl"))
