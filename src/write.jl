@@ -34,6 +34,31 @@ const StringLike = Union{Enum, AbstractChar, VersionNumber, Cstring, Cwstring, U
 StructUtils.lower(::JSONStyle, ::Missing) = nothing
 StructUtils.lower(::JSONStyle, x::Symbol) = String(x)
 StructUtils.lower(::JSONStyle, x::StringLike) = string(x)
+# trim-friendly ISO renderings: string(::TimeType) routes through Dates'
+# DateFormat machinery (dynamic lpad/repeat) under juliac --trim
+StructUtils.lower(::JSONStyle, x::Dates.Date) = _iso_date_string(x)
+StructUtils.lower(::JSONStyle, x::Dates.DateTime) = _iso_datetime_string(x)
+StructUtils.lower(::JSONStyle, x::Dates.Time) = _iso_time_string(x)
+
+_two_dig(x::Int)::String = x < 10 ? string('0', x) : string(x)
+_three_dig(x::Int)::String = x < 10 ? string("00", x) : x < 100 ? string('0', x) : string(x)
+_four_dig(x::Int)::String = x < 10 ? string("000", x) : x < 100 ? string("00", x) : x < 1000 ? string('0', x) : string(x)
+
+_iso_date_string(d::Dates.Date)::String =
+    string(_four_dig(Dates.year(d)), '-', _two_dig(Dates.month(d)), '-', _two_dig(Dates.day(d)))
+
+function _iso_datetime_string(dt::Dates.DateTime)::String
+    ms = Dates.millisecond(dt)
+    base = string(_iso_date_string(Dates.Date(dt)), 'T',
+                  _two_dig(Dates.hour(dt)), ':', _two_dig(Dates.minute(dt)), ':', _two_dig(Dates.second(dt)))
+    return ms == 0 ? base : string(base, '.', _three_dig(ms))
+end
+
+function _iso_time_string(t::Dates.Time)::String
+    ms = Dates.millisecond(t)
+    base = string(_two_dig(Dates.hour(t)), ':', _two_dig(Dates.minute(t)), ':', _two_dig(Dates.second(t)))
+    return ms == 0 ? base : string(base, '.', _three_dig(ms))
+end
 StructUtils.lower(::JSONStyle, x::Regex) = x.pattern
 StructUtils.lower(::JSONStyle, x::Complex) = (re=real(x), im=imag(x))
 StructUtils.lower(::JSONStyle, x::AbstractArray{<:Any,0}) = x[1]
