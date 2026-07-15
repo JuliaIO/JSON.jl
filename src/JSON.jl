@@ -92,6 +92,7 @@ end
 
 include("lazy.jl")
 include("parse.jl")
+include("tier0.jl")
 include("write.jl")
 
 """
