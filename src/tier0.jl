@@ -80,81 +80,96 @@ function (f::FusedObjClosure{S})(k::PtrString, v::LazyValue) where {S}
         return nothing
     end
     sp = @inbounds specs[i]
+    vs = sp.spec
     if gettype(v) == JSONTypes.NULL
-        kind = sp.kind
-        if sp.nullable
+        if vs.nullable
             f.slots[i] = nothing
-        elseif sp.missingable
+        elseif vs.missingable
             f.slots[i] = missing
-        elseif kind == StructUtils.KIND_ANY
+        elseif vs.kind == StructUtils.KIND_ANY
             f.slots[i] = nothing
-        elseif kind == StructUtils.KIND_CUSTOM
-            val, _ = StructUtils.make(f.style, sp.ft::Type, nothing, sp.tags)
+        elseif vs.kind == StructUtils.KIND_CUSTOM
+            val, _ = StructUtils.make(f.style, vs.declft::Type, nothing, sp.tags)
             f.slots[i] = val
         else
-            x, _ = StructUtils.lift(f.style, sp.ft::Type, nothing)
+            x, _ = StructUtils.lift(f.style, vs.ft::Type, nothing)
             f.slots[i] = x
         end
         return getpos(v) + 4
     end
-    val, pos = _fused_value(f.style, sp, v)
+    val, pos = _fused_field(f.style, sp, v)
     f.slots[i] = val
     return pos
 end
 
+# field-level: CUSTOM carries the field's tags; everything else goes through
+# the spec tree
+function _fused_field(style::StructStyle, sp::StructUtils.FieldSpec, v::LazyValue)
+    vs = sp.spec
+    if vs.kind == StructUtils.KIND_CUSTOM
+        out = ValueClosure()
+        pos = applyvalue(out, v, nothing)
+        val, _ = StructUtils.make(style, vs.declft::Type, out.value, sp.tags)
+        return val, pos
+    end
+    return _fused_spec(style, vs, v, sp.name)
+end
+
 struct FusedArrClosure{S<:StructStyle}
     style::S
-    elkind::Int8
-    elft::Any
+    el::StructUtils.ValueSpec
     arr::Any
     name::String
 end
 
 function (f::FusedArrClosure{S})(_, v::LazyValue) where {S}
-    elk = f.elkind
-    if gettype(v) == JSONTypes.NULL
-        # a null element: same semantics the interpreter's element lift has
-        x, _ = StructUtils.lift(f.style, f.elft::Type, nothing)
-        push!(f.arr::Vector, x)
-        return getpos(v) + 4
-    end
+    el = f.el
     local val, pos
-    if elk == StructUtils.KIND_STRUCT && gettype(v) == JSONTypes.OBJECT
-        val, pos = _fused_make(f.style, f.elft, v)
-    elseif elk == StructUtils.KIND_ANY
-        out = ValueClosure()
-        pos = applyvalue(out, v, nothing)
-        val = out.value
+    if gettype(v) == JSONTypes.NULL
+        if el.nullable
+            val, pos = nothing, getpos(v) + 4
+        elseif el.missingable
+            val, pos = missing, getpos(v) + 4
+        else
+            x, _ = StructUtils.lift(f.style, el.ft::Type, nothing)
+            val, pos = x, getpos(v) + 4
+        end
     else
-        val, pos = _fused_scalar(f.style, elk, f.elft, v, f.name)
+        val, pos = _fused_spec(f.style, el, v, f.name)
     end
     push!(f.arr::Vector, val)
     return pos
 end
 
-function _fused_value(style::StructStyle, sp::StructUtils.FieldSpec, v::LazyValue)
-    kind = sp.kind
-    if kind == StructUtils.KIND_STRUCT && gettype(v) == JSONTypes.OBJECT
-        return _fused_make(style, sp.ft, v)
-    elseif kind == StructUtils.KIND_VECTOR && gettype(v) == JSONTypes.ARRAY
-        arr = StructUtils._alloc_vector(sp.elft, 0)
-        f = FusedArrClosure{typeof(style)}(style, sp.elkind, sp.elft, arr, sp.name)
+# position-level recursion mirroring StructUtils._spec_value, driven lazily.
+# Kinds the lazy drive doesn't specialize for (dicts, union arms decided by
+# source shape, generic customs) materialize the subtree and reuse the
+# interpreter's boxed arms — correctness first, still no per-type compile.
+function _fused_spec(style::StructStyle, vs::StructUtils.ValueSpec, v::LazyValue, name::String)
+    k = vs.kind
+    if k == StructUtils.KIND_STRUCT && gettype(v) == JSONTypes.OBJECT
+        return _fused_make(style, vs.ft, v)
+    elseif k == StructUtils.KIND_VECTOR && gettype(v) == JSONTypes.ARRAY
+        el = vs.child::StructUtils.ValueSpec
+        arr = StructUtils._alloc_vector(el.declft, 0)
+        f = FusedArrClosure{typeof(style)}(style, el, arr, name)
         pos = applyarray(f, v)
         pos isa Int || (pos = skip(v))
         return arr, pos
-    elseif kind == StructUtils.KIND_ANY
+    elseif k == StructUtils.KIND_UNION2
+        arm = gettype(v) == JSONTypes.ARRAY ? (vs.child::StructUtils.ValueSpec) :
+                                              (vs.child2::StructUtils.ValueSpec)
+        return _fused_spec(style, arm, v, name)
+    elseif k == StructUtils.KIND_ANY
         out = ValueClosure()
         pos = applyvalue(out, v, nothing)
         return out.value, pos
-    elseif kind == StructUtils.KIND_CUSTOM
-        # materialize, then the 4-arg make with the field's tags — identical
-        # to the interpreter's CUSTOM arm (lift/choosetype/dateformat)
+    elseif k == StructUtils.KIND_DICT || k == StructUtils.KIND_CUSTOM
         out = ValueClosure()
         pos = applyvalue(out, v, nothing)
-        val, _ = StructUtils.make(style, sp.ft::Type, out.value, sp.tags)
-        return val, pos
+        return StructUtils._spec_value(style, vs, out.value, name), pos
     else
-        return _fused_scalar(style, kind, sp.ft, v, sp.name)
+        return _fused_scalar(style, k, vs.ft, v, name)
     end
 end
 
@@ -206,7 +221,7 @@ end
     f = FusedObjClosure{typeof(style)}(style, tbl, slots)
     pos = applyobject(f, v)
     pos isa Int || (pos = skip(v))
-    return StructUtils._construct_interp(style, tbl, slots), pos
+    return StructUtils._construct_interp(style, tbl, slots, v), pos
 end
 
 # ---------------- :hot precompile hook + sample synthesis ----------------
@@ -255,7 +270,7 @@ function _synthesize_sample(@nospecialize(T))
     Base.print(io, '{')
     isfirst = true
     for sp in tbl.specs
-        frag = _synth_value(sp.kind, sp.elkind, sp.ft, sp.elft)
+        frag = _synth_value(sp.spec)
         frag === nothing && continue
         isfirst || Base.print(io, ',')
         isfirst = false
@@ -265,8 +280,9 @@ function _synthesize_sample(@nospecialize(T))
     return String(take!(io))
 end
 
-function _synth_value(kind::Int8, elkind::Int8, @nospecialize(ft), @nospecialize(elft))
+function _synth_value(vs::StructUtils.ValueSpec)
     SU = StructUtils
+    kind = vs.kind
     if kind == SU.KIND_STRING || kind == SU.KIND_SYMBOL
         return "\"s\""
     elseif kind == SU.KIND_CHAR
@@ -288,10 +304,15 @@ function _synth_value(kind::Int8, elkind::Int8, @nospecialize(ft), @nospecialize
     elseif kind == SU.KIND_ANY
         return "1"
     elseif kind == SU.KIND_STRUCT
-        return _synthesize_sample(ft)
+        return _synthesize_sample(vs.ft)
     elseif kind == SU.KIND_VECTOR
-        el = _synth_value(elkind, Int8(0), elft, nothing)
+        el = _synth_value(vs.child::StructUtils.ValueSpec)
         return el === nothing ? nothing : string('[', el, ']')
+    elseif kind == SU.KIND_DICT
+        el = _synth_value(vs.child::StructUtils.ValueSpec)
+        return el === nothing ? nothing : string("{\"k\":", el, '}')
+    elseif kind == SU.KIND_UNION2
+        return _synth_value(vs.child2::StructUtils.ValueSpec) # the scalar arm
     end
     return nothing
 end
