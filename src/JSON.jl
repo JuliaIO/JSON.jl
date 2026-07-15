@@ -125,10 +125,28 @@ print(a, indent=nothing) = print(stdout, a, indent)
 "See [`json`](@ref)."
 print
 
+function __init__()
+    # :hot-annotated struct definitions in downstream packages fire this hook
+    # during their precompilation, compiling the typed parse/write paths for
+    # each annotated type into that package's image
+    StructUtils.register_hot_hook!(_hot_json_hook)
+    return nothing
+end
+
+# exercises the untyped engine plus the tier-0 typed default (engine → field
+# table interpreter), so a downstream user's first typed parse of any
+# eligible struct costs a table build instead of compiling a descent
+@kwarg struct _EngineWorkload
+    a::Int = 0
+    b::Union{String,Nothing} = nothing
+    c::Vector{Float64} = Float64[]
+end
+
 @compile_workload begin
     x = JSON.parse("{\"a\": 1, \"b\": null, \"c\": true, \"d\": false, \"e\": \"\", \"f\": [1,null,true], \"g\": {\"key\": \"value\"}}")
     json = JSON.json(x)
     isvalidjson(json)
+    JSON.parse("{\"a\": 1, \"b\": \"x\", \"c\": [1.5], \"z\": null}", _EngineWorkload)
 end
 
 

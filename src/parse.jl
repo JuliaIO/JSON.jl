@@ -232,10 +232,145 @@ parse(x::LazyValue, ::Type{T}=Any;
     unknown_fields::Symbol=:ignore) where {T,O} =
     @inline _parse(x, T, dicttype, null, jsonreadstyle(T, O, null, style, unknown_fields))
 
+# memoized routing verdict per (target type, style type): the eligibility +
+# tree-safety walk is table recursion we don't want on every parse
+const _INTERP_ROUTE = Dict{Tuple{DataType,DataType},Bool}()
+const _INTERP_ROUTE_LOCK = ReentrantLock()
+
+function _interproute(style::StructStyle, @nospecialize(T))::Bool
+    T isa DataType || return false
+    key = (T, typeof(style))
+    lock(_INTERP_ROUTE_LOCK) do
+        get!(_INTERP_ROUTE, key) do
+            StructUtils.interpready(style, T) && StructUtils.interptreesafe(style, T)
+        end
+    end
+end
+
 function _parse(x::LazyValue, ::Type{T}, dicttype::Type{O}, null, style::StructStyle) where {T,O}
+    if !StructUtils.TRIM_BUILD && T !== Any && O === DEFAULT_OBJECT_TYPE && null === nothing &&
+       !StructUtils.ishot(T) && gettype(x) == JSONTypes.OBJECT && _interproute(style, T)
+        # tier-0 default: materialize through the untyped engine (compiled
+        # once, covered by the package workload), then construct through the
+        # StructUtils interpreter — faster than the specialized lazy descent
+        # at request-payload sizes, and the per-type compile cost drops to a
+        # field-table build. `:hot`-annotated types keep the lazy descent;
+        # custom dicttype/null and non-object roots keep classic semantics.
+        # The interpreter entry is called directly: routing through the
+        # `make` dispatcher would leave the (never-taken) specialized-descent
+        # arm reachable, and the JIT compiles it per type — the exact
+        # first-call cost this route exists to eliminate.
+        out = ValueClosure()
+        pos = applyvalue(out, x, nothing)
+        getisroot(x) && checkendpos(x, T, pos)
+        y, _ = StructUtils._interp_make(style, T, out.value::Object{String,Any})
+        return y::T
+    end
+    if StructUtils.TRIM_BUILD
+        # trim binaries need the static call graph (and the tree route is
+        # compile-time disabled above, so this IS the path)
+        y, pos = StructUtils.make(style, T, x)
+        getisroot(x) && checkendpos(x, T, pos)
+        return y
+    else
+        # runtime-dispatch boundary: keeps the JIT from eagerly compiling the
+        # specialized lazy descent for types the gate routes to the
+        # interpreter — that per-type compile is what the tree route removes
+        return Base.invokelatest(_parse_classic, x, T, style)
+    end
+end
+
+function _parse_classic(x::LazyValue, ::Type{T}, style::StructStyle) where {T}
     y, pos = StructUtils.make(style, T, x)
     getisroot(x) && checkendpos(x, T, pos)
     return y
+end
+
+# ---------------- :hot precompile hook + sample synthesis ----------------
+
+# registered with StructUtils from __init__: called for each :hot-annotated
+# struct during the *defining package's* precompilation, inside a newly-
+# inferred-tagging block — everything parsed here (the typed lazy descent,
+# the write path) lands in that package's image
+function _hot_json_hook(@nospecialize(T), samples::Tuple)
+    T isa Type || return nothing
+    for s in samples
+        s isa AbstractString || continue
+        try
+            x = parse(String(s), T)
+            json(x)
+        catch
+        end
+    end
+    s = try
+        _synthesize_sample(T)
+    catch
+        nothing
+    end
+    if s !== nothing
+        try
+            x = parse(s, T)
+            json(x)
+        catch
+        end
+    end
+    try
+        parse("{}", T)
+    catch
+    end
+    return nothing
+end
+
+# build a minimal valid JSON sample for T from its field table: dummy leaf
+# per kind, recursion for nested structs/vectors; CUSTOM-kind fields are
+# omitted (defaults/nullability cover them, and "{}" is the fallback)
+function _synthesize_sample(@nospecialize(T))
+    style = JSONReadStyle{DEFAULT_OBJECT_TYPE}(nothing)
+    tbl = StructUtils.fieldtable(T, style)
+    tbl.eligible || return nothing
+    io = IOBuffer()
+    Base.print(io, '{')
+    isfirst = true
+    for sp in tbl.specs
+        frag = _synth_value(sp.kind, sp.elkind, sp.ft, sp.elft)
+        frag === nothing && continue
+        isfirst || Base.print(io, ',')
+        isfirst = false
+        Base.print(io, '"', sp.name, "\":", frag)
+    end
+    Base.print(io, '}')
+    return String(take!(io))
+end
+
+function _synth_value(kind::Int8, elkind::Int8, @nospecialize(ft), @nospecialize(elft))
+    SU = StructUtils
+    if kind == SU.KIND_STRING || kind == SU.KIND_SYMBOL
+        return "\"s\""
+    elseif kind == SU.KIND_CHAR
+        return "\"c\""
+    elseif SU.KIND_INT64 <= kind <= SU.KIND_UINT128
+        return "1"
+    elseif SU.KIND_FLOAT64 <= kind <= SU.KIND_FLOAT16
+        return "1.5"
+    elseif kind == SU.KIND_BOOL
+        return "true"
+    elseif kind == SU.KIND_DATE
+        return "\"2020-01-02\""
+    elseif kind == SU.KIND_DATETIME
+        return "\"2020-01-02T03:04:05\""
+    elseif kind == SU.KIND_TIME
+        return "\"03:04:05\""
+    elseif kind == SU.KIND_UUID
+        return "\"c8b1cf79-de6a-54ab-a142-682c06a0de6a\""
+    elseif kind == SU.KIND_ANY
+        return "1"
+    elseif kind == SU.KIND_STRUCT
+        return _synthesize_sample(ft)
+    elseif kind == SU.KIND_VECTOR
+        el = _synth_value(elkind, Int8(0), elft, nothing)
+        return el === nothing ? nothing : string('[', el, ']')
+    end
+    return nothing
 end
 
 mutable struct ValueClosure
