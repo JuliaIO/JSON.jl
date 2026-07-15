@@ -48,8 +48,13 @@ end
     snippet = replace(snippet, r"[\b\f\n\r\t]" => " ")
     # we call @invoke here to avoid --trim verify errors
     caret = @invoke(repeat(" "::String, (erri + 2)::Integer)) * "^"
+    # the type renders via an isa ladder with per-branch typeasserts:
+    # interpolating the type object infers show machinery per target type (a
+    # large per-type TTFX tax) and is dynamic under --trim now that this
+    # helper is @nospecialize
+    tname = _typenamestr(T)
     msg = """
-    invalid JSON at byte position $(pos) (line $line_no) parsing type $T: $error
+    invalid JSON at byte position $(pos) (line $line_no) parsing type $(tname): $error
     $snippet$(error == UnexpectedEOF ? " <EOF>" : "...")
     $caret
     """

@@ -106,3 +106,5 @@ end
     ]
     @test JSON.json(x, 2) isa String
 end
+
+include("trim_compile_tests.jl")

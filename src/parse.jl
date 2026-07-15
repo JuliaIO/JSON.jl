@@ -188,15 +188,37 @@ function jsonreadstyle(@nospecialize(T), ::Type{O}, null, style::StructStyle, un
     ignore_unknown_fields =
         unknown_fields === :ignore ? true :
         unknown_fields === :error ? false :
-        throw(ArgumentError("`unknown_fields` must be `:ignore` or `:error`, got `$(repr(unknown_fields))`"))
+        throw(ArgumentError(string("`unknown_fields` must be `:ignore` or `:error`, got `:", String(unknown_fields), "`")))
     if T === Any && !ignore_unknown_fields
         throw(ArgumentError("`unknown_fields` is only supported when parsing into a target type or existing object"))
     end
     return JSONReadStyle{O}(null, style, ignore_unknown_fields)
 end
 
-@noinline unknownfielderror(@nospecialize(T), @nospecialize(key)) =
-    ArgumentError("encountered unknown JSON member $(repr(key)) while parsing `$T`")
+# isa-laddered string extraction: no per-target-type inference of show
+# machinery (the 1.5.1 TTFX regression class), and no dynamic repr-of-Any
+# for the trim verifier to reject
+@noinline function unknownfielderror(@nospecialize(T), @nospecialize(key))
+    # per-branch typeasserts: narrowing on @nospecialize arguments doesn't
+    # stick, and the verifier needs each call fully concrete
+    keystr = key isa String ? (key::String) :
+             key isa PtrString ? convert(String, key::PtrString) :
+             key isa Symbol ? String(key::Symbol) :
+             key isa Int ? string(key::Int) : "<key>"
+    return ArgumentError(string("encountered unknown JSON member \"", keystr::String,
+        "\" while parsing `", _typenamestr(T), "`"))
+end
+
+function _typenamestr(@nospecialize(T))
+    # unwrap UnionAlls by hand: Base's nameof(::UnionAll) recurses through an
+    # Any-typed body, which the trim verifier can't resolve
+    body = T
+    while body isa UnionAll
+        body = getfield(body::UnionAll, :body)
+    end
+    body isa DataType && return String(nameof(body::DataType)::Symbol)
+    return "<type>"
+end
 
 function StructUtils.unknownfield(st::JSONReadStyle, ::Type{T}, key, value) where {T}
     st.ignore_unknown_fields || throw(unknownfielderror(T, key))
