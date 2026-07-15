@@ -184,7 +184,7 @@ StructUtils.structlike(st::JSONReadStyle{O,N,S}, ::Type{T}) where {O,N,S<:JSONSt
 StructUtils.structlike(st::JSONReadStyle{O,N,S}, ::Type{T}) where {O,N,S<:JSONStyle,T<:NamedTuple} =
     StructUtils.structlike(st.style, T)
 
-function jsonreadstyle(::Type{T}, ::Type{O}, null, style::StructStyle, unknown_fields::Symbol) where {T,O}
+function jsonreadstyle(@nospecialize(T), ::Type{O}, null, style::StructStyle, unknown_fields::Symbol) where {O}
     ignore_unknown_fields =
         unknown_fields === :ignore ? true :
         unknown_fields === :error ? false :
@@ -195,7 +195,7 @@ function jsonreadstyle(::Type{T}, ::Type{O}, null, style::StructStyle, unknown_f
     return JSONReadStyle{O}(null, style, ignore_unknown_fields)
 end
 
-@noinline unknownfielderror(::Type{T}, key) where {T} =
+@noinline unknownfielderror(@nospecialize(T), @nospecialize(key)) =
     ArgumentError("encountered unknown JSON member $(repr(key)) while parsing `$T`")
 
 function StructUtils.unknownfield(st::JSONReadStyle, ::Type{T}, key, value) where {T}
@@ -247,23 +247,21 @@ function _interproute(style::StructStyle, @nospecialize(T))::Bool
     end
 end
 
+const _DEFAULT_READSTYLE = JSONReadStyle{DEFAULT_OBJECT_TYPE,Nothing,StructUtils.DefaultStyle}
+
 function _parse(x::LazyValue, ::Type{T}, dicttype::Type{O}, null, style::StructStyle) where {T,O}
-    if !StructUtils.TRIM_BUILD && T !== Any && O === DEFAULT_OBJECT_TYPE && null === nothing &&
+    if !StructUtils.TRIM_BUILD && T !== Any && style isa _DEFAULT_READSTYLE &&
        !StructUtils.ishot(T) && gettype(x) == JSONTypes.OBJECT && _interproute(style, T)
-        # tier-0 default: materialize through the untyped engine (compiled
-        # once, covered by the package workload), then construct through the
-        # StructUtils interpreter — faster than the specialized lazy descent
-        # at request-payload sizes, and the per-type compile cost drops to a
-        # field-table build. `:hot`-annotated types keep the lazy descent;
-        # custom dicttype/null and non-object roots keep classic semantics.
-        # The interpreter entry is called directly: routing through the
-        # `make` dispatcher would leave the (never-taken) specialized-descent
-        # arm reachable, and the JIT compiles it per type — the exact
-        # first-call cost this route exists to eliminate.
-        out = ValueClosure()
-        pos = applyvalue(out, x, nothing)
+        # tier-0 default: a single lazy pass drives the field-table
+        # interpreter's slots directly — scalar leaves materialize per their
+        # kind tag, unknown keys are skipped without materializing, and the
+        # per-type compile cost is a field-table build. `:hot` types keep the
+        # specialized lazy descent; custom styles/dicttype/null and
+        # non-object roots keep classic semantics. Called directly (not via
+        # the `make` dispatcher) so the never-taken specialized-descent arm
+        # isn't compiled per type.
+        y, pos = _fused_make(style, T, x)
         getisroot(x) && checkendpos(x, T, pos)
-        y, _ = StructUtils._interp_make(style, T, out.value::Object{String,Any})
         return y::T
     end
     if StructUtils.TRIM_BUILD
@@ -284,6 +282,164 @@ function _parse_classic(x::LazyValue, ::Type{T}, style::StructStyle) where {T}
     y, pos = StructUtils.make(style, T, x)
     getisroot(x) && checkendpos(x, T, pos)
     return y
+end
+
+# ---------------- fused tier-0 lazy interpretation ----------------
+# JIT-only (the route is gated off under trim builds): drives the
+# StructUtils field-table interpreter's slots directly from applyobject —
+# one pass, no intermediate tree. Closures are parameterized by style only,
+# never by the target type, so the whole engine compiles once and lives in
+# this package's image via the workload.
+
+struct FusedObjClosure{S<:StructStyle}
+    style::S
+    tbl::StructUtils.FieldTable
+    slots::Vector{Any}
+end
+
+function (f::FusedObjClosure{S})(k::PtrString, v::LazyValue) where {S}
+    specs = f.tbl.specs
+    i = 0
+    for j = 1:length(specs)
+        if k == @inbounds(specs[j]).name # PtrString == String: no allocation
+            i = j
+            break
+        end
+    end
+    if i == 0
+        # unknown key: honor the style hook (unknown_fields=:error throws);
+        # returning non-Int makes applyobject skip the value unmaterialized
+        StructUtils.unknownfield(f.style, f.tbl.T, k, v)
+        return nothing
+    end
+    sp = @inbounds specs[i]
+    if gettype(v) == JSONTypes.NULL
+        kind = sp.kind
+        if sp.nullable
+            f.slots[i] = nothing
+        elseif sp.missingable
+            f.slots[i] = missing
+        elseif kind == StructUtils.KIND_ANY
+            f.slots[i] = nothing
+        elseif kind == StructUtils.KIND_CUSTOM
+            val, _ = StructUtils.make(f.style, sp.ft::Type, nothing, sp.tags)
+            f.slots[i] = val
+        else
+            x, _ = StructUtils.lift(f.style, sp.ft::Type, nothing)
+            f.slots[i] = x
+        end
+        return getpos(v) + 4
+    end
+    val, pos = _fused_value(f.style, sp, v)
+    f.slots[i] = val
+    return pos
+end
+
+struct FusedArrClosure{S<:StructStyle}
+    style::S
+    elkind::Int8
+    elft::Any
+    arr::Any
+    name::String
+end
+
+function (f::FusedArrClosure{S})(_, v::LazyValue) where {S}
+    elk = f.elkind
+    if gettype(v) == JSONTypes.NULL
+        # a null element: same semantics the interpreter's element lift has
+        x, _ = StructUtils.lift(f.style, f.elft::Type, nothing)
+        push!(f.arr::Vector, x)
+        return getpos(v) + 4
+    end
+    local val, pos
+    if elk == StructUtils.KIND_STRUCT && gettype(v) == JSONTypes.OBJECT
+        val, pos = _fused_make(f.style, f.elft, v)
+    elseif elk == StructUtils.KIND_ANY
+        out = ValueClosure()
+        pos = applyvalue(out, v, nothing)
+        val = out.value
+    else
+        val, pos = _fused_scalar(f.style, elk, f.elft, v, f.name)
+    end
+    push!(f.arr::Vector, val)
+    return pos
+end
+
+function _fused_value(style::StructStyle, sp::StructUtils.FieldSpec, v::LazyValue)
+    kind = sp.kind
+    if kind == StructUtils.KIND_STRUCT && gettype(v) == JSONTypes.OBJECT
+        return _fused_make(style, sp.ft, v)
+    elseif kind == StructUtils.KIND_VECTOR && gettype(v) == JSONTypes.ARRAY
+        arr = StructUtils._alloc_vector(sp.elft, 0)
+        f = FusedArrClosure{typeof(style)}(style, sp.elkind, sp.elft, arr, sp.name)
+        pos = applyarray(f, v)
+        pos isa Int || (pos = skip(v))
+        return arr, pos
+    elseif kind == StructUtils.KIND_ANY
+        out = ValueClosure()
+        pos = applyvalue(out, v, nothing)
+        return out.value, pos
+    elseif kind == StructUtils.KIND_CUSTOM
+        # materialize, then the 4-arg make with the field's tags — identical
+        # to the interpreter's CUSTOM arm (lift/choosetype/dateformat)
+        out = ValueClosure()
+        pos = applyvalue(out, v, nothing)
+        val, _ = StructUtils.make(style, sp.ft::Type, out.value, sp.tags)
+        return val, pos
+    else
+        return _fused_scalar(style, kind, sp.ft, v, sp.name)
+    end
+end
+
+# scalar leaves: parse the base JSON scalar lazily, then produce the
+# exact-typed value through the interpreter's kind ladder (ISO dates, int
+# widths, symbols, chars, and the JIT lift fallback for odd pairings)
+function _fused_scalar(style::StructStyle, kind::Int8, @nospecialize(ft), v::LazyValue, name::String)
+    t = gettype(v)
+    if t == JSONTypes.STRING
+        buf = getbuf(v)
+        local s, pos
+        GC.@preserve buf begin
+            str, pos = parsestring(v)
+            s = convert(String, str)
+        end
+        return StructUtils._liftleaf(style, kind, ft, s, name), pos
+    elseif t == JSONTypes.NUMBER
+        num, pos = parsenumber(v)
+        raw = isint(num) ? num.int :
+              isfloat(num) ? num.float :
+              isbigint(num) ? num.bigint : num.bigfloat
+        return StructUtils._liftleaf(style, kind, ft, raw, name), pos
+    elseif t == JSONTypes.TRUE
+        return StructUtils._liftleaf(style, kind, ft, true, name), getpos(v) + 4
+    elseif t == JSONTypes.FALSE
+        return StructUtils._liftleaf(style, kind, ft, false, name), getpos(v) + 5
+    else
+        # aggregate into a scalar-kind field: materialize and let the
+        # interpreter's leaf ladder (and its lift fallback) decide
+        out = ValueClosure()
+        pos = applyvalue(out, v, nothing)
+        return StructUtils._liftleaf(style, kind, ft, out.value, name), pos
+    end
+end
+
+# @noinline: this is the boundary between per-type entry glue and the
+# compile-once engine — inlined, the JIT re-infers the engine per target type
+@noinline function _fused_make(style::StructStyle, @nospecialize(T), v::LazyValue)
+    tbl = StructUtils.fieldtable(T, style)
+    if !tbl.eligible
+        # nested type the interpreter can't build: materialize the subtree
+        # and let the generic machinery decide (classic semantics)
+        out = ValueClosure()
+        pos = applyvalue(out, v, nothing)
+        val, _ = StructUtils.make(style, T::Type, out.value)
+        return val, pos
+    end
+    slots = Vector{Any}(undef, length(tbl.specs))
+    f = FusedObjClosure{typeof(style)}(style, tbl, slots)
+    pos = applyobject(f, v)
+    pos isa Int || (pos = skip(v))
+    return StructUtils._construct_interp(style, tbl, slots), pos
 end
 
 # ---------------- :hot precompile hook + sample synthesis ----------------
@@ -395,7 +551,7 @@ parse!(x::LazyValue, obj::T;
 # for LazyValue, if x started at the beginning of the JSON input,
 # then we want to ensure that the entire input was consumed
 # and error if there are any trailing invalid JSON characters
-function checkendpos(x::LazyValue, ::Type{T}, pos::Int) where {T}
+function checkendpos(x::LazyValue, @nospecialize(T), pos::Int)
     buf = getbuf(x)
     len = getlength(buf)
     if pos <= len

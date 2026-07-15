@@ -25,7 +25,7 @@ end
 
 @enum Error InvalidJSON UnexpectedEOF ExpectedOpeningObjectChar ExpectedOpeningQuoteChar ExpectedOpeningArrayChar ExpectedClosingArrayChar ExpectedComma ExpectedColon ExpectedNewline InvalidChar InvalidNumber InvalidUTF16
 
-@noinline function invalid(error, buf, pos::Int, T)
+@noinline function invalid(error, buf, pos::Int, @nospecialize(T))
     # compute which line the error falls on by counting “\n” bytes up to pos
     cus = buf isa AbstractString ? codeunits(buf) : buf
     line_no = count(b -> b == UInt8('\n'), view(cus, 1:pos)) + 1
