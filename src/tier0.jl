@@ -11,18 +11,43 @@
 
 # memoized routing verdict per (target type, style type): the eligibility +
 # tree-safety walk is table recursion we don't want on every parse
-const _INTERP_ROUTE = Dict{Tuple{DataType,DataType},Bool}()
+# copy-on-write: reads are one atomic load + hash lookup (the memo sits on
+# every typed parse, including sub-microsecond ones where a lock would
+# dominate); writers clone and swap under the lock
+mutable struct _RouteMemo
+    @atomic table::Dict{Tuple{DataType,DataType},Bool}
+end
+const _INTERP_ROUTE = _RouteMemo(Dict{Tuple{DataType,DataType},Bool}())
 const _INTERP_ROUTE_LOCK = ReentrantLock()
 
 function _interproute(style::StructStyle, @nospecialize(T))::Bool
     T isa DataType || return false
     key = (T, typeof(style))
-    lock(_INTERP_ROUTE_LOCK) do
-        get!(_INTERP_ROUTE, key) do
-            StructUtils.interpready(style, T) && StructUtils.interptreesafe(style, T)
+    tbl = @atomic _INTERP_ROUTE.table
+    r = get(tbl, key, nothing)
+    r === nothing || return r
+    verdict = StructUtils.interpready(style, T) && StructUtils.interptreesafe(style, T)
+    lock(_INTERP_ROUTE_LOCK)
+    try
+        old = @atomic _INTERP_ROUTE.table
+        if !haskey(old, key)
+            new = copy(old)
+            new[key] = verdict
+            @atomic _INTERP_ROUTE.table = new
         end
+    finally
+        unlock(_INTERP_ROUTE_LOCK)
     end
+    return verdict
 end
+
+# documents above this size take the classic specialized descent instead of
+# the tier-0 engine: per-element interpretation loses to a compiled descent
+# on bulk documents (measured crossover sits in the low kilobytes), and a
+# type that parses bulk documents is worth its one-time compile — the same
+# cost every type paid before tier-0 existed. `:hot` skips the size check
+# entirely by never reaching this route.
+const _FUSED_MAX_BYTES = 4096
 
 const _DEFAULT_READSTYLE = JSONReadStyle{DEFAULT_OBJECT_TYPE,Nothing,StructUtils.DefaultStyle}
 

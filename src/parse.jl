@@ -257,7 +257,8 @@ parse(x::LazyValue, ::Type{T}=Any;
 
 function _parse(x::LazyValue, ::Type{T}, dicttype::Type{O}, null, style::StructStyle) where {T,O}
     if !StructUtils.TRIM_BUILD && T !== Any && style isa _DEFAULT_READSTYLE &&
-       !StructUtils.ishot(T) && gettype(x) == JSONTypes.OBJECT && _interproute(style, T)
+       !StructUtils.ishot(T) && gettype(x) == JSONTypes.OBJECT &&
+       getlength(getbuf(x)) - getpos(x) < _FUSED_MAX_BYTES && _interproute(style, T)
         # tier-0 default: a single lazy pass drives the field-table
         # interpreter's slots directly — scalar leaves materialize per their
         # kind tag, unknown keys are skipped without materializing, and the
