@@ -428,7 +428,10 @@ function StructUtils.make(st::StructStyle, ::Type{Any}, x::LazyValues)
     elseif type == JSONTypes.TRUE || type == JSONTypes.FALSE
         return StructUtils.lift(st, Bool, x)
     else
-        throw(ArgumentError("cannot parse $x"))
+        # no value interpolation: `show(::LazyValue)` materializes and prints
+        # a LazyArray through Base's matrix-show machinery — a large dynamic
+        # fan-out under --trim; `invalid` renders position + type statically
+        invalid(InvalidJSON, getbuf(x), getpos(x), Any)
     end
 end
 

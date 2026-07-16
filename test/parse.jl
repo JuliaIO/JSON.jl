@@ -726,16 +726,23 @@ JSON.lift(::DateMaterializedObjectStyle, ::Type{Date}, x::JSON.Object) = Date(x[
         m = Array{Float64,0}(undef)
         m[1] = 1.0
         @test JSON.parse("1.0", Array{Float64,0}) == m
-        # test custom JSONStyle
-        # StructUtils.lift(::CustomJSONStyle, ::Type{UUID}, x) = UUID(UInt128(x))
-        # @test JSON.parse("340282366920938463463374607431768211455", UUID; style=CustomJSONStyle()) == UUID(typemax(UInt128))
-        # @test JSON.parse("{\"id\": 0, \"uuid\": 340282366920938463463374607431768211455}", N; style=CustomJSONStyle()) == N(0, UUID(typemax(UInt128)))
+        # test custom JSONStyle: per-style lift + @choosetype route through
+        # the specialized descent, where user hooks see raw lazy values
+        StructUtils.lift(::CustomJSONStyle, ::Type{UUID}, x) = UUID(UInt128(x))
+        @test JSON.parse("340282366920938463463374607431768211455", UUID; style=CustomJSONStyle()) == UUID(typemax(UInt128))
+        @test JSON.parse("{\"id\": 0, \"uuid\": 340282366920938463463374607431768211455}", N; style=CustomJSONStyle()) == N(0, UUID(typemax(UInt128)))
         # tricky unions
         @test JSON.parse("{\"id\":0}", O) == O(0, nothing)
         @test JSON.parse("{\"id\":0,\"name\":null}", O) == O(0, missing)
-        # StructUtils.choosetype(::CustomJSONStyle, ::Type{Union{I,L,Missing,Nothing}}, val) = JSON.gettype(val) == JSON.JSONTypes.NULL ? Missing : hasproperty(val, :fruit) ? I : L
-        # @test JSON.parse("{\"id\":0,\"name\":{\"id\":1,\"name\":\"jim\",\"fruit\":\"apple\"}}", O; style=CustomJSONStyle()) == O(0, I(1, "jim", apple))
-        # @test JSON.parse("{\"id\":0,\"name\":{\"id\":1,\"firstName\":\"jim\",\"rate\":3.14}}", O; style=CustomJSONStyle()) == O(0, L(1, "jim", 3.14))
+        # style-scoped make overrides (which @choosetype emits) dispatch on
+        # the READ WRAPPER carrying the custom style as its third parameter:
+        # JSON wraps user styles in JSONReadStyle, and only traits/lift are
+        # forwarded to the inner style
+        StructUtils.@choosetype JSON.JSONReadStyle{<:Any,<:Any,CustomJSONStyle} Union{I,L,Missing,Nothing} val ->
+            JSON.gettype(val) == JSON.JSONTypes.NULL ? Missing :
+            hasproperty(val, :fruit) ? I : L
+        @test JSON.parse("{\"id\":0,\"name\":{\"id\":1,\"name\":\"jim\",\"fruit\":\"apple\"}}", O; style=CustomJSONStyle()) == O(0, I(1, "jim", apple))
+        @test JSON.parse("{\"id\":0,\"name\":{\"id\":1,\"firstName\":\"jim\",\"rate\":3.14}}", O; style=CustomJSONStyle()) == O(0, L(1, "jim", 3.14))
 
         StructUtils.liftkey(::JSON.JSONStyle, ::Type{Point}, x::String) = Point(parse(Int, split(x, "_")[1]), parse(Int, split(x, "_")[2]))
         @test JSON.parse("{\"1_2\":\"hi\"}", Dict{Point, String}) == Dict(Point(1, 2) => "hi")
