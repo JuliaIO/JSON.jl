@@ -261,7 +261,13 @@ parse(x::LazyValue, ::Type{T}=Any;
 
 
 function _parse(x::LazyValue, ::Type{T}, dicttype::Type{O}, null, style::StructStyle) where {T,O}
-    if !StructUtils.TRIM_BUILD && !StructUtils.ishot(T) && style isa _FUSED_STYLE
+    if StructUtils.TRIM_BUILD
+        # trim binaries need the static call graph
+        y, pos = StructUtils.make(style, T, x)
+        getisroot(x) && checkendpos(x, T, pos)
+        return y
+    end
+    if !StructUtils.ishot(T) && style isa _FUSED_STYLE
         # tier-0 default for every typed parse: one lazy pass drives the
         # field-table interpreter — any target type, no per-type compile
         # beyond a field-table build. Called directly (not via the `make`
@@ -271,10 +277,16 @@ function _parse(x::LazyValue, ::Type{T}, dicttype::Type{O}, null, style::StructS
         getisroot(x) && checkendpos(x, T, pos)
         return y::T
     end
-    # the fully-specialized static descent: trim builds (the verifier needs
-    # its static call graph), `:hot` types (compiled into their defining
-    # package's image by the precompile hook), and custom dicttype/null
-    # (those change materialization semantics)
+    # runtime-dispatch boundary: with the route decided at runtime, a
+    # directly-reachable specialized descent would be JIT-compiled per
+    # target type even when the fused route is always taken — exactly the
+    # first-call cost tier-0 exists to remove. Types that genuinely route
+    # here (`:hot`, custom styles/dicttype/null) pay one dynamic dispatch
+    # per parse.
+    return Base.invokelatest(_parse_specialized, x, T, style)
+end
+
+function _parse_specialized(x::LazyValue, ::Type{T}, style::StructStyle) where {T}
     y, pos = StructUtils.make(style, T, x)
     getisroot(x) && checkendpos(x, T, pos)
     return y
