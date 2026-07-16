@@ -151,6 +151,11 @@ import StructUtils: StructStyle
 
 abstract type JSONStyle <: StructStyle end
 
+# lazy values carry their own lift/descent protocol; the tier-0 interpreter
+# must never drive them directly (the fused engine in tier0.jl is the
+# interpreter-shaped path for lazy input)
+StructUtils.interpsource(::LazyValues) = false
+
 # defining a custom style allows us to pass a non-default dicttype `O` through JSON.parse,
 # while still delegating custom behavior to an inner StructStyle if one was provided
 struct JSONReadStyle{O,T,S} <: JSONStyle
@@ -256,39 +261,20 @@ parse(x::LazyValue, ::Type{T}=Any;
 
 
 function _parse(x::LazyValue, ::Type{T}, dicttype::Type{O}, null, style::StructStyle) where {T,O}
-    if !StructUtils.TRIM_BUILD && T !== Any && style isa _DEFAULT_READSTYLE &&
-       !StructUtils.ishot(T) && gettype(x) == JSONTypes.OBJECT &&
-       getlength(getbuf(x)) - getpos(x) < _FUSED_MAX_BYTES && _interproute(style, T)
-        # tier-0 default: a single lazy pass drives the field-table
-        # interpreter's slots directly — scalar leaves materialize per their
-        # kind tag, unknown keys are skipped without materializing, and the
-        # per-type compile cost is a field-table build. `:hot` types keep the
-        # specialized lazy descent; custom styles/dicttype/null and
-        # non-object roots keep classic semantics. Called directly (not via
-        # the `make` dispatcher) so the never-taken specialized-descent arm
-        # isn't compiled per type.
+    if !StructUtils.TRIM_BUILD && !StructUtils.ishot(T) && style isa _FUSED_STYLE
+        # tier-0 default for every typed parse: one lazy pass drives the
+        # field-table interpreter — any target type, no per-type compile
+        # beyond a field-table build. Called directly (not via the `make`
+        # dispatcher) so the never-taken specialized-descent arm isn't
+        # compiled per type.
         y, pos = _fused_make(style, T, x)
         getisroot(x) && checkendpos(x, T, pos)
         return y::T
     end
-    if StructUtils.TRIM_BUILD
-        # trim binaries need the static call graph (and the tree route is
-        # compile-time disabled above, so this IS the path)
-        y, pos = StructUtils.make(style, T, x)
-        getisroot(x) && checkendpos(x, T, pos)
-        return y
-    else
-        # runtime-dispatch boundary: with the route decided by a runtime
-        # table lookup, a directly-reachable classic descent would be JIT-
-        # compiled per target type even when the fused tier-0 route is always
-        # taken — exactly the first-call cost tier-0 exists to remove. Types
-        # that genuinely route here (:hot, custom styles/kwargs, ineligible
-        # shapes) pay one dynamic dispatch per parse.
-        return Base.invokelatest(_parse_classic, x, T, style)
-    end
-end
-
-function _parse_classic(x::LazyValue, ::Type{T}, style::StructStyle) where {T}
+    # the fully-specialized static descent: trim builds (the verifier needs
+    # its static call graph), `:hot` types (compiled into their defining
+    # package's image by the precompile hook), and custom dicttype/null
+    # (those change materialization semantics)
     y, pos = StructUtils.make(style, T, x)
     getisroot(x) && checkendpos(x, T, pos)
     return y

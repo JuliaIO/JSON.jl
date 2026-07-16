@@ -1,9 +1,9 @@
 using Test, JSON, Dates, UUIDs, StructUtils
 
-# tier-0 default typed parsing: JSON object roots for non-:hot eligible
-# structs materialize through the untyped engine and construct through the
-# StructUtils field-table interpreter; everything else keeps the classic
-# lazy descent. These tests pin parity across the routing boundary.
+# tier-0 default typed parsing: every non-:hot typed parse under the default
+# read configuration drives the StructUtils field-table interpreter in one
+# lazy pass; :hot types and custom dicttype/null take the specialized
+# descent. These tests pin parity across the routing boundary.
 
 @kwarg struct IDTier
     name::String
@@ -79,16 +79,16 @@ const IDJSON = """
     c = JSON.parse("{\"p\": 0.25}", IDCustom)
     @test c.p.v == 0.25
 
-    # custom dicttype and null route through the classic path with their
-    # classic semantics (note: on the classic path, Any-typed *fields*
-    # materialize as JSON.Object via the lift fallback regardless of
-    # dicttype — same as master)
+    # custom dicttype and null take the specialized descent with their
+    # existing semantics (note: on that path, Any-typed *fields* materialize
+    # as JSON.Object via the lift fallback regardless of dicttype — same as
+    # master)
     d = JSON.parse(IDJSON, IDEvent; dicttype=Dict{String,Any})
     @test d.note isa JSON.Object{String,Any} && d.note["k"] == "v"
     m = JSON.parse("{\"name\":\"x\",\"score\":null}", IDEvent; null=missing)
     @test m.score === missing
 
-    # non-object roots keep the classic path
+    # non-object roots drive the interpreter spec tree
     @test JSON.parse("[{\"name\":\"t\"}]", Vector{IDTier})[1].name == "t"
 
     # sample synthesis produces parseable JSON for eligible types

@@ -2,61 +2,28 @@
 # field-table interpreter's slots directly from applyobject — no intermediate
 # tree, closures parameterized by style only (never the target type), so the
 # whole engine compiles once and ships in this package's image via the
-# workload. JIT-only: under StructUtils.TRIM_BUILD the route is compile-time
-# disabled and typed parsing goes through the specialized hot descent.
+# workload. Fully capable: every target type routes here under the default
+# read configuration — struct objects and element vectors drive the lazy
+# tokens directly, custom kinds hand the RAW lazy value to the generic
+# machinery (user hooks keep their semantics), and every other (kind, shape)
+# pairing materializes its subtree into the interpreter's boxed arms.
+# JIT-only: under StructUtils.TRIM_BUILD typed parsing goes through the
+# specialized hot descent (the trim verifier needs its static call graph).
 #
 # Also here: the :hot precompile hook JSON registers with StructUtils (each
 # :hot-annotated struct's typed parse/write compiles into its defining
 # package's image), plus the field-table-driven sample synthesizer it uses.
 
-# memoized routing verdict per (target type, style type): the eligibility +
-# tree-safety walk is table recursion we don't want on every parse
-# copy-on-write: reads are one atomic load + hash lookup (the memo sits on
-# every typed parse, including sub-microsecond ones where a lock would
-# dominate); writers clone and swap under the lock
-mutable struct _RouteMemo
-    @atomic table::Dict{Tuple{DataType,DataType},Bool}
-end
-const _INTERP_ROUTE = _RouteMemo(Dict{Tuple{DataType,DataType},Bool}())
-const _INTERP_ROUTE_LOCK = ReentrantLock()
-
-function _interproute(style::StructStyle, @nospecialize(T))::Bool
-    T isa DataType || return false
-    key = (T, typeof(style))
-    tbl = @atomic _INTERP_ROUTE.table
-    r = get(tbl, key, nothing)
-    r === nothing || return r
-    verdict = StructUtils.interpready(style, T) && StructUtils.interptreesafe(style, T)
-    lock(_INTERP_ROUTE_LOCK)
-    try
-        old = @atomic _INTERP_ROUTE.table
-        if !haskey(old, key)
-            new = copy(old)
-            new[key] = verdict
-            @atomic _INTERP_ROUTE.table = new
-        end
-    finally
-        unlock(_INTERP_ROUTE_LOCK)
-    end
-    return verdict
-end
-
-# documents above this size take the classic specialized descent instead of
-# the tier-0 engine: per-element interpretation loses to a compiled descent
-# on bulk documents (measured crossover sits in the low kilobytes), and a
-# type that parses bulk documents is worth its one-time compile — the same
-# cost every type paid before tier-0 existed. `:hot` skips the size check
-# entirely by never reaching this route.
-const _FUSED_MAX_BYTES = 4096
-
-const _DEFAULT_READSTYLE = JSONReadStyle{DEFAULT_OBJECT_TYPE,Nothing,StructUtils.DefaultStyle}
+# the tier-0 route: the default read configuration only. Custom dicttype/
+# null change materialization semantics, and custom inner styles can carry
+# per-style `lift(::MyStyle, ::Type{T}, ::LazyValue)` overloads or trait
+# overrides (dictlike/arraylike) that the engine's materializing scalar
+# ladder and structural spec tree would silently bypass — those take the
+# fully-specialized descent, where every hook sees exactly what classic
+# handed it.
+const _FUSED_STYLE = JSONReadStyle{DEFAULT_OBJECT_TYPE,Nothing,StructUtils.DefaultStyle}
 
 # ---------------- fused tier-0 lazy interpretation ----------------
-# JIT-only (the route is gated off under trim builds): drives the
-# StructUtils field-table interpreter's slots directly from applyobject —
-# one pass, no intermediate tree. Closures are parameterized by style only,
-# never by the target type, so the whole engine compiles once and lives in
-# this package's image via the workload.
 
 struct FusedObjClosure{S<:StructStyle}
     style::S
@@ -74,32 +41,68 @@ function (f::FusedObjClosure{S})(k::PtrString, v::LazyValue) where {S}
         end
     end
     if i == 0
+        # miss on declared names: alias tuples and raw name tags register
+        # extra candidates (only consulted when the table declares any)
+        for j = 1:length(specs)
+            if @inbounds(specs[j]).aliases !== nothing
+                i = StructUtils._findspec(specs, convert(String, k))
+                break
+            end
+        end
+    end
+    if i == 0
         # unknown key: honor the style hook (unknown_fields=:error throws);
         # returning non-Int makes applyobject skip the value unmaterialized
         StructUtils.unknownfield(f.style, f.tbl.T, k, v)
         return nothing
     end
-    sp = @inbounds specs[i]
+    return _fused_fillslot!(f.style, f.slots, i, @inbounds(specs[i]), v)
+end
+
+# fill slot i for a matched spec (by key or position); returns the next
+# lazy position (or nothing to let the applier skip unmaterialized)
+function _fused_fillslot!(style::StructStyle, slots::Vector{Any}, i::Int,
+                          sp::StructUtils.FieldSpec, v::LazyValue)
     vs = sp.spec
     if gettype(v) == JSONTypes.NULL
-        if vs.nullable
-            f.slots[i] = nothing
-        elseif vs.missingable
-            f.slots[i] = missing
+        # classic @_peel order: when a field admits both, an explicit null
+        # takes the Missing arm first
+        if vs.missingable
+            slots[i] = missing
+        elseif vs.nullable
+            slots[i] = nothing
         elseif vs.kind == StructUtils.KIND_ANY
-            f.slots[i] = nothing
+            slots[i] = nothing
         elseif vs.kind == StructUtils.KIND_CUSTOM
-            val, _ = StructUtils.make(f.style, vs.declft::Type, nothing, sp.tags)
-            f.slots[i] = val
+            val, _ = StructUtils.make(style, vs.declft::Type, nothing, sp.tags)
+            slots[i] = val
         else
-            x, _ = StructUtils.lift(f.style, vs.ft::Type, nothing)
-            f.slots[i] = x
+            x, _ = StructUtils.lift(style, vs.ft::Type, nothing)
+            slots[i] = x
         end
         return getpos(v) + 4
     end
-    val, pos = _fused_field(f.style, sp, v)
-    f.slots[i] = val
+    val, pos = _fused_field(style, sp, v)
+    slots[i] = val
     return pos
+end
+
+# positional struct fill from a JSON array source: classic's lazy applyeach
+# handed the struct closures Int keys for arrays, so field order is the
+# match (surplus elements go to the style's unknownfield hook)
+struct FusedPosClosure{S<:StructStyle}
+    style::S
+    tbl::StructUtils.FieldTable
+    slots::Vector{Any}
+end
+
+function (f::FusedPosClosure{S})(i::Int, v::LazyValue) where {S}
+    specs = f.tbl.specs
+    if i > length(specs)
+        StructUtils.unknownfield(f.style, f.tbl.T, i, v)
+        return nothing
+    end
+    return _fused_fillslot!(f.style, f.slots, i, @inbounds(specs[i]), v)
 end
 
 # field-level: CUSTOM carries the field's tags; everything else goes through
@@ -107,10 +110,11 @@ end
 function _fused_field(style::StructStyle, sp::StructUtils.FieldSpec, v::LazyValue)
     vs = sp.spec
     if vs.kind == StructUtils.KIND_CUSTOM
-        out = ValueClosure()
-        pos = applyvalue(out, v, nothing)
-        val, _ = StructUtils.make(style, vs.declft::Type, out.value, sp.tags)
-        return val, pos
+        # custom-kind fields (user lift/make targets, choosetype tags,
+        # abstract declared types) receive the RAW lazy value — user hooks
+        # see exactly what the specialized descent hands them
+        val, st = StructUtils.make(style, vs.declft::Type, v, sp.tags)
+        return val, st isa Int ? st : skip(v)
     end
     return _fused_spec(style, vs, v, sp.name)
 end
@@ -126,10 +130,11 @@ function (f::FusedArrClosure{S})(_, v::LazyValue) where {S}
     el = f.el
     local val, pos
     if gettype(v) == JSONTypes.NULL
-        if el.nullable
-            val, pos = nothing, getpos(v) + 4
-        elseif el.missingable
+        # classic @_peel order: Missing arm first
+        if el.missingable
             val, pos = missing, getpos(v) + 4
+        elseif el.nullable
+            val, pos = nothing, getpos(v) + 4
         else
             x, _ = StructUtils.lift(f.style, el.ft::Type, nothing)
             val, pos = x, getpos(v) + 4
@@ -142,20 +147,31 @@ function (f::FusedArrClosure{S})(_, v::LazyValue) where {S}
 end
 
 # position-level recursion mirroring StructUtils._spec_value, driven lazily.
-# Kinds the lazy drive doesn't specialize for (dicts, union arms decided by
-# source shape, generic customs) materialize the subtree and reuse the
-# interpreter's boxed arms — correctness first, still no per-type compile.
+# Struct objects and element vectors — the overwhelmingly common shapes —
+# drive the lazy tokens directly; custom kinds hand the RAW lazy value to
+# the generic machinery; every other (kind, shape) pairing materializes its
+# subtree and reuses the interpreter's boxed arms — full capability, still
+# no per-type compile.
 function _fused_spec(style::StructStyle, vs::StructUtils.ValueSpec, v::LazyValue, name::String)
     k = vs.kind
-    if k == StructUtils.KIND_STRUCT && gettype(v) == JSONTypes.OBJECT
-        return _fused_make(style, vs.ft, v)
-    elseif k == StructUtils.KIND_VECTOR && gettype(v) == JSONTypes.ARRAY
-        el = vs.child::StructUtils.ValueSpec
-        arr = StructUtils._alloc_vector(el.declft, 0)
-        f = FusedArrClosure{typeof(style)}(style, el, arr, name)
-        pos = applyarray(f, v)
-        pos isa Int || (pos = skip(v))
-        return arr, pos
+    if k == StructUtils.KIND_STRUCT
+        t = gettype(v)
+        if t == JSONTypes.OBJECT || t == JSONTypes.ARRAY
+            tbl = StructUtils.fieldtable(vs.ft::DataType, style)
+            if tbl.eligible
+                t == JSONTypes.OBJECT && return _fused_struct(style, tbl, v)
+                return _fused_struct_positional(style, tbl, v)
+            end
+        end
+    elseif k == StructUtils.KIND_VECTOR
+        if gettype(v) == JSONTypes.ARRAY
+            el = vs.child::StructUtils.ValueSpec
+            arr = StructUtils._alloc_vector(el.declft, 0)
+            f = FusedArrClosure{typeof(style)}(style, el, arr, name)
+            pos = applyarray(f, v)
+            pos isa Int || (pos = skip(v))
+            return arr, pos
+        end
     elseif k == StructUtils.KIND_UNION2
         arm = gettype(v) == JSONTypes.ARRAY ? (vs.child::StructUtils.ValueSpec) :
                                               (vs.child2::StructUtils.ValueSpec)
@@ -164,19 +180,31 @@ function _fused_spec(style::StructStyle, vs::StructUtils.ValueSpec, v::LazyValue
         out = ValueClosure()
         pos = applyvalue(out, v, nothing)
         return out.value, pos
-    elseif k == StructUtils.KIND_DICT || k == StructUtils.KIND_CUSTOM
-        out = ValueClosure()
-        pos = applyvalue(out, v, nothing)
-        return StructUtils._spec_value(style, vs, out.value, name), pos
-    else
-        return _fused_scalar(style, k, vs.ft, v, name)
+    elseif k == StructUtils.KIND_CUSTOM
+        # raw lazy value to the generic machinery — user lift/make/choosetype
+        # hooks see exactly what the specialized descent hands them
+        val, st = StructUtils.make(style, vs.declft::Type, v)
+        return val, st isa Int ? st : skip(v)
+    elseif !(k == StructUtils.KIND_DICT || k == StructUtils.KIND_TUPLE ||
+             k == StructUtils.KIND_FIXEDARRAY || k == StructUtils.KIND_SETLIKE ||
+             k == StructUtils.KIND_UNSUPPORTED)
+        # scalar leaf kinds parse straight off the lazy token
+        return _fused_scalar(style, vs, v, name)
     end
+    # dict/tuple/set/fixed-array kinds, unsupported leaves, and shape
+    # mismatches (struct-from-array, vector-from-object): materialize the
+    # subtree; the interpreter's boxed arms handle any shape
+    out = ValueClosure()
+    pos = applyvalue(out, v, nothing)
+    return StructUtils._spec_value(style, vs, out.value, name), pos
 end
 
 # scalar leaves: parse the base JSON scalar lazily, then produce the
 # exact-typed value through the interpreter's kind ladder (ISO dates, int
 # widths, symbols, chars, and the JIT lift fallback for odd pairings)
-function _fused_scalar(style::StructStyle, kind::Int8, @nospecialize(ft), v::LazyValue, name::String)
+function _fused_scalar(style::StructStyle, vs::StructUtils.ValueSpec, v::LazyValue, name::String)
+    kind = vs.kind
+    ft = vs.ft
     t = gettype(v)
     if t == JSONTypes.STRING
         buf = getbuf(v)
@@ -197,31 +225,49 @@ function _fused_scalar(style::StructStyle, kind::Int8, @nospecialize(ft), v::Laz
     elseif t == JSONTypes.FALSE
         return StructUtils._liftleaf(style, kind, ft, false, name), getpos(v) + 5
     else
-        # aggregate into a scalar-kind field: materialize and let the
-        # interpreter's leaf ladder (and its lift fallback) decide
+        # aggregate token into a scalar-kind field: materialize the subtree;
+        # the interpreter's boxed arms (lift fallback included) decide
         out = ValueClosure()
         pos = applyvalue(out, v, nothing)
-        return StructUtils._liftleaf(style, kind, ft, out.value, name), pos
+        return StructUtils._spec_value(style, vs, out.value, name), pos
     end
 end
 
-# @noinline: this is the boundary between per-type entry glue and the
-# compile-once engine — inlined, the JIT re-infers the engine per target type
-@noinline function _fused_make(style::StructStyle, @nospecialize(T), v::LazyValue)
-    tbl = StructUtils.fieldtable(T, style)
-    if !tbl.eligible
-        # nested type the interpreter can't build: materialize the subtree
-        # and let the generic machinery decide (classic semantics)
-        out = ValueClosure()
-        pos = applyvalue(out, v, nothing)
-        val, _ = StructUtils.make(style, T::Type, out.value)
-        return val, pos
-    end
+# the object↔struct fast path: one lazy pass drives the field-table slots.
+# @noinline: the boundary between per-type entry glue and the compile-once
+# engine — inlined, the JIT re-infers the engine per target type
+@noinline function _fused_struct(style::StructStyle, tbl::StructUtils.FieldTable, v::LazyValue)
     slots = Vector{Any}(undef, length(tbl.specs))
     f = FusedObjClosure{typeof(style)}(style, tbl, slots)
     pos = applyobject(f, v)
     pos isa Int || (pos = skip(v))
     return StructUtils._construct_interp(style, tbl, slots, v), pos
+end
+
+function _fused_struct_positional(style::StructStyle, tbl::StructUtils.FieldTable, v::LazyValue)
+    slots = Vector{Any}(undef, length(tbl.specs))
+    f = FusedPosClosure{typeof(style)}(style, tbl, slots)
+    pos = applyarray(f, v)
+    pos isa Int || (pos = skip(v))
+    return StructUtils._construct_interp(style, tbl, slots, v), pos
+end
+
+# root entry for ANY target type: the spec tree describes T (built once per
+# (target, style type)); custom/unsupported roots hand the raw lazy value to
+# the generic machinery — the never-error backstop
+@noinline function _fused_make(style::StructStyle, @nospecialize(T), v::LazyValue)
+    vs = StructUtils.rootspec(T, style)
+    if vs.kind == StructUtils.KIND_CUSTOM || vs.kind == StructUtils.KIND_UNSUPPORTED ||
+       vs.kind == StructUtils.KIND_FIXEDARRAY
+        # custom/unsupported shapes and fixed-size arrays (0-dim included:
+        # dimension discovery needs the raw lazy value) take the generic route
+        val, st = StructUtils.make(style, T::Type, v)
+        return val, st isa Int ? st : skip(v)
+    end
+    if gettype(v) == JSONTypes.NULL
+        return StructUtils._spec_nullwrap(style, vs, nothing, "root"), getpos(v) + 4
+    end
+    return _fused_spec(style, vs, v, "root")
 end
 
 # ---------------- :hot precompile hook + sample synthesis ----------------

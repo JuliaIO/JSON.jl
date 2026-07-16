@@ -192,9 +192,9 @@ end
         @test true
     else
         project_path = _setup_trim_env()
-        # trim builds set the trim_build preference: it prunes the tier-0
-        # tree route (and its invokelatest classic boundary) out of the
-        # typed-parse entry, leaving the :hot lazy descent's static graph
+        # trim builds set the trim_build preference: it prunes the fused
+        # tier-0 route out of the typed-parse entry, leaving the specialized
+        # descent's static graph
         write(joinpath(project_path, "LocalPreferences.toml"),
             "[StructUtils]\ntrim_build = true\n")
         _run_trim_case(project_path, "hot_lazy_trim_safe.jl", "hot_lazy_trim_safe")
