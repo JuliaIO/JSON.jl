@@ -1,26 +1,32 @@
-# Tier-0 typed parsing for JSON: a single lazy pass drives the StructUtils
-# field-table interpreter's slots directly from applyobject — no intermediate
-# tree, closures parameterized by style only (never the target type), so the
-# whole engine compiles once and ships in this package's image via the
-# workload. Fully capable: every target type routes here under the default
-# read configuration — struct objects and element vectors drive the lazy
-# tokens directly, custom kinds hand the RAW lazy value to the generic
-# machinery (user hooks keep their semantics), and every other (kind, shape)
-# pairing materializes its subtree into the interpreter's boxed arms.
-# JIT-only: under StructUtils.TRIM_BUILD typed parsing goes through the
-# specialized hot descent (the trim verifier needs its static call graph).
+# The default typed-parse engine: one pass over the lazy JSON drives the
+# StructUtils field-table interpreter directly — no intermediate tree. The
+# closures below are parameterized by style only, never by the target type,
+# so this whole file compiles once (during JSON's own precompilation, via
+# the workload) and a user's first typed parse of any struct costs a table
+# build instead of a compile.
 #
-# Also here: the :hot precompile hook JSON registers with StructUtils (each
-# :hot-annotated struct's typed parse/write compiles into its defining
-# package's image), plus the field-table-driven sample synthesizer it uses.
+# It handles every target type: struct objects and element vectors stream
+# straight off the lazy tokens; a field whose type has its own lift/make/
+# choosetype hooks receives the raw lazy value, so user hooks see exactly
+# what they'd see on the per-type path; everything else (dict/tuple/set/
+# multidim-array fields, mismatched shapes) reads its subtree into plain
+# Julia values and lets the interpreter's generic handlers finish.
+#
+# Trimmed binaries skip this file's route entirely (its dispatch decisions
+# happen at runtime, which a trimmed binary can't compile for) and use the
+# per-type path, whose call targets are all static.
+#
+# Also here: the precompile hook JSON registers with StructUtils — when a
+# downstream package defines a `:hot` struct, this hook parses synthesized
+# samples during THAT package's precompilation so the type's specialized
+# parse/write code lands in its image.
 
-# the tier-0 route: the default read configuration only. Custom dicttype/
-# null change materialization semantics, and custom inner styles can carry
-# per-style `lift(::MyStyle, ::Type{T}, ::LazyValue)` overloads or trait
-# overrides (dictlike/arraylike) that the engine's materializing scalar
-# ladder and structural spec tree would silently bypass — those take the
-# fully-specialized descent, where every hook sees exactly what classic
-# handed it.
+# Only the default read configuration uses the engine. A custom dicttype or
+# null changes what values materialize as, and a custom style can carry
+# per-style lazy `lift` methods or trait overrides that the engine would
+# silently skip (it reads scalars into plain values before lifting, and
+# classifies types structurally) — so those all take the per-type path,
+# where every user hook is dispatched normally.
 const _FUSED_STYLE = JSONReadStyle{DEFAULT_OBJECT_TYPE,Nothing,StructUtils.DefaultStyle}
 
 # ---------------- fused tier-0 lazy interpretation ----------------
@@ -65,8 +71,8 @@ function _fused_fillslot!(style::StructStyle, slots::Vector{Any}, i::Int,
                           sp::StructUtils.FieldSpec, v::LazyValue)
     vs = sp.spec
     if gettype(v) == JSONTypes.NULL
-        # classic @_peel order: when a field admits both, an explicit null
-        # takes the Missing arm first
+        # an explicit null fills a field that admits both Missing and
+        # Nothing with `missing` (matching how make resolves such unions)
         if vs.missingable
             slots[i] = missing
         elseif vs.nullable
@@ -87,9 +93,9 @@ function _fused_fillslot!(style::StructStyle, slots::Vector{Any}, i::Int,
     return pos
 end
 
-# positional struct fill from a JSON array source: classic's lazy applyeach
-# handed the struct closures Int keys for arrays, so field order is the
-# match (surplus elements go to the style's unknownfield hook)
+# structs can also fill from a JSON array: elements map to fields in
+# declaration order, and surplus elements go to the style's unknownfield
+# hook (ignored by default)
 struct FusedPosClosure{S<:StructStyle}
     style::S
     tbl::StructUtils.FieldTable
@@ -130,7 +136,7 @@ function (f::FusedArrClosure{S})(_, v::LazyValue) where {S}
     el = f.el
     local val, pos
     if gettype(v) == JSONTypes.NULL
-        # classic @_peel order: Missing arm first
+        # null element: Missing arm first, as in the object closure above
         if el.missingable
             val, pos = missing, getpos(v) + 4
         elseif el.nullable
@@ -150,8 +156,8 @@ end
 # Struct objects and element vectors — the overwhelmingly common shapes —
 # drive the lazy tokens directly; custom kinds hand the RAW lazy value to
 # the generic machinery; every other (kind, shape) pairing materializes its
-# subtree and reuses the interpreter's boxed arms — full capability, still
-# no per-type compile.
+# subtree into plain Julia values and hands them to the interpreter's
+# generic handlers — every shape covered, still no per-type compile.
 function _fused_spec(style::StructStyle, vs::StructUtils.ValueSpec, v::LazyValue, name::String)
     k = vs.kind
     if k == StructUtils.KIND_STRUCT
@@ -193,15 +199,17 @@ function _fused_spec(style::StructStyle, vs::StructUtils.ValueSpec, v::LazyValue
     end
     # dict/tuple/set/fixed-array kinds, unsupported leaves, and shape
     # mismatches (struct-from-array, vector-from-object): materialize the
-    # subtree; the interpreter's boxed arms handle any shape
+    # subtree into plain values; the interpreter's generic handlers cover
+    # any shape
     out = ValueClosure()
     pos = applyvalue(out, v, nothing)
     return StructUtils._spec_value(style, vs, out.value, name), pos
 end
 
 # scalar leaves: parse the base JSON scalar lazily, then produce the
-# exact-typed value through the interpreter's kind ladder (ISO dates, int
-# widths, symbols, chars, and the JIT lift fallback for odd pairings)
+# exact-typed value through the interpreter's per-kind conversions (ISO
+# dates, integer widths, symbols, chars, with a generic lift fallback for
+# odd pairings)
 function _fused_scalar(style::StructStyle, vs::StructUtils.ValueSpec, v::LazyValue, name::String)
     kind = vs.kind
     ft = vs.ft
@@ -226,7 +234,7 @@ function _fused_scalar(style::StructStyle, vs::StructUtils.ValueSpec, v::LazyVal
         return StructUtils._liftleaf(style, kind, ft, false, name), getpos(v) + 5
     else
         # aggregate token into a scalar-kind field: materialize the subtree;
-        # the interpreter's boxed arms (lift fallback included) decide
+        # the interpreter's generic handlers (lift fallback included) decide
         out = ValueClosure()
         pos = applyvalue(out, v, nothing)
         return StructUtils._spec_value(style, vs, out.value, name), pos

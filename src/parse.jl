@@ -268,21 +268,19 @@ function _parse(x::LazyValue, ::Type{T}, dicttype::Type{O}, null, style::StructS
         return y
     end
     if !StructUtils.ishot(T) && style isa _FUSED_STYLE
-        # tier-0 default for every typed parse: one lazy pass drives the
-        # field-table interpreter — any target type, no per-type compile
-        # beyond a field-table build. Called directly (not via the `make`
-        # dispatcher) so the never-taken specialized-descent arm isn't
-        # compiled per type.
+        # the default: one lazy pass drives the field-table interpreter —
+        # any target type, and a new type costs a table build, not a compile
         y, pos = _fused_make(style, T, x)
         getisroot(x) && checkendpos(x, T, pos)
         return y::T
     end
-    # runtime-dispatch boundary: with the route decided at runtime, a
-    # directly-reachable specialized descent would be JIT-compiled per
-    # target type even when the fused route is always taken — exactly the
-    # first-call cost tier-0 exists to remove. Types that genuinely route
-    # here (`:hot`, custom styles/dicttype/null) pay one dynamic dispatch
-    # per parse.
+    # The per-type path is reached through invokelatest on purpose: the
+    # route is decided at runtime, and if this call were a plain one the
+    # compiler would compile the whole per-type descent for EVERY parsed
+    # type — even the ones that always take the engine above — recreating
+    # the first-call latency the engine exists to remove. Types that
+    # genuinely come here (`:hot`, custom styles/dicttype/null) pay one
+    # dynamic dispatch per parse.
     return Base.invokelatest(_parse_specialized, x, T, style)
 end
 
