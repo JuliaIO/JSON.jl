@@ -274,13 +274,11 @@ function _parse(x::LazyValue, ::Type{T}, dicttype::Type{O}, null, style::StructS
         getisroot(x) && checkendpos(x, T, pos)
         return y::T
     end
-    # The per-type path is reached through invokelatest on purpose: the
-    # route is decided at runtime, and if this call were a plain one the
-    # compiler would compile the whole per-type descent for EVERY parsed
-    # type — even the ones that always take the engine above — recreating
-    # the first-call latency the engine exists to remove. Types that
-    # genuinely come here (`:hot`, custom styles/dicttype/null) pay one
-    # dynamic dispatch per parse.
+    # invokelatest keeps the per-type descent out of this function's
+    # compilation: a plain call here would specialize the whole descent for
+    # every parsed type, including the ones the engine above handles. Types
+    # that route here (`:hot`, custom styles/dicttype/null) pay one dynamic
+    # dispatch per parse.
     return Base.invokelatest(_parse_specialized, x, T, style)
 end
 
