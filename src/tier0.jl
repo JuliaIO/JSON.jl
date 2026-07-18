@@ -51,7 +51,7 @@ function (f::FusedObjClosure{S})(k::PtrString, v::LazyValue) where {S}
         # extra candidates (only consulted when the table declares any)
         for j = 1:length(specs)
             if @inbounds(specs[j]).aliases !== nothing
-                i = StructUtils._findspec(specs, convert(String, k))
+                i = StructUtils.findspec(specs, convert(String, k))
                 break
             end
         end
@@ -125,6 +125,7 @@ function _fused_field(style::StructStyle, sp::StructUtils.FieldSpec, v::LazyValu
     return _fused_spec(style, vs, v, sp.name)
 end
 
+# applyarray closure appending each parsed element to the field vector
 struct FusedArrClosure{S<:StructStyle}
     style::S
     el::StructUtils.ValueSpec
@@ -152,7 +153,7 @@ function (f::FusedArrClosure{S})(_, v::LazyValue) where {S}
     return pos
 end
 
-# position-level recursion mirroring StructUtils._spec_value, driven lazily.
+# position-level recursion mirroring StructUtils.makevalue, driven lazily.
 # Struct objects and element vectors — the overwhelmingly common shapes —
 # drive the lazy tokens directly; custom kinds hand the RAW lazy value to
 # the generic machinery; every other (kind, shape) pairing materializes its
@@ -172,7 +173,7 @@ function _fused_spec(style::StructStyle, vs::StructUtils.ValueSpec, v::LazyValue
     elseif k == StructUtils.KIND_VECTOR
         if gettype(v) == JSONTypes.ARRAY
             el = vs.child::StructUtils.ValueSpec
-            arr = StructUtils._alloc_vector(el.declft, 0)
+            arr = StructUtils.allocvector(el.declft, 0)
             f = FusedArrClosure{typeof(style)}(style, el, arr, name)
             pos = applyarray(f, v)
             pos isa Int || (pos = skip(v))
@@ -203,7 +204,7 @@ function _fused_spec(style::StructStyle, vs::StructUtils.ValueSpec, v::LazyValue
     # any shape
     out = ValueClosure()
     pos = applyvalue(out, v, nothing)
-    return StructUtils._spec_value(style, vs, out.value, name), pos
+    return StructUtils.makevalue(style, vs, out.value, name), pos
 end
 
 # scalar leaves: parse the base JSON scalar lazily, then produce the
@@ -221,23 +222,23 @@ function _fused_scalar(style::StructStyle, vs::StructUtils.ValueSpec, v::LazyVal
             str, pos = parsestring(v)
             s = convert(String, str)
         end
-        return StructUtils._liftleaf(style, kind, ft, s, name), pos
+        return StructUtils.liftleaf(style, kind, ft, s, name), pos
     elseif t == JSONTypes.NUMBER
         num, pos = parsenumber(v)
         raw = isint(num) ? num.int :
               isfloat(num) ? num.float :
               isbigint(num) ? num.bigint : num.bigfloat
-        return StructUtils._liftleaf(style, kind, ft, raw, name), pos
+        return StructUtils.liftleaf(style, kind, ft, raw, name), pos
     elseif t == JSONTypes.TRUE
-        return StructUtils._liftleaf(style, kind, ft, true, name), getpos(v) + 4
+        return StructUtils.liftleaf(style, kind, ft, true, name), getpos(v) + 4
     elseif t == JSONTypes.FALSE
-        return StructUtils._liftleaf(style, kind, ft, false, name), getpos(v) + 5
+        return StructUtils.liftleaf(style, kind, ft, false, name), getpos(v) + 5
     else
         # aggregate token into a scalar-kind field: materialize the subtree;
         # the interpreter's generic handlers (lift fallback included) decide
         out = ValueClosure()
         pos = applyvalue(out, v, nothing)
-        return StructUtils._spec_value(style, vs, out.value, name), pos
+        return StructUtils.makevalue(style, vs, out.value, name), pos
     end
 end
 
@@ -249,15 +250,16 @@ end
     f = FusedObjClosure{typeof(style)}(style, tbl, slots)
     pos = applyobject(f, v)
     pos isa Int || (pos = skip(v))
-    return StructUtils._construct_interp(style, tbl, slots, v), pos
+    return StructUtils.construct(style, tbl, slots, v), pos
 end
 
+# struct-from-array: fill the slot buffer positionally
 function _fused_struct_positional(style::StructStyle, tbl::StructUtils.FieldTable, v::LazyValue)
     slots = Vector{Any}(undef, length(tbl.specs))
     f = FusedPosClosure{typeof(style)}(style, tbl, slots)
     pos = applyarray(f, v)
     pos isa Int || (pos = skip(v))
-    return StructUtils._construct_interp(style, tbl, slots, v), pos
+    return StructUtils.construct(style, tbl, slots, v), pos
 end
 
 # root entry for ANY target type: the spec tree describes T (built once per
@@ -273,7 +275,7 @@ end
         return val, st isa Int ? st : skip(v)
     end
     if gettype(v) == JSONTypes.NULL
-        return StructUtils._spec_nullwrap(style, vs, nothing, "root"), getpos(v) + 4
+        return StructUtils.makevalue(style, vs, nothing, "root"), getpos(v) + 4
     end
     return _fused_spec(style, vs, v, "root")
 end
@@ -334,6 +336,7 @@ function _synthesize_sample(@nospecialize(T))
     return String(take!(io))
 end
 
+# a minimal JSON fragment satisfying one field spec, or nothing to omit it
 function _synth_value(vs::StructUtils.ValueSpec)
     SU = StructUtils
     kind = vs.kind

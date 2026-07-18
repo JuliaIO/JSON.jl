@@ -100,7 +100,7 @@ const IDJSON = """
     # the hot hook is registered with StructUtils
     @test any(h -> h === JSON._hot_json_hook, StructUtils.HOT_HOOKS)
     # and runs cleanly under force for both annotated and plain types
-    StructUtils._hot_precompile!(IDHotTier; force=true)
-    StructUtils._hot_precompile!(IDEvent, ("{\"name\":\"s\"}",); force=true)
+    StructUtils.hot_precompile!(IDHotTier; force=true)
+    StructUtils.hot_precompile!(IDEvent, ("{\"name\":\"s\"}",); force=true)
     @test true
 end

@@ -557,6 +557,9 @@ function StructUtils.lift(style::JSONReadStyle, ::Type{T}, x::LazyValues, tags=(
     end
 end
 
+# JSONText fields must reach this make method rather than being field-parsed
+StructUtils.custommake(::Type{JSONText}) = true
+
 function StructUtils.make(::StructStyle, ::Type{JSONText}, x::LazyValues)
     buf = getbuf(x)
     pos = getpos(x)
