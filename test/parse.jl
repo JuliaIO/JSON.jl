@@ -835,3 +835,27 @@ end
     # isroot=false with typed parse
     @test JSON.parse("{\"a\": 1, \"b\": 2.0, \"c\": \"hi\"} trailing", D; isroot=false) == D(1, 2.0, "hi")
 end
+
+@testset "duplicate object keys" begin
+    input = "{\"a\":1,\"a\":2}"
+    @test JSON.parse(input) == JSON.Object("a" => 2)
+
+    err = try
+        JSON.parse(input; duplicate_keys=:error)
+        nothing
+    catch e
+        e
+    end
+    @test err isa JSON.DuplicateKeyError
+    @test err.key == "a"
+    @test err.position == 8
+    @test occursin("duplicate JSON object key", sprint(showerror, err))
+
+    @test_throws JSON.DuplicateKeyError JSON.parse("{\"outer\":{\"x\":1,\"x\":2}}"; duplicate_keys=:error)
+    @test_throws JSON.DuplicateKeyError JSON.parse("{\"a\":1,\"\\u0061\":2}"; duplicate_keys=:error)
+    @test_throws JSON.DuplicateKeyError JSON.parse("{\"a\":1}\n{\"b\":1,\"b\":2}"; jsonlines=true, duplicate_keys=:error)
+    @test_throws JSON.DuplicateKeyError JSON.parse(input, Dict{String, Int}; duplicate_keys=:error)
+    @test JSON.isvalidjson(input)
+    @test !JSON.isvalidjson(input; duplicate_keys=:error)
+    @test_throws ArgumentError JSON.parse("{}"; duplicate_keys=:keep_first)
+end

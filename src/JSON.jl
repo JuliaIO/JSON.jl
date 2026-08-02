@@ -15,12 +15,27 @@ export JSONText, StructUtils, @noarg, @kwarg, @defaults, @tags, @choosetype, @no
     eval(Expr(:public,
         :parse, :parse!, :parsefile, :parsefile!,
         :lazy, :lazyfile, :LazyValue,
-        :isvalidjson,
+        :isvalidjson, :DuplicateKeyError,
         :json, :print,
         :lower, :lift,
         :omit_null, :omit_empty,
         :Object, :Null, :Omit, :JSONStyle,
     ))
+end
+
+"""
+    JSON.DuplicateKeyError
+
+Error thrown when `duplicate_keys=:error` encounters a repeated object key.
+`key` is the decoded JSON key and `position` is its one-based byte position.
+"""
+struct DuplicateKeyError <: Exception
+    key::String
+    position::Int
+end
+
+function Base.showerror(io::IO, err::DuplicateKeyError)
+    Base.print(io, "duplicate JSON object key ", repr(err.key), " at byte position ", err.position)
 end
 
 @enum Error InvalidJSON UnexpectedEOF ExpectedOpeningObjectChar ExpectedOpeningQuoteChar ExpectedOpeningArrayChar ExpectedClosingArrayChar ExpectedComma ExpectedColon ExpectedNewline InvalidChar InvalidNumber InvalidUTF16
