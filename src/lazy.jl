@@ -59,6 +59,7 @@ Currently supported keyword arguments include:
   - `inf::String = "Infinity"`: the string that will be used to parse `Inf` if `allownan=true`
   - `nan::String = "NaN"`: the string that will be sued to parse `NaN` if `allownan=true`
   - `jsonlines::Bool = false`: whether the JSON input should be treated as an implicit array, with newlines separating individual JSON elements with no leading `'['` or trailing `']'` characters. Common in logging or streaming workflows. Defaults to `true` when used with `JSON.parsefile` and the filename extension is `.jsonl` or `ndjson`. Note this ensures that parsing will _always_ return an array at the root-level.
+  - `duplicate_keys::Symbol = :overwrite`: how repeated object keys are handled. `:overwrite` preserves the default last-value-wins behavior. `:error` throws [`JSON.DuplicateKeyError`](@ref).
   - `isroot::Bool = true`: whether this is the root LazyValue encompassing the entire json buffer. If `false` parses only the first JSON value and ignores trailing characters.
 
 Note that validation is only fully done on `null`, `true`, and `false`,
@@ -81,6 +82,7 @@ function lazy end
     inf::String = "Infinity"
     nan::String = "NaN"
     jsonlines::Bool = false
+    duplicate_keys::Symbol = :overwrite
 end
 
 lazy(io::Union{IO, Base.AbstractCmd}; kw...) = lazy(Base.read(io); kw...)
@@ -91,6 +93,8 @@ lazyfile(file; jsonlines::Union{Bool, Nothing}=nothing, kw...) = open(io -> lazy
 lazyfile
 
 function lazy(buf::Union{AbstractVector{UInt8}, AbstractString}; isroot::Bool=true, kw...)
+    opts = LazyOptions(; kw...)
+    opts.duplicate_keys in (:overwrite, :error) || throw(ArgumentError("`duplicate_keys` must be `:overwrite` or `:error`, got `$(repr(opts.duplicate_keys))`"))
     if !applicable(pointer, buf, 1) || (buf isa AbstractVector{UInt8} && !isone(only(strides(buf))))
         if buf isa AbstractString
             buf = String(buf)
@@ -118,7 +122,7 @@ function lazy(buf::Union{AbstractVector{UInt8}, AbstractString}; isroot::Bool=tr
     # detect and ignore UTF-8 BOM
     pos = (len >= 3 && getbyte(buf, pos) == 0xef && getbyte(buf, pos + 1) == 0xbb && getbyte(buf, pos + 2) == 0xbf) ? pos + 3 : pos
     @nextbyte
-    return _lazy(buf, pos, len, b, LazyOptions(; kw...), isroot)
+    return _lazy(buf, pos, len, b, opts, isroot)
 
 @label invalid
     invalid(error, buf, pos, Any)
@@ -262,6 +266,7 @@ function applyobject(keyvalfunc, x::LazyValues)
     buf = getbuf(x)
     len = getlength(buf)
     opts = getopts(x)
+    seen = opts.duplicate_keys === :error ? Set{String}() : nothing
     b = getbyte(buf, pos)
     if b != UInt8('{')
         error = ExpectedOpeningObjectChar
@@ -272,8 +277,14 @@ function applyobject(keyvalfunc, x::LazyValues)
     b == UInt8('}') && return pos + 1
     while true
         # parsestring returns key as a PtrString
+        keypos = pos
         GC.@preserve buf begin
             key, pos = @inline parsestring(LazyValue(buf, pos, JSONTypes.STRING, opts, false))
+            if seen !== nothing
+                decoded = convert(String, key)
+                decoded in seen && throw(DuplicateKeyError(decoded, keypos))
+                push!(seen, decoded)
+            end
             @nextbyte
             if b != UInt8(':')
                 error = ExpectedColon
@@ -378,7 +389,7 @@ function applyarray(keyvalfunc, x::LazyValues)
         # for jsonlines, we need to make sure that recursive
         # lazy values *don't* consider individual lines *also*
         # to be jsonlines
-        opts = LazyOptions(; allownan=opts.allownan, ninf=opts.ninf, inf=opts.inf, nan=opts.nan, jsonlines=false)
+        opts = LazyOptions(; allownan=opts.allownan, ninf=opts.ninf, inf=opts.inf, nan=opts.nan, jsonlines=false, duplicate_keys=opts.duplicate_keys)
     end
     i = 1
     while true
