@@ -40,7 +40,14 @@ end
 
 @enum Error InvalidJSON UnexpectedEOF ExpectedOpeningObjectChar ExpectedOpeningQuoteChar ExpectedOpeningArrayChar ExpectedClosingArrayChar ExpectedComma ExpectedColon ExpectedNewline InvalidChar InvalidNumber InvalidUTF16
 
-@noinline function invalid(error, buf, pos::Int, T)
+@generated _typename(::Type{T}) where {T} = QuoteNode(string(T))
+
+@noinline invalid(error, buf, pos::Int, ::Type{T}) where {T} =
+    _invalid(error, buf, pos, _typename(T))
+@noinline invalid(error, buf, pos::Int, typename::String) =
+    _invalid(error, buf, pos, typename)
+
+@noinline function _invalid(error, buf, pos::Int, typename::String)
     # compute which line the error falls on by counting “\n” bytes up to pos
     cus = buf isa AbstractString ? codeunits(buf) : buf
     line_no = count(b -> b == UInt8('\n'), view(cus, 1:pos)) + 1
@@ -64,7 +71,7 @@ end
     # we call @invoke here to avoid --trim verify errors
     caret = @invoke(repeat(" "::String, (erri + 2)::Integer)) * "^"
     msg = """
-    invalid JSON at byte position $(pos) (line $line_no) parsing type $T: $error
+    invalid JSON at byte position $(pos) (line $line_no) parsing type $(typename): $error
     $snippet$(error == UnexpectedEOF ? " <EOF>" : "...")
     $caret
     """
@@ -140,10 +147,29 @@ print(a, indent=nothing) = print(stdout, a, indent)
 "See [`json`](@ref)."
 print
 
+# typed-parse workload struct: exercising one struct with the common field
+# shapes caches the shared make/lift/array-chain inference in this package's
+# image, so downstream typed parses hit those caches instead of re-inferring
+# (which also keeps `juliac --trim` edge inference precise on nested families)
+struct _WorkloadInner
+    x::Int
+    y::Float64
+end
+struct _Workload
+    item::Union{Nothing,_WorkloadInner}
+    items::Vector{_WorkloadInner}
+    tags::Vector{String}
+    note::Union{Nothing,String}
+end
+
 @compile_workload begin
     x = JSON.parse("{\"a\": 1, \"b\": null, \"c\": true, \"d\": false, \"e\": \"\", \"f\": [1,null,true], \"g\": {\"key\": \"value\"}}")
     json = JSON.json(x)
     isvalidjson(json)
+    JSON.parse(
+        "{\"item\":{\"x\":1,\"y\":2.0},\"items\":[{\"x\":3,\"y\":4.0}],\"tags\":[\"p\"],\"note\":null}",
+        _Workload,
+    )
 end
 
 

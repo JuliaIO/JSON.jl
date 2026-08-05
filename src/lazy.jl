@@ -182,14 +182,21 @@ Selectors.@selectors LazyValues
 Base.lastindex(x::LazyValues) = length(x)
 
 # this ensures LazyValues can be "sources" in StructUtils.make
-@inline function StructUtils.applyeach(::StructUtils.StructStyle, f, x::LazyValues)
+function StructUtils.applyeach(::StructUtils.StructStyle, f, x::LazyValues)
     type = gettype(x)
     if type == JSONTypes.OBJECT
         return applyobject(f, x)
     elseif type == JSONTypes.ARRAY
         return applyarray(f, x)
     end
-    throw(ArgumentError("applyeach not applicable for `$(typeof(x))` with JSON type = `$type`"))
+    typename = get(JSONTypes.names, type, "UNKNOWN")
+    throw(ArgumentError(string(
+        "applyeach not applicable for `",
+        _typename(typeof(x)),
+        "` with JSON type = `JSONTypes.",
+        typename,
+        '`',
+    )))
 end
 
 @inline function Base.foreach(f, x::LazyValues)
@@ -254,7 +261,7 @@ end
 
 # core JSON object parsing function
 # takes a `keyvalfunc` that is applied to each key/value pair
-# `keyvalfunc` is provided a PtrString => LazyValue pair
+# `keyvalfunc` receives a PtrString => LazyValue pair
 # `keyvalfunc` can return `StructUtils.EarlyReturn` to short-circuit parsing
 # otherwise, it should return a `pos::Int` value that notes the next position to continue parsing
 # to materialize the key, call `convert(String, key)`
@@ -445,7 +452,9 @@ function Base.convert(::Type{String}, x::PtrString)
     return unsafe_string(x.ptr, x.len)
 end
 
-Base.convert(::Type{Symbol}, x::PtrString) = ccall(:jl_symbol_n, Ref{Symbol}, (Ptr{UInt8}, Int), x.ptr, x.len)
+Base.convert(::Type{Symbol}, x::PtrString) = x.escaped ?
+    Symbol(convert(String, x)) :
+    ccall(:jl_symbol_n, Ref{Symbol}, (Ptr{UInt8}, Int), x.ptr, x.len)
 
 function Base.convert(::Type{T}, x::PtrString) where {T <: Enum}
     sym = convert(Symbol, x)
@@ -455,16 +464,26 @@ function Base.convert(::Type{T}, x::PtrString) where {T <: Enum}
     throw(ArgumentError("invalid `$T` string value: \"$sym\""))
 end
 
-Base.:(==)(x::PtrString, y::AbstractString) = x.len == sizeof(y) && ccall(:memcmp, Cint, (Ptr{UInt8}, Ptr{UInt8}, Csize_t), x.ptr, pointer(y), x.len) == 0
+Base.:(==)(x::PtrString, y::AbstractString) = x.escaped ?
+    convert(String, x) == y :
+    x.len == sizeof(y) && ccall(:memcmp, Cint, (Ptr{UInt8}, Ptr{UInt8}, Csize_t), x.ptr, pointer(y), x.len) == 0
 Base.:(==)(x::AbstractString, y::PtrString) = y == x
-Base.:(==)(x::PtrString, y::PtrString) = x.len == y.len && ccall(:memcmp, Cint, (Ptr{UInt8}, Ptr{UInt8}, Csize_t), x.ptr, y.ptr, x.len) == 0
+Base.:(==)(x::PtrString, y::PtrString) = x.escaped || y.escaped ?
+    convert(String, x) == convert(String, y) :
+    x.len == y.len && ccall(:memcmp, Cint, (Ptr{UInt8}, Ptr{UInt8}, Csize_t), x.ptr, y.ptr, x.len) == 0
 Base.isequal(x::PtrString, y::AbstractString) = x == y
 Base.isequal(x::AbstractString, y::PtrString) = y == x
 Base.isequal(x::PtrString, y::PtrString) = x == y
-Base.hash(x::PtrString, h::UInt) = hash(unsafe_string(x.ptr, x.len), h)
+Base.hash(x::PtrString, h::UInt) = x.escaped ?
+    hash(convert(String, x), h) :
+    hash(unsafe_string(x.ptr, x.len), h)
 StructUtils.keyeq(x::PtrString, y::AbstractString) = x == y
 StructUtils.keyeq(x::PtrString, y::String) = x == y
 StructUtils.keyeq(x::PtrString, y::Symbol) = convert(Symbol, x) == y
+
+# JSON owns PtrString and its comparison semantics, so it can use the ordered
+# field cursor without changing StructUtils' behavior for arbitrary key types.
+@inline StructUtils.orderedfieldmatch(x::PtrString, field::String) = x == field
 
 # core JSON string parsing function
 # returns a PtrString and the next position to parse

@@ -10,6 +10,27 @@ end
 
 JSON.lower(x::TrimCode) = x.value
 
+struct TrimLeaf
+    id::Int
+    name::String
+end
+
+struct TrimRoot
+    item::Union{Nothing,TrimLeaf}
+    items::Vector{TrimLeaf}
+    tags::Vector{String}
+    note::Union{Nothing,String}
+end
+
+JSON.StructUtils.@defaults struct TrimTagged
+    value::Int = 0 & (json=(name="wire",),)
+    secret::Int = 9 & (json=(ignore=true,),)
+end
+
+JSON.StructUtils.@noarg mutable struct TrimMutable
+    value::Int = 0
+end
+
 function checked(cond::Bool, msg::String)::Nothing
     cond || error(msg)
     return nothing
@@ -22,11 +43,47 @@ function exercise_lazy_entrypoints()::Nothing
 end
 
 function exercise_parse_entrypoints()::Nothing
-    # Materializing JSON.parse currently pulls in verifier failures in parser
-    # and StructUtils error paths, so keep this read workload to trim-safe
-    # lazy entrypoints until those verifier issues can be chased down.
-    checked(JSON.lazy("7") isa JSON.LazyValue, "numeric lazy detection failed")
-    checked(JSON.lazy(IOBuffer(STRING_JSON)) isa JSON.LazyValue, "IO lazy detection failed")
+    # Open-ended untyped results are data-dependent. Narrow their runtime shape
+    # before use in a safe-trim binary; `lazy` remains the arbitrary-shape path.
+    untyped = JSON.parse("{\"name\":\"Ada\"}")
+    checked(untyped isa JSON.Object{String,Any}, "untyped object parse failed")
+    name = (untyped::JSON.Object{String,Any})["name"]
+    checked(name isa String, "untyped string shape failed")
+    checked((name::String) == "Ada", "untyped string value failed")
+
+    checked(JSON.parse("7", Int) == 7, "typed scalar parse failed")
+    checked(JSON.parse(IOBuffer(STRING_JSON), String) == "Ada", "typed IO parse failed")
+    checked(JSON.parse(ARRAY_JSON, Vector{Int}) == [1, 2, 3], "typed array parse failed")
+    checked(JSON.parse("{\"score\":7}", Dict{String,Int}) == Dict("score" => 7),
+        "typed dictionary parse failed")
+
+    root = JSON.parse(
+        "{\"item\":{\"id\":1,\"name\":\"one\"},\"items\":[{\"id\":2,\"name\":\"two\"}],\"tags\":[\"a\"],\"note\":null}",
+        TrimRoot,
+    )
+    checked(root.item !== nothing && root.item.id == 1, "nested struct parse failed")
+    checked(length(root.items) == 1 && root.items[1].name == "two",
+        "nested vector parse failed")
+    checked(root.tags == ["a"] && root.note === nothing, "nullable field parse failed")
+
+    tagged = JSON.parse(
+        "{\"wire\":4,\"secret\":99}",
+        TrimTagged;
+        unknown_fields=:error,
+    )
+    checked(tagged == TrimTagged(4, 9), "field-tag parse failed")
+
+    mutable_value = TrimMutable()
+    JSON.parse!("{\"value\":8}", mutable_value; unknown_fields=:error)
+    checked(mutable_value.value == 8, "parse! failed")
+
+    unknown = try
+        JSON.parse("{\"extra\":1}", TrimLeaf; unknown_fields=:error)
+        nothing
+    catch err
+        err
+    end
+    checked(unknown isa ArgumentError, "unknown-field diagnostic failed")
     return nothing
 end
 
