@@ -150,6 +150,12 @@ end
         symbol_key = JSON.unknownfielderror(EscapedPlainKey, :boom)
         @test occursin("unknown JSON member :boom", sprint(showerror, symbol_key))
 
+        integer_key = JSON.unknownfielderror(EscapedPlainKey, 7)
+        @test occursin("unknown JSON member 7", sprint(showerror, integer_key))
+
+        fallback_key = JSON.unknownfielderror(EscapedPlainKey, (value=1,))
+        @test occursin("unknown JSON member <key>", sprint(showerror, fallback_key))
+
         for T in (Vector{Int}, EscapedErrorScope.Box{Int}, Union{Float64,Int})
             typed = capture_error() do
                 JSON.invalid(JSON.InvalidChar, "x", 1, T)
