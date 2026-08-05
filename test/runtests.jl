@@ -3,6 +3,8 @@ using JSON, Test, Tar
 include(joinpath(dirname(pathof(JSON)), "../test/object.jl"))
 include(joinpath(dirname(pathof(JSON)), "../test/lazy.jl"))
 include(joinpath(dirname(pathof(JSON)), "../test/parse.jl"))
+include(joinpath(dirname(pathof(JSON)), "../test/escaped_keys.jl"))
+include(joinpath(dirname(pathof(JSON)), "../test/inbound_tags.jl"))
 include(joinpath(dirname(pathof(JSON)), "../test/json.jl"))
 # Arrow.jl is broken on 32 bit systems for now :(
 if Sys.WORD_SIZE == 64

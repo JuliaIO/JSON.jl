@@ -172,6 +172,7 @@ StructUtils.initialize(::JSONReadStyle, ::Type{Object}, source) = DEFAULT_OBJECT
 # this allows struct fields to specify tags under the json key specifically to override JSON behavior
 StructUtils.fieldtagkey(::JSONStyle) = :json
 StructUtils.defaultstate(st::JSONReadStyle) = StructUtils.defaultstate(st.style)
+StructUtils.orderedfields(::JSONReadStyle) = true
 
 # forward StructUtils API to the inner style so user-provided JSONStyle dispatches are honored
 StructUtils.dictlike(st::JSONReadStyle, ::Type{T}) where {T} = StructUtils.dictlike(st.style, T)
@@ -188,15 +189,43 @@ function jsonreadstyle(::Type{T}, ::Type{O}, null, style::StructStyle, unknown_f
     ignore_unknown_fields =
         unknown_fields === :ignore ? true :
         unknown_fields === :error ? false :
-        throw(ArgumentError("`unknown_fields` must be `:ignore` or `:error`, got `$(repr(unknown_fields))`"))
+        throw(ArgumentError(string(
+            "`unknown_fields` must be `:ignore` or `:error`, got ",
+            _unknownoption(unknown_fields),
+        )))
     if T === Any && !ignore_unknown_fields
         throw(ArgumentError("`unknown_fields` is only supported when parsing into a target type or existing object"))
     end
     return JSONReadStyle{O}(null, style, ignore_unknown_fields)
 end
 
-@noinline unknownfielderror(::Type{T}, key) where {T} =
-    ArgumentError("encountered unknown JSON member $(repr(key)) while parsing `$T`")
+# Use the writer's existing byte escape table. This keeps error text accurate
+# without pulling generic `repr` and type-display machinery into trim images.
+function _quotedstring(key::AbstractString)
+    n = escapelength(key) + 2
+    buf = Vector{UInt8}(undef, n)
+    _string(buf, 1, key, nothing, n)
+    return String(buf)
+end
+
+function _unknownoption(option::Symbol)
+    value = String(option)
+    return Base.isidentifier(value) ? string(':', value) :
+        string("Symbol(", _quotedstring(value), ')')
+end
+_unknownkey(key::PtrString) = _quotedstring(convert(String, key))
+_unknownkey(key::AbstractString) = _quotedstring(key)
+_unknownkey(key::Symbol) = _unknownoption(key)
+_unknownkey(key::Integer) = string(key)
+_unknownkey(key) = "<key>"
+
+@noinline unknownfielderror(::Type{T}, key) where {T} = ArgumentError(string(
+    "encountered unknown JSON member ",
+    _unknownkey(key),
+    " while parsing `",
+    _typename(T),
+    "`",
+))
 
 function StructUtils.unknownfield(st::JSONReadStyle, ::Type{T}, key, value) where {T}
     st.ignore_unknown_fields || throw(unknownfielderror(T, key))
@@ -217,20 +246,28 @@ parse(io::Union{IO,Base.AbstractCmd}, ::Type{T}=Any; kw...) where {T} = parse(Ba
 
 parse!(io::Union{IO,Base.AbstractCmd}, x::T; kw...) where {T} = parse!(Base.read(io), x; kw...)
 
+# No forced @inline through the entry chain: inlining the typed descent into
+# these forwarding bodies makes each entry's compilation unit re-optimize the
+# entire per-type parse tower instead of calling the already-compiled
+# instances (measured at +12s on the first parse of a 35-field Union-typed
+# struct, and 30-50% of the first parse of a 13-type struct family). The buffer
+# entry therefore calls the positional core directly. Typed customization for
+# buffer inputs stays at the StructUtils style/make/lift boundary. A parse
+# method specialized on LazyValue applies when the caller passes one directly.
 parse(buf::Union{AbstractVector{UInt8},AbstractString}, ::Type{T}=Any;
     dicttype::Type{O}=DEFAULT_OBJECT_TYPE, null=nothing, style::StructStyle=StructUtils.DefaultStyle(),
     unknown_fields::Symbol=:ignore, kw...) where {T,O} =
-    @inline parse(lazy(buf; kw...), T; dicttype, null, style, unknown_fields)
+    _parse(lazy(buf; kw...), T, dicttype, null, jsonreadstyle(T, O, null, style, unknown_fields))
 
 parse!(buf::Union{AbstractVector{UInt8},AbstractString}, x::T;
     dicttype::Type{O}=DEFAULT_OBJECT_TYPE, null=nothing, style::StructStyle=StructUtils.DefaultStyle(),
     unknown_fields::Symbol=:ignore, kw...) where {T,O} =
-    @inline parse!(lazy(buf; kw...), x; dicttype, null, style, unknown_fields)
+    StructUtils.make!(jsonreadstyle(typeof(x), O, null, style, unknown_fields), x, lazy(buf; kw...))
 
 parse(x::LazyValue, ::Type{T}=Any;
     dicttype::Type{O}=DEFAULT_OBJECT_TYPE, null=nothing, style::StructStyle=StructUtils.DefaultStyle(),
     unknown_fields::Symbol=:ignore) where {T,O} =
-    @inline _parse(x, T, dicttype, null, jsonreadstyle(T, O, null, style, unknown_fields))
+    _parse(x, T, dicttype, null, jsonreadstyle(T, O, null, style, unknown_fields))
 
 function _parse(x::LazyValue, ::Type{T}, dicttype::Type{O}, null, style::StructStyle) where {T,O}
     y, pos = StructUtils.make(style, T, x)
