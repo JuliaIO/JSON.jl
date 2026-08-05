@@ -37,16 +37,6 @@ jobs:
           version: ${{ matrix.version }}
           arch: ${{ matrix.arch }}
       - uses: julia-actions/cache@v3
-      # StructUtils 2.8.3 is the companion PR and is not registered yet.
-      # Remove this step after JuliaServices/StructUtils.jl#65 is released.
-      - name: Use companion StructUtils PR
-        shell: julia --color=yes --project=@. {0}
-        run: |
-          using Pkg
-          Pkg.add(PackageSpec(
-              url = "https://github.com/JuliaServices/StructUtils.jl",
-              rev = "97c8c474c4496c4f59ef366199a64ca742e2dfab",
-          ))
       - uses: julia-actions/julia-buildpkg@v1
       - uses: julia-actions/julia-runtest@v1
       - uses: julia-actions/julia-processcoverage@v1
@@ -61,19 +51,6 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v7
-      - uses: julia-actions/setup-julia@v3
-        with:
-          version: '1'
-      # StructUtils 2.8.3 is the companion PR and is not registered yet.
-      # Remove this step after JuliaServices/StructUtils.jl#65 is released.
-      - name: Use companion StructUtils PR
-        shell: julia --color=yes --project=@. {0}
-        run: |
-          using Pkg
-          Pkg.add(PackageSpec(
-              url = "https://github.com/JuliaServices/StructUtils.jl",
-              rev = "97c8c474c4496c4f59ef366199a64ca742e2dfab",
-          ))
       - uses: julia-actions/julia-buildpkg@latest
       - uses: julia-actions/julia-docdeploy@latest
         env:
