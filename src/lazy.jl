@@ -461,7 +461,15 @@ Base.:(==)(x::PtrString, y::PtrString) = x.len == y.len && ccall(:memcmp, Cint, 
 Base.isequal(x::PtrString, y::AbstractString) = x == y
 Base.isequal(x::AbstractString, y::PtrString) = y == x
 Base.isequal(x::PtrString, y::PtrString) = x == y
-Base.hash(x::PtrString, h::UInt) = hash(unsafe_string(x.ptr, x.len), h)
+# Match `hash(::String, ::UInt)` directly on the borrowed bytes. Constructing a
+# temporary String here makes wide typed-object lookup allocate once per key.
+function Base.hash(x::PtrString, h::UInt)
+    h += Base.memhash_seed
+    return ccall(Base.memhash, UInt, (Ptr{UInt8}, Csize_t, UInt32), x.ptr, x.len, h % UInt32) + h
+end
+if isdefined(StructUtils, :_keyhash)
+    StructUtils._keyhash(x::PtrString) = hash(x, UInt(0))
+end
 StructUtils.keyeq(x::PtrString, y::AbstractString) = x == y
 StructUtils.keyeq(x::PtrString, y::String) = x == y
 StructUtils.keyeq(x::PtrString, y::Symbol) = convert(Symbol, x) == y
