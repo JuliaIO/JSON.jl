@@ -31,9 +31,103 @@ sizeguess(_) = 512
 
 const StringLike = Union{Enum, AbstractChar, VersionNumber, Cstring, Cwstring, UUID, Dates.TimeType, Type, Logging.LogLevel}
 
+# Date, DateTime, and Time serialize as exactly `string(x)`, but through
+# fixed-format printers instead of the Dates format machinery: DateFormat
+# token handling and its diagnostics are too dynamic for static compilation,
+# so JSON output of temporal fields would otherwise fail `juliac --trim`
+# verification.
+@inline function _writetemporal!(buf::Vector{UInt8}, i::Int, value::Int, width::Int)
+    for offset in (width - 1):-1:0
+        buf[i + offset] = UInt8('0') + UInt8(value % 10)
+        value = divrem(value, 10)[1]
+    end
+    return i + width
+end
+
+function _datestring!(buf::Vector{UInt8}, i::Int, x::Dates.Date)
+    y = Dates.year(x)
+    if y < 0
+        buf[i] = UInt8('-')
+        i += 1
+        y = -y
+    end
+    i = _writetemporal!(buf, i, y, max(4, ndigits(y)))
+    buf[i] = UInt8('-')
+    i = _writetemporal!(buf, i + 1, Dates.month(x), 2)
+    buf[i] = UInt8('-')
+    return _writetemporal!(buf, i + 1, Dates.day(x), 2)
+end
+
+function _lowerdate(x::Dates.Date)
+    y = Dates.year(x)
+    buf = Vector{UInt8}(undef, 6 + max(4, ndigits(abs(y))) + (y < 0 ? 1 : 0))
+    _datestring!(buf, 1, x)
+    return String(buf)
+end
+
+function _timestring!(buf::Vector{UInt8}, i::Int, x::Dates.Time)
+    i = _writetemporal!(buf, i, Dates.hour(x), 2)
+    buf[i] = UInt8(':')
+    i = _writetemporal!(buf, i + 1, Dates.minute(x), 2)
+    buf[i] = UInt8(':')
+    i = _writetemporal!(buf, i + 1, Dates.second(x), 2)
+    # `string(::Time)` prints the shortest subsecond field that loses
+    # nothing — milliseconds, microseconds, or nanoseconds — and then strips
+    # the fraction's trailing zeros.
+    ms, us, ns = Dates.millisecond(x), Dates.microsecond(x), Dates.nanosecond(x)
+    if ns != 0
+        fraction, width = ms * 1_000_000 + us * 1_000 + ns, 9
+    elseif us != 0
+        fraction, width = ms * 1_000 + us, 6
+    elseif ms != 0
+        fraction, width = ms, 3
+    else
+        return i
+    end
+    while fraction % 10 == 0
+        fraction = divrem(fraction, 10)[1]
+        width -= 1
+    end
+    buf[i] = UInt8('.')
+    return _writetemporal!(buf, i + 1, fraction, width)
+end
+
+function _lowertime(x::Dates.Time)
+    n = Dates.nanosecond(x) != 0 ? 18 :
+        Dates.microsecond(x) != 0 ? 15 :
+        Dates.millisecond(x) != 0 ? 12 : 8
+    buf = Vector{UInt8}(undef, n)
+    return String(resize!(buf, _timestring!(buf, 1, x) - 1))
+end
+
+function _lowerdatetime(x::Dates.DateTime)
+    d = Dates.Date(x)
+    y = Dates.year(d)
+    ms = Dates.millisecond(x)
+    n = 6 + max(4, ndigits(abs(y))) + (y < 0 ? 1 : 0) + 9 + (ms != 0 ? 4 : 0)
+    buf = Vector{UInt8}(undef, n)
+    i = _datestring!(buf, 1, d)
+    buf[i] = UInt8('T')
+    i = _writetemporal!(buf, i + 1, Dates.hour(x), 2)
+    buf[i] = UInt8(':')
+    i = _writetemporal!(buf, i + 1, Dates.minute(x), 2)
+    buf[i] = UInt8(':')
+    i = _writetemporal!(buf, i + 1, Dates.second(x), 2)
+    # `string(::DateTime)` omits the fraction entirely at zero milliseconds
+    # and always prints three digits otherwise.
+    if ms != 0
+        buf[i] = UInt8('.')
+        _writetemporal!(buf, i + 1, ms, 3)
+    end
+    return String(buf)
+end
+
 StructUtils.lower(::JSONStyle, ::Missing) = nothing
 StructUtils.lower(::JSONStyle, x::Symbol) = String(x)
 StructUtils.lower(::JSONStyle, x::StringLike) = string(x)
+StructUtils.lower(::JSONStyle, x::Dates.Date) = _lowerdate(x)
+StructUtils.lower(::JSONStyle, x::Dates.Time) = _lowertime(x)
+StructUtils.lower(::JSONStyle, x::Dates.DateTime) = _lowerdatetime(x)
 StructUtils.lower(::JSONStyle, x::Regex) = x.pattern
 StructUtils.lower(::JSONStyle, x::Complex) = (re=real(x), im=imag(x))
 StructUtils.lower(::JSONStyle, x::AbstractArray{<:Any,0}) = x[1]
