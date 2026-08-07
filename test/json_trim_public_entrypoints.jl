@@ -1,4 +1,4 @@
-using JSON
+using Dates, JSON
 
 const ARRAY_JSON = "[1,2,3]"
 const STRING_JSON = "\"Ada\""
@@ -29,6 +29,12 @@ end
 
 JSON.StructUtils.@noarg mutable struct TrimMutable
     value::Int = 0
+end
+
+struct TrimTemporal
+    day::Dates.Date
+    stamp::Dates.DateTime
+    tick::Dates.Time
 end
 
 function checked(cond::Bool, msg::String)::Nothing
@@ -110,6 +116,27 @@ function exercise_write_entrypoints()::Nothing
     checked(JSON.json(JSON.JSONText("{\"raw\":true}")) == "{\"raw\":true}", "JSONText write failed")
     checked(JSON.json(JSON.Null()) == "null", "JSON.Null write failed")
     checked(JSON.json(TrimCode("beta")) == "\"beta\"", "custom lower write failed")
+
+    # Date, DateTime, and Time round-trip through their canonical ISO text.
+    temporal = TrimTemporal(
+        Dates.Date(2026, 8, 7),
+        Dates.DateTime(2026, 8, 7, 15, 0, 0, 76),
+        Dates.Time(12, 30, 15, 250),
+    )
+    temporal_json = JSON.json(temporal)
+    checked(
+        temporal_json ==
+        "{\"day\":\"2026-08-07\",\"stamp\":\"2026-08-07T15:00:00.076\",\"tick\":\"12:30:15.25\"}",
+        "temporal write failed",
+    )
+    checked(
+        JSON.parse(temporal_json, TrimTemporal) == temporal,
+        "temporal read failed",
+    )
+    checked(
+        JSON.json(Dates.DateTime(2026, 1, 1)) == "\"2026-01-01T00:00:00\"",
+        "zero-millisecond DateTime write failed",
+    )
     return nothing
 end
 
