@@ -1,6 +1,7 @@
 [deps]
 JuliaC = "acedd4c2-ced6-4a15-accc-2607eb759ba2"
 Parsers = "69de0a69-1ddd-5017-9359-2bf0b02dc9f0"
+StructUtils = "ec057cc2-7a8d-4b58-b3b3-92acb9f63b42"
 
 [compat]
 StructUtils = "2.8.4"
