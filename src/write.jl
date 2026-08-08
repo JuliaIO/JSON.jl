@@ -36,7 +36,7 @@ const StringLike = Union{Enum, AbstractChar, VersionNumber, Cstring, Cwstring, U
 # token handling and its diagnostics are too dynamic for static compilation,
 # so JSON output of temporal fields would otherwise fail `juliac --trim`
 # verification.
-@inline function _writetemporal!(buf::Vector{UInt8}, i::Int, value::Int, width::Int)
+@inline function _writetemporal!(buf::Vector{UInt8}, i::Int, value::Integer, width::Int)
     for offset in (width - 1):-1:0
         buf[i + offset] = UInt8('0') + UInt8(value % 10)
         value = divrem(value, 10)[1]
