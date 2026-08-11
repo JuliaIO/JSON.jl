@@ -276,6 +276,35 @@ JSON.lift(::DateMaterializedObjectStyle, ::Type{Date}, x::JSON.Object) = Date(x[
         @test x.url == "http://www.example.com/#\\\ud8000\\好"
     end # @testset "errors"
 
+    @testset "truncated input reports UnexpectedEOF" begin
+        # UnexpectedEOF is raised at the byte we wanted to read, i.e. one past
+        # the end, so building the error message used to slice out of bounds and
+        # throw BoundsError from the error path itself.
+        for str in ("{", "[", "[1", "[1,", "\"a", "{\"a\"", "{\"a\":", "{\"a\":1,",
+                    " ", "\n", "\t", "{\"a\":[1,2", "-")
+            @test_throws ArgumentError JSON.parse(str)
+        end
+        # Same for the typed and lazy entry points.
+        @test_throws ArgumentError JSON.parse("{\"a\":", @NamedTuple{a::Int})
+        @test_throws ArgumentError JSON.lazy("{\"a\":")[]
+        # ...and when the buffer is bytes rather than a string.
+        @test_throws ArgumentError JSON.parse(Vector{UInt8}("{\"a\":"))
+
+        # The message still carries a correct position, line number and snippet.
+        err = try
+            JSON.parse("{\n  \"a\": 1,\n  \"b\":")
+            nothing
+        catch e
+            e
+        end
+        @test err isa ArgumentError
+        msg = err.msg
+        @test occursin("UnexpectedEOF", msg)
+        @test occursin("byte position 18", msg) || occursin("byte position 19", msg)
+        @test occursin("line 3", msg)
+        @test occursin("<EOF>", msg)
+    end # @testset "truncated input reports UnexpectedEOF"
+
     # JSON.jl pre-1.0 compat
     x = JSON.parse("{}")
     @test isempty(x) && typeof(x) == JSON.Object{String, Any}
