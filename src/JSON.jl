@@ -50,10 +50,15 @@ end
 @noinline function _invalid(error, buf, pos::Int, typename::String)
     # compute which line the error falls on by counting “\n” bytes up to pos
     cus = buf isa AbstractString ? codeunits(buf) : buf
-    line_no = count(b -> b == UInt8('\n'), view(cus, 1:pos)) + 1
+    # `pos` can point one byte past the end: UnexpectedEOF is reported at the
+    # position we wanted to read, so every input ending mid-token lands here
+    # with pos == sizeof(cus) + 1. Clamp before slicing, or building the error
+    # message throws BoundsError instead of the ArgumentError we mean to raise.
+    n = sizeof(cus)
+    line_no = count(b -> b == UInt8('\n'), view(cus, 1:min(pos, n))) + 1
 
-    li = pos > 20 ? pos - 9 : 1
-    ri = min(sizeof(cus), pos + 20)
+    li = pos > 20 ? min(pos - 9, n) : 1
+    ri = min(n, pos + 20)
     snippet_bytes = cus[li:ri]
     snippet_pos = pos - li + 1
     snippet = String(copy(snippet_bytes))
