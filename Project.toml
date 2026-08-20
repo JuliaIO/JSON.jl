@@ -20,7 +20,7 @@ JSONArrowExt = ["ArrowTypes"]
 [compat]
 Arrow = "2.8.0"
 ArrowTypes = "2.2"
-Parsers = "1, 2"
+Parsers = "1, 2, 3"
 PrecompileTools = "1"
 StructUtils = "2.8.4"
 julia = "1.9"
@@ -29,8 +29,9 @@ julia = "1.9"
 Arrow = "69666777-d1a9-59fb-9406-91d4454c9d45"
 ArrowTypes = "31f734f8-188a-4ce0-8406-c8a06bd891cd"
 Pkg = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
+Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 Tar = "a4e569a6-e804-4fa4-b0f3-eef7a1d5b13e"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
-test = ["Arrow", "Pkg", "Tar", "Test"]
+test = ["Arrow", "Pkg", "Random", "Tar", "Test"]

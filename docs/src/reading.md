@@ -25,10 +25,10 @@ The core JSON parsing machinery is hence built around having an `AbstractVector{
 
 Each entrypoint function first calls [`JSON.lazy`](@ref), which will consume the JSON input until the type of the next JSON value can be identified (`{` for objects, `[` for arrays, `"` for strings, `t` for true, `f` for false, `n` for null, and `-` or a digit for numbers). [`JSON.lazy`](@ref) returns a [`JSON.LazyValue`](@ref), which wraps the JSON input buffer (`AbstractVector{UInt8}` or `AbstractString`), and marks the byte position the value starts at, the type of the value, and any keyword arguments that were provided that may affect parsing. Currently supported parsing-specific keyword arguments to [`JSON.lazy`](@ref) (and thus all other entrypoint functions) include:
 
-  - `allownan::Bool = false`: whether "special" float values shoudl be allowed while parsing (`NaN`, `Inf`, `-Inf`); these values are specifically _not allowed_ in the JSON spec, but many JSON libraries allow reading/writing
+  - `allownan::Bool = false`: whether "special" float values should be allowed while parsing (`NaN`, `Inf`, `-Inf`); these values are specifically _not allowed_ in the JSON spec, but many JSON libraries allow reading/writing. Finite numbers keep their normal adaptive type selection.
   - `ninf::String = "-Infinity"`: the string that will be used to parse `-Inf` if `allownan=true`
   - `inf::String = "Infinity"`: the string that will be used to parse `Inf` if `allownan=true`
-  - `nan::String = "NaN"`: the string that will be sued to parse `NaN` if `allownan=true`
+  - `nan::String = "NaN"`: the string that will be used to parse `NaN` if `allownan=true`
   - `jsonlines::Bool = false`: whether the JSON input should be treated as an implicit array, with newlines separating individual JSON elements with no leading `'['` or trailing `']'` characters. Common in logging or streaming workflows. Defaults to `true` when used with [`JSON.parsefile`](@ref) and the filename extension is `.jsonl` or `ndjson`. Note this ensures that parsing will _always_ return an array at the root-level.
   - Materialization-specific keyword arguments (i.e. they affect materialization, but not parsing)
     - `dicttype = JSON.Object{String, Any}`: type to parse JSON objects as by default (recursively)
@@ -134,6 +134,12 @@ Under the hood, this `getindex` call is really calling `JSON.parse(lazyvalue)`. 
 | number         | `Int64`, `BigInt`, `Float64`, or `BigFloat`                               |
 | `null`         | `nothing`                                                                 |
 | `true/false`   | `Bool`                                                                    |
+
+Finite integers use `Int64` when possible, including `typemin(Int64)`, and
+promote to `BigInt` outside that range. Finite decimal or exponent forms use
+`Float64` when representable and promote overflowed values to `BigFloat`.
+Setting `allownan=true` only adds special-value spellings; it does not force
+finite values through `Float64`.
 
 Mostly vanilla, but what is `JSON.Object`? It is a custom `AbstractDict` using an internal linked-list implementation that preserves insertion order, behaves as a drop-in replacement for `Dict`, and allows memory and performance benefits vs. `Dict` for small # of entries. It also supports natural JSON-object-like
 syntax for accessing or setting values, like `x.g.h.i` and `x.c = false`.
@@ -254,6 +260,13 @@ uuid = JSON.parse("\"123e4567-e89b-12d3-a456-426614174000\"", UUID)
 date = JSON.parse("\"2023-05-08\"", Date)
 # Date("2023-05-08")
 ```
+
+With Parsers 3 on Julia 1.10 or later, supported built-in numeric targets are
+converted from the original JSON token bytes. In particular, `Float32` and
+`BigFloat` do not pass through an intermediate `Float64`. Numeric fields with
+a custom `StructUtils` style or field tag keep the adaptive value-and-lift
+path, so existing custom conversions continue to receive `Int64`, `BigInt`,
+`Float64`, or `BigFloat` values.
 
 ### Type conversions and handling nulls
 

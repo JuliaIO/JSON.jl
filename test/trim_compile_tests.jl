@@ -18,6 +18,8 @@ function _prepare_trim_project(project_path::String, trim_project::String)::Noth
     try
         Pkg.activate(trim_project)
         Pkg.develop(Pkg.PackageSpec(path = project_path))
+        parsers_path = get(ENV, "JSON_TEST_PARSERS_PATH", "")
+        isempty(parsers_path) || Pkg.develop(Pkg.PackageSpec(path = parsers_path))
         Pkg.instantiate()
     finally
         if original_project !== nothing

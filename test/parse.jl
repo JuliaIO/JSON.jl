@@ -1,10 +1,19 @@
-using JSON, StructUtils, UUIDs, Dates, Test
+using JSON, StructUtils, UUIDs, Dates, Random, Test
 
 struct CustomJSONStyle <: JSON.JSONStyle end
 struct RefValueStyle <: JSON.JSONStyle end
 struct DateStringStyle <: JSON.JSONStyle end
 struct DateObjectStyle <: JSON.JSONStyle end
 struct DateMaterializedObjectStyle <: JSON.JSONStyle end
+struct NumericLiftStyle <: JSON.JSONStyle end
+
+struct SpecialFloatField
+    value::Float32
+end
+
+struct SpecialIntField
+    value::Int
+end
 
 struct A
     a::Int
@@ -231,6 +240,10 @@ end
     any::Any &(choosetype=x -> x.type[] == "int" ? @NamedTuple{type::String, value::Int} : x.type[] == "float" ? @NamedTuple{type::String, value::Float64} : @NamedTuple{type::String, value::String},)
 end
 
+@tags struct TaggedNumeric
+    value::Float32 &(json=(lift=x -> Float32(x) + 2.0f0, route=:adaptive))
+end
+
 # https://github.com/JuliaIO/JSON.jl/issues/453 - custom JSONStyle dictlike dispatch
 @kwdef struct DictlikeViaCustomStyle
     vals::Dict{String,Int} = Dict{String,Int}()
@@ -243,6 +256,8 @@ StructUtils.dictlike(::CustomJSONStyle, ::Type{DictlikeViaCustomStyle}) = true
 StructUtils.structlike(::RefValueStyle, ::Type{Base.RefValue{Int}}) = false
 StructUtils.lower(::RefValueStyle, x::Base.RefValue{Int}) = x[]
 StructUtils.lift(::RefValueStyle, ::Type{Base.RefValue{Int}}, x::Integer) = Ref{Int}(x), nothing
+StructUtils.lift(::NumericLiftStyle, ::Type{Float32}, x::Float64, tags) =
+    (Float32(x) + 1.0f0, nothing)
 
 JSON.lower(::DateStringStyle, d::Date) = string(d)
 JSON.lift(::DateStringStyle, ::Type{Date}, x::String) = Date(x)
@@ -404,12 +419,21 @@ JSON.lift(::DateMaterializedObjectStyle, ::Type{Date}, x::JSON.Object) = Date(x[
     @test_throws ArgumentError JSON.parse("nula")
     @test_throws ArgumentError JSON.parse("nul")
     @test_throws ArgumentError JSON.parse("trub")
-    # allownan for parsing normally invalid json values
+    # allownan changes special-value acceptance, not finite-number promotion
     @test JSON.parse("NaN"; allownan=true) === NaN
-    @test JSON.parse("Inf"; inf="Inf", allownan=true) === Inf
-    # allownan with typemax Int
-    @test JSON.parse(string(typemax(Int64)), Int64; allownan=true) === typemax(Int64) 
-    @test JSON.parse(string(typemax(Int128)), Int128; allownan=true) === typemax(Int128) 
+    @test JSON.parse("Inf"; allownan=true) === Inf
+    @test JSON.parse("-Inf"; allownan=true) === -Inf
+    @test JSON.parse("Infinity"; allownan=true) === Inf
+    @test JSON.parse("-Infinity"; allownan=true) === -Inf
+    @test isequal(JSON.parse("[Inf,NaN,-Infinity]"; allownan=true), [Inf, NaN, -Inf])
+    @test JSON.parse("custom-inf"; inf="custom-inf", allownan=true) === Inf
+    @test JSON.parse("Inf"; inf="custom-inf", allownan=true) === Inf
+    @test_throws ArgumentError JSON.parse("+1"; allownan=true)
+    @test JSON.parse(string(typemax(Int64)); allownan=true) === typemax(Int64)
+    @test JSON.parse("9007199254740993"; allownan=true) === Int64(9007199254740993)
+    @test JSON.parse(string(typemax(Int64)), Int64; allownan=true) === typemax(Int64)
+    @test JSON.parse(string(typemax(Int128)), Int128; allownan=true) === typemax(Int128)
+    @test JSON.parse(string(typemax(UInt64)), UInt64; allownan=true) === typemax(UInt64)
     # jsonlines support
     @test JSON.parse("1"; jsonlines=true) == [1]
     @test JSON.parse("1 \t"; jsonlines=true) == [1]
@@ -496,6 +520,10 @@ JSON.lift(::DateMaterializedObjectStyle, ::Type{Date}, x::JSON.Object) = Date(x[
         @test JSON.parse("9223372036854775805") === 9223372036854775805
         @test JSON.parse("9223372036854775806") === 9223372036854775806
         @test JSON.parse("9223372036854775807") === 9223372036854775807
+        @test JSON.parse("-9223372036854775808") === typemin(Int64)
+        @test JSON.parse("[7,-9223372036854775808]")[2] === typemin(Int64)
+        x = JSON.parse("-9223372036854775809")
+        @test x isa BigInt && x == -9223372036854775809
         # promote to BigInt
         x = JSON.parse("9223372036854775808")
         # only == here because BigInt don't compare w/ ===
@@ -504,8 +532,79 @@ JSON.lift(::DateMaterializedObjectStyle, ::Type{Date}, x::JSON.Object) = Date(x[
         @test x isa BigInt && x == 170141183460469231731687303715884105727
         x = JSON.parse("170141183460469231731687303715884105728")
         @test x isa BigInt && x == 170141183460469231731687303715884105728
+        # Every returned BigInt owns its storage, including the Parsers 1/2 fallback.
+        wide = "1234567890123456789012345678901234567890"
+        x = JSON.parse(wide)
+        y = JSON.parse(wide)
+        @test x !== y
+        Base.GMP.MPZ.add_ui!(x, 1)
+        @test y == Base.parse(BigInt, wide)
+        @test JSON.parse(wide) == y
         # BigFloat
         @test JSON.parse("1.7976931348623157e310") == big"1.7976931348623157e310"
+        @test JSON.parse("1e310") isa BigFloat
+
+        # Parsers 1/2 can fail or misparse valid long decimals. Their
+        # compatibility path converts every validated finite float span with Base.
+        @test JSON.parse("295574326048237151328925.8099133506971425945276929554326e-440") === 0.0
+        @test isequal(
+            JSON.parse("-645846793726181672171.9101155724413627413656362746354480124e-379"),
+            -0.0,
+        )
+        bounds_source = "-773185451005006305224330936226383685.195e3"
+        @test JSON.parse(bounds_source) === Base.parse(Float64, bounds_source)
+        for source in (
+            "-75738806850214820018096823497.7e229",
+            "0.72741733550162454424961322208253163690E+61",
+            "0.0725793004898340574524597074187135e294",
+            "-0.02180916574168124355037332825156547e110",
+            "0.73032752417478587296191914738492447036E+169",
+            "0.95599741872715652854E+201",
+            "-0.056906042106688574231E+248",
+        )
+            expected = Base.parse(Float64, source)
+            @test JSON.parse(source) === expected
+            @test JSON.parse(Vector{UInt8}(codeunits(source))) === expected
+        end
+        @test isequal(JSON.parse("-0.0e100"), -0.0)
+
+        # A fixed-seed differential gate covers wide integers and the complete
+        # JSON float grammar against a high-precision rounding oracle.
+        rng = MersenneTwister(0x8259_2026)
+        for _ in 1:20_000
+            ndigits = rand(rng, 1:90)
+            digits = string(
+                rand(rng, '1':'9'),
+                String(rand(rng, '0':'9', ndigits - 1)),
+            )
+            source = (rand(rng, Bool) ? "-" : "") * digits
+            @test JSON.parse(source) == Base.parse(BigInt, source)
+        end
+        setprecision(BigFloat, 512) do
+            for _ in 1:20_000
+                intpart = rand(rng, Bool) ? "0" : string(
+                    rand(rng, '1':'9'),
+                    String(rand(rng, '0':'9', rand(rng, 0:35))),
+                )
+                frac = "." * String(rand(rng, '0':'9', rand(rng, 1:40)))
+                expo = rand(rng, Bool) ? "" : string(
+                    rand(rng, Bool) ? 'e' : 'E',
+                    rand(rng, ("", "+", "-")),
+                    rand(rng, 0:500),
+                )
+                source = (rand(rng, Bool) ? "-" : "") * intpart * frac * expo
+                exact = Base.parse(BigFloat, source)
+                rounded = Float64(exact)
+                got = JSON.parse(source)
+                if isinf(rounded)
+                    @test got isa BigFloat
+                    @test got == exact
+                else
+                    @test got isa Float64
+                    @test isequal(got, rounded)
+                end
+            end
+        end
 
         # zeros
         @test JSON.parse("0") === Int64(0)
@@ -521,12 +620,14 @@ JSON.lift(::DateMaterializedObjectStyle, ::Type{Date}, x::JSON.Object) = Date(x[
         @test JSON.parse("-0.00e-01234567890123456789") == big"0.0"
         @test JSON.parse("0e291") === 0.0
         @test JSON.parse("0e292") === 0.0
-        @test JSON.parse("0e347") == big"0.0"
-        @test JSON.parse("0e348") == big"0.0"
-        @test JSON.parse("-0e291") === 0.0
-        @test JSON.parse("-0e292") === 0.0
-        @test JSON.parse("-0e347") == big"0.0"
-        @test JSON.parse("-0e348") == big"0.0"
+        @test JSON.parse("0e347") === 0.0
+        @test JSON.parse("0e348") === 0.0
+        for source in ("-0e291", "-0e292")
+            @test JSON.parse(source) === -0.0
+            @test JSON.parse(Vector{UInt8}(codeunits(source))) === -0.0
+        end
+        @test JSON.parse("-0e347") === -0.0
+        @test JSON.parse("-0e348") === -0.0
         @test JSON.parse("2e-324") === 0.0
         # extremes
         @test JSON.parse("1e310") == big"1e310"
@@ -558,6 +659,59 @@ JSON.lift(::DateMaterializedObjectStyle, ::Type{Date}, x::JSON.Object) = Date(x[
         @test_throws ArgumentError JSON.parse("+1")
     end
     @testset "JSON.parse with types" begin
+        @test JSON.parse("1.0", Int) == 1
+        @test_throws InexactError JSON.parse("1.5", Int)
+        @test JSON.parse(string(typemax(Int128)), Int128) == typemax(Int128)
+        @test JSON.parse(Vector{UInt8}(codeunits(string(typemax(Int128)))), Int128) == typemax(Int128)
+
+        for (T, overflow, underflow) in (
+            (Float16, "1e10", "-1e-20"),
+            (Float32, "1e50", "-1e-100"),
+            (Float64, "1e400", "-1e-400"),
+        )
+            over = JSON.parse(overflow, T)
+            under = JSON.parse(underflow, T)
+            @test over === T(Inf)
+            @test iszero(under) && signbit(under)
+        end
+        @test JSON.parse("1.5", Float16) === Float16(1.5)
+
+        for T in (Float16, Float32, Float64, BigFloat)
+            @test isinf(JSON.parse("123", T; inf="123", allownan=true))
+            @test JSON.parse("456", T; ninf="456", allownan=true) == T(-Inf)
+            @test isnan(JSON.parse("789", T; nan="789", allownan=true))
+            @test JSON.parse("1x", T; inf="1x", allownan=true) == T(Inf)
+        end
+        @test_throws InexactError JSON.parse("123", Int; inf="123", allownan=true)
+        @test JSON.parse(
+            "{\"value\":123}", SpecialFloatField; inf="123", allownan=true
+        ).value === Inf32
+        @test_throws InexactError JSON.parse(
+            "{\"value\":123}", SpecialIntField; inf="123", allownan=true
+        )
+
+        @test JSON.parse("0.5", Float32; style=NumericLiftStyle()) === 1.5f0
+        @test JSON.parse("{\"value\":0.5}", TaggedNumeric) == TaggedNumeric(2.5f0)
+
+        if JSON._PARSERS_V3
+            f32source = "1.000000059604644830901776231257827021181583404541015625"
+            expected32 = Base.parse(Float32, f32source)
+            @test expected32 != Float32(Base.parse(Float64, f32source))
+            @test JSON.parse(f32source, Float32) === expected32
+            @test JSON.parse(Vector{UInt8}(codeunits(f32source)), Float32) === expected32
+
+            f16source = "1.0004882812500000000000000000000000000000000000000000001"
+            @test JSON.parse(f16source, Float16) === Base.parse(Float16, f16source)
+
+            setprecision(BigFloat, 256) do
+                source = "0.1000000000000000000000000000000000000000000000000000001"
+                expected = Base.parse(BigFloat, source)
+                @test expected != BigFloat(Base.parse(Float64, source))
+                @test JSON.parse(source, BigFloat) == expected
+                @test JSON.parse(Vector{UInt8}(codeunits(source)), BigFloat) == expected
+            end
+        end
+
         obj = JSON.parse("""{ "a": 1,"b": 2,"c": 3,"d": 4}""", A)
         @test obj == A(1, 2, 3, 4)
         @test JSON.parse("""{ "a": 1,"b": 2,"c": 3,"d": 4, "e": 5}""", A) == A(1, 2, 3, 4)

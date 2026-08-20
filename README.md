@@ -78,7 +78,7 @@ JSON.json("test.json", j)
 # Download json data and parse into a DataFrame
 using HTTP, JSON, Tables, DataFrames
 resp = HTTP.get("https://raw.githubusercontent.com/altair-viz/vega_datasets/master/vega_datasets/_data/wheat.json")
-# null=missing will read json `null` as Julia `missing; `allownan=true` parses all numbers as Float64
+# null=missing reads JSON `null` as Julia `missing`; allownan=true also accepts NaN and infinity
 df = DataFrame(Tables.dictrowtable(JSON.parse(resp.body; null=missing, allownan=true)))
 ```
 
