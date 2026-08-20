@@ -407,6 +407,9 @@ JSON.lift(::DateMaterializedObjectStyle, ::Type{Date}, x::JSON.Object) = Date(x[
     # allownan for parsing normally invalid json values
     @test JSON.parse("NaN"; allownan=true) === NaN
     @test JSON.parse("Inf"; inf="Inf", allownan=true) === Inf
+    # allownan with typemax Int
+    @test JSON.parse(string(typemax(Int64)), Int64; allownan=true) === typemax(Int64) 
+    @test JSON.parse(string(typemax(Int128)), Int128; allownan=true) === typemax(Int128) 
     # jsonlines support
     @test JSON.parse("1"; jsonlines=true) == [1]
     @test JSON.parse("1 \t"; jsonlines=true) == [1]
