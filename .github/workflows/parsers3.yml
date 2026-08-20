@@ -1,0 +1,54 @@
+name: Parsers Compatibility
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  parsers-1:
+    name: Julia 1.9 - Parsers 1.1.2
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: julia-actions/setup-julia@v3
+        with:
+          version: '1.9'
+      - uses: julia-actions/cache@v3
+      - name: Test with Parsers 1
+        shell: julia --project=. --color=yes {0}
+        run: |
+          import Pkg
+          Pkg.add(Pkg.PackageSpec(name = "Parsers", version = v"1.1.2"))
+          Pkg.test()
+
+  parsers-3:
+    name: Julia ${{ matrix.version }} - Parsers 3
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        version:
+          - '1.10'
+          - '1'
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7
+        with:
+          repository: JuliaData/Parsers.jl
+          ref: 83c7142fb714cb87261ef38eec7ab103444eb30d
+          path: .ci/Parsers-v3
+      - uses: julia-actions/setup-julia@v3
+        with:
+          version: ${{ matrix.version }}
+      - uses: julia-actions/cache@v3
+      - name: Test with Parsers 3 PR head
+        env:
+          JSON_TEST_PARSERS_PATH: ${{ github.workspace }}/.ci/Parsers-v3
+        shell: julia --project=. --color=yes {0}
+        run: |
+          import Pkg
+          Pkg.develop(Pkg.PackageSpec(path = ENV["JSON_TEST_PARSERS_PATH"]))
+          Pkg.test()

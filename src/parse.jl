@@ -451,6 +451,89 @@ function customlazylift(style::JSONReadStyle, ::Type{T}, x::LazyValues, tags) wh
     return nothing
 end
 
+struct DirectNumberResult{T}
+    value::T
+    pos::Int
+end
+
+@inline _directnumber(::Type, ::LazyValue) = nothing
+
+@inline function _hasconfiguredspecial(x::LazyValue)
+    opts = getopts(x)
+    opts.allownan || return false
+    buf = getbuf(x)
+    pos = getpos(x)
+    len = getlength(buf)
+    return _specialend(buf, pos, len, opts.nan) != 0 ||
+        _specialend(buf, pos, len, opts.inf) != 0 ||
+        _specialend(buf, pos, len, opts.ninf) != 0
+end
+
+@static if isdefined(Parsers, :parsenext)
+    const _JSONFixedInteger = Union{
+        Int8, Int16, Int32, Int64, Int128,
+        UInt8, UInt16, UInt32, UInt64, UInt128,
+    }
+    const _JSONFixedFloat = Union{Float32, Float64}
+
+    @inline function _directnumber(::Type{T}, x::LazyValue) where {T<:_JSONFixedInteger}
+        buf = getbuf(x)
+        startpos = getpos(x)
+        nextpos, isfloat = _numbertoken(buf, startpos, getlength(buf))
+        (nextpos == startpos || isfloat) && return nothing
+        bytes = _numberbytes(buf)
+        value, code = Parsers.parseint(T, bytes, startpos, nextpos - 1)
+        code == Parsers.RC_OK || return nothing
+        return DirectNumberResult(value, nextpos)
+    end
+
+    @inline function _directnumber(::Type{BigInt}, x::LazyValue)
+        buf = getbuf(x)
+        startpos = getpos(x)
+        nextpos, isfloat = _numbertoken(buf, startpos, getlength(buf))
+        (nextpos == startpos || isfloat) && return nothing
+        bytes = _numberbytes(buf)
+        value, code = Parsers.parsebigint(bytes, startpos, nextpos - 1)
+        code == Parsers.RC_OK || return nothing
+        return DirectNumberResult(value, nextpos)
+    end
+
+    @inline function _directnumber(::Type{T}, x::LazyValue) where {T<:_JSONFixedFloat}
+        buf = getbuf(x)
+        startpos = getpos(x)
+        nextpos, _ = _numbertoken(buf, startpos, getlength(buf))
+        nextpos == startpos && return nothing
+        bytes = _numberbytes(buf)
+        value, code = Parsers.parsefloat(T, bytes, startpos, nextpos - 1)
+        (code == Parsers.RC_OK || code == Parsers.RC_OVERFLOW ||
+         code == Parsers.RC_UNDERFLOW) || return nothing
+        return DirectNumberResult(value, nextpos)
+    end
+
+    @inline function _directnumber(::Type{Float16}, x::LazyValue)
+        buf = getbuf(x)
+        startpos = getpos(x)
+        nextpos, _ = _numbertoken(buf, startpos, getlength(buf))
+        nextpos == startpos && return nothing
+        bytes = _numberbytes(buf)
+        value, parsedpos, code = Parsers.parsenext(Float16, bytes, startpos, nextpos - 1)
+        (parsedpos == nextpos && (code == Parsers.RC_OK || code == Parsers.RC_OVERFLOW ||
+                                 code == Parsers.RC_UNDERFLOW)) || return nothing
+        return DirectNumberResult(value, nextpos)
+    end
+
+    @inline function _directnumber(::Type{BigFloat}, x::LazyValue)
+        buf = getbuf(x)
+        startpos = getpos(x)
+        nextpos, _ = _numbertoken(buf, startpos, getlength(buf))
+        nextpos == startpos && return nothing
+        bytes = _numberbytes(buf)
+        value = Parsers.tryparse(BigFloat, bytes, startpos, nextpos - 1)
+        value === nothing && return nothing
+        return DirectNumberResult(value, nextpos)
+    end
+end
+
 function StructUtils.lift(style::JSONReadStyle, ::Type{T}, x::LazyValues) where {T<:AbstractArray{E,0}} where {E}
     m = T(undef)
     m[1], pos = StructUtils.lift(style, E, x)
@@ -471,6 +554,15 @@ function StructUtils.lift(style::JSONReadStyle, ::Type{T}, x::LazyValues, tags=(
         end
         return str, pos
     elseif type == JSONTypes.NUMBER
+        # Parsers 3 can convert supported built-in numeric targets directly
+        # from the original bytes. Keep custom style and tagged lift calls on
+        # the adaptive path below, where they continue to receive JSON's
+        # default Int64/BigInt/Float64/BigFloat value.
+        if _PARSERS_V3 && style.style isa StructUtils.DefaultStyle && isempty(tags) &&
+            !_hasconfiguredspecial(x)
+            direct = _directnumber(T, x)
+            direct === nothing || return direct.value, direct.pos
+        end
         num, pos = parsenumber(x)
         if isint(num)
             T === Int64 && return num.int, pos

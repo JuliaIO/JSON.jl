@@ -4,6 +4,40 @@ This guide provides an overview of how to migrate your code from either the pre-
 
 ---
 
+## Number parsing with Parsers 3
+
+JSON.jl accepts Parsers 1, 2, and 3. Parsers 3 requires Julia 1.10 or later;
+Julia 1.9 continues to use the compatibility path. This dependency update does
+not change standards-compliant JSON syntax or the four adaptive untyped result
+types.
+
+There are six observable corrections:
+
+- `typemin(Int64)` now materializes as `Int64` instead of `BigInt`.
+- `allownan=true` only enables configured and native special-value spellings.
+  It no longer forces finite integers through `Float64`.
+- A leading `+` on a finite number is rejected. This removes a nonstandard
+  extension; `+Inf` remains available behind `allownan=true`.
+- Negative zero keeps its sign, including extreme exponent forms such as
+  `-0e291` that lost the sign on the Parsers 2 compatibility path.
+- Long finite decimals now use correct Base-compatible rounding. This also
+  avoids rare Parsers 1/2 failures and wrong results on valid JSON numbers.
+- Supported built-in typed numeric targets use the original token bytes with
+  Parsers 3. This avoids intermediate `Float64` rounding for `Float32` and
+  `BigFloat`. Custom `StructUtils` styles and field lifts keep the prior
+  adaptive conversion path.
+
+On the Parsers 1 and 2 compatibility paths, JSON gives validated finite float
+and overflowed integer spans to Base. A byte-vector input therefore needs a
+temporary `String` for these legacy dependency versions. Parsers 3 converts the
+original string or byte span directly and does not have this compatibility cost.
+
+Code that depended on `allownan=true` to coerce every finite number to
+`Float64` should request a typed target instead, for example
+`JSON.parse(source, Vector{Float64}; allownan=true)`.
+
+---
+
 ## Migration guide from pre-1.0 -> 1.0
 
 ### Writing JSON
