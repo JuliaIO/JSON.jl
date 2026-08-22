@@ -427,6 +427,9 @@ JSON.lift(::DateMaterializedObjectStyle, ::Type{Date}, x::JSON.Object) = Date(x[
     @test JSON.parse(string(2^53 + 1); allownan=true) === Int64(2^53 + 1)
     #allownan with typemax in struct
     @test JSON.parse("{\"a\":$(typemax(Int64))}", TestAllownanInt; allownan=true).a === typemax(Int64)
+    #Test that parsing "-" and "+" with allownan=true throws an error
+    @test_throws ArgumentError JSON.parse("-"; allownan=true)
+    @test_throws ArgumentError JSON.parse("+"; allownan=true)
     # jsonlines support
     @test JSON.parse("1"; jsonlines=true) == [1]
     @test JSON.parse("1 \t"; jsonlines=true) == [1]
