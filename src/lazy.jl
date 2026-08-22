@@ -587,7 +587,6 @@ isbigfloat(x::NumberResult) = x.tag == BIGFLOAT
     b = getbyte(buf, pos)
     startpos = pos
     isneg = isfloat = overflow = false
-
     if opts.allownan
         # If this doesn't start like an integer, let Parsers handle
         # NaN/Inf/-Inf and the configured special values.
@@ -602,12 +601,10 @@ isbigfloat(x::NumberResult) = x.tag == BIGFLOAT
             isfloat = !(UInt8('0') <= b <= UInt8('9'))
         end
     end
-
     if !isfloat
         val = Int64(0)
         b = getbyte(buf, pos)
         isneg = b == UInt8('-')
-
         if isneg || b == UInt8('+') # spec doesn't allow leading +, but we do
             pos += 1
             if pos > len
@@ -616,7 +613,6 @@ isbigfloat(x::NumberResult) = x.tag == BIGFLOAT
             end
             b = getbyte(buf, pos)
         end
-
         # Parse integer part, check for leading zeros (invalid JSON)
         if b == UInt8('0')
             pos += 1
@@ -630,8 +626,7 @@ isbigfloat(x::NumberResult) = x.tag == BIGFLOAT
         elseif UInt8('1') <= b <= UInt8('9')
             while UInt8('0') <= b <= UInt8('9')
                 digit = Int64(b - UInt8('0'))
-                if val > INT64_OVERFLOW_VAL ||
-                   (val == INT64_OVERFLOW_VAL && digit > INT64_OVERFLOW_DIGIT)
+                if val > INT64_OVERFLOW_VAL || (val == INT64_OVERFLOW_VAL && digit > INT64_OVERFLOW_DIGIT)
                     overflow = true
                     break
                 end
@@ -640,7 +635,6 @@ isbigfloat(x::NumberResult) = x.tag == BIGFLOAT
                 pos > len && break
                 b = getbyte(buf, pos)
             end
-
             if overflow
                 bval = BigInt(val)
                 while UInt8('0') <= b <= UInt8('9')
@@ -655,11 +649,9 @@ isbigfloat(x::NumberResult) = x.tag == BIGFLOAT
             error = InvalidNumber
             @goto invalid
         end
-
         # Check for decimal or exponent
         if b == UInt8('.') || b == UInt8('e') || b == UInt8('E')
             isfloat = true
-
             # in strict JSON spec, we need at least one digit after the decimal
             if b == UInt8('.')
                 pos += 1
@@ -683,9 +675,7 @@ isbigfloat(x::NumberResult) = x.tag == BIGFLOAT
             @check_special(opts.inf, Inf)
             @check_special(opts.ninf, -Inf)
         end
-
         res = Parsers.xparse2(Float64, buf, startpos, len)
-
         if !opts.allownan && Parsers.specialvalue(res.code)
             # if we overflowed, then let's try BigFloat
             bres = Parsers.xparse2(BigFloat, buf, startpos, len)
@@ -693,12 +683,10 @@ isbigfloat(x::NumberResult) = x.tag == BIGFLOAT
                 return NumberResult(bres.val), startpos + Int(bres.tlen)
             end
         end
-
         if Parsers.invalid(res.code)
             error = InvalidNumber
             @goto invalid
         end
-
         return NumberResult(res.val), Int(startpos + res.tlen)
     else
         if overflow
