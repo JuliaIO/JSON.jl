@@ -187,6 +187,11 @@ end
     foo::String = "bar"
 end
 
+#struct for parsing typemax Int test
+struct TestAllownanInt
+    a::Int64
+end
+
 # example from JSON.parse docstring
 abstract type AbstractMonster end
 
@@ -406,10 +411,22 @@ JSON.lift(::DateMaterializedObjectStyle, ::Type{Date}, x::JSON.Object) = Date(x[
     @test_throws ArgumentError JSON.parse("trub")
     # allownan for parsing normally invalid json values
     @test JSON.parse("NaN"; allownan=true) === NaN
-    @test JSON.parse("Inf"; inf="Inf", allownan=true) === Inf
+    @test JSON.parse("Infinity"; allownan=true) === Inf
+    @test JSON.parse("-Infinity"; allownan=true) === -Inf
+    @test JSON.parse("Inf"; allownan=true) === Inf
+    @test JSON.parse("-Inf"; allownan=true) === -Inf
+    # Nested version
+    @test isequal(JSON.parse("[Inf,NaN,-Infinity]"; allownan=true), [Inf, NaN, -Inf])
     # allownan with typemax Int
-    @test JSON.parse(string(typemax(Int64)), Int64; allownan=true) === typemax(Int64) 
-    @test JSON.parse(string(typemax(Int128)), Int128; allownan=true) === typemax(Int128) 
+    @test JSON.parse(string(typemax(Int)), Int; allownan=true) === typemax(Int) 
+    @test JSON.parse(string(typemax(UInt64)), UInt64; allownan=true) === typemax(UInt64) 
+    @test JSON.parse(string(typemax(Int64)), Int64; allownan=true) === typemax(Int64)
+    @test JSON.parse(string(typemin(Int64)), Int64; allownan=true) === typemin(Int64) 
+    @test JSON.parse(string(typemax(Int64)); allownan=true) === typemax(Int64) 
+    @test JSON.parse(string(typemax(Int128)), Int128; allownan=true) === typemax(Int128)
+    @test JSON.parse(string(2^53 + 1); allownan=true) === Int64(2^53 + 1)
+    #allownan with typemax in struct
+    @test JSON.parse("{\"a\":$(typemax(Int64))}", TestAllownanInt; allownan=true).a === typemax(Int64)
     # jsonlines support
     @test JSON.parse("1"; jsonlines=true) == [1]
     @test JSON.parse("1 \t"; jsonlines=true) == [1]
