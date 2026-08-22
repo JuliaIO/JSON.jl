@@ -539,16 +539,16 @@ macro check_special(special, value)
         b = getbyte(buf, pos)
         bytes = codeunits($special)
         i = 1
-        while i <= length(bytes) && b == @inbounds(bytes[i])
+        while b == @inbounds(bytes[i])
             pos += 1
             i += 1
-            if i <= length(bytes)
-                if pos > len
-                    error = UnexpectedEOF
-                    @goto invalid
-                end
-                b = getbyte(buf, pos)
+            i > length(bytes) && break
+            if pos > len
+                error = UnexpectedEOF
+                @goto invalid
             end
+            b = getbyte(buf, pos)
+            i += 1
         end
         if i > length(bytes)
             return NumberResult($value), pos
