@@ -589,84 +589,103 @@ isbigfloat(x::NumberResult) = x.tag == BIGFLOAT
     isneg = isfloat = overflow = false
 
     if opts.allownan
-        @check_special(opts.nan, NaN)
-        @check_special(opts.inf, Inf)
-        @check_special(opts.ninf, -Inf)
-        # reset after any failed partial match (see note above)
-        pos = startpos
-        b = getbyte(buf, pos)
-    end
-
-    val = Int64(0)
-    isneg = b == UInt8('-')
-    if isneg || b == UInt8('+') # spec doesn't allow leading +, but we do
-        pos += 1
-        if pos > len
-            error = UnexpectedEOF
-            @goto invalid
-        end
-        b = getbyte(buf, pos)
-    end
-    # Parse integer part, check for leading zeros (invalid JSON)
-    if b == UInt8('0')
-        pos += 1
-        if pos <= len
-            b = getbyte(buf, pos)
-            if UInt8('0') <= b <= UInt8('9')
-                error = InvalidNumber
+        # If this doesn't start like an integer, let Parsers handle
+        # NaN/Inf/-Inf and the configured special values.
+        if b == UInt8('-') || b == UInt8('+')
+            if pos == len
+                error = UnexpectedEOF
                 @goto invalid
             end
+            b = getbyte(buf, pos + 1)
+            isfloat = !(UInt8('0') <= b <= UInt8('9'))
+        else
+            isfloat = !(UInt8('0') <= b <= UInt8('9'))
         end
-    elseif UInt8('1') <= b <= UInt8('9')
-        while UInt8('0') <= b <= UInt8('9')
-            digit = Int64(b - UInt8('0'))
-            if val > INT64_OVERFLOW_VAL || (val == INT64_OVERFLOW_VAL && digit > INT64_OVERFLOW_DIGIT)
-                overflow = true
-                break
-            end
-            val = Int64(10) * val + digit
-            pos += 1
-            pos > len && break
-            b = getbyte(buf, pos)
-        end
-        if overflow
-            bval = BigInt(val)
-            while UInt8('0') <= b <= UInt8('9')
-                digit = BigInt(b - UInt8('0'))
-                bval = BigInt(10) * bval + digit
-                pos += 1
-                pos > len && break
-                b = getbyte(buf, pos)
-            end
-        end
-    elseif opts.allownan
-        # not a digit/sign start and no special token matched above -
-        # let Parsers' own float lexer take a shot (handles any
-        # remaining native spellings it knows about)
-        isfloat = true
-    else
-        error = InvalidNumber
-        @goto invalid
     end
-    # Check for decimal or exponent
-    if !isfloat && (b == UInt8('.') || b == UInt8('e') || b == UInt8('E'))
-        isfloat = true
-        if b == UInt8('.')
+
+    if !isfloat
+        val = Int64(0)
+        b = getbyte(buf, pos)
+        isneg = b == UInt8('-')
+
+        if isneg || b == UInt8('+') # spec doesn't allow leading +, but we do
             pos += 1
             if pos > len
                 error = UnexpectedEOF
                 @goto invalid
             end
             b = getbyte(buf, pos)
-            if !(UInt8('0') <= b <= UInt8('9'))
-                error = InvalidNumber
-                @goto invalid
+        end
+
+        # Parse integer part, check for leading zeros (invalid JSON)
+        if b == UInt8('0')
+            pos += 1
+            if pos <= len
+                b = getbyte(buf, pos)
+                if UInt8('0') <= b <= UInt8('9')
+                    error = InvalidNumber
+                    @goto invalid
+                end
+            end
+        elseif UInt8('1') <= b <= UInt8('9')
+            while UInt8('0') <= b <= UInt8('9')
+                digit = Int64(b - UInt8('0'))
+                if val > INT64_OVERFLOW_VAL ||
+                   (val == INT64_OVERFLOW_VAL && digit > INT64_OVERFLOW_DIGIT)
+                    overflow = true
+                    break
+                end
+                val = Int64(10) * val + digit
+                pos += 1
+                pos > len && break
+                b = getbyte(buf, pos)
+            end
+
+            if overflow
+                bval = BigInt(val)
+                while UInt8('0') <= b <= UInt8('9')
+                    digit = BigInt(b - UInt8('0'))
+                    bval = BigInt(10) * bval + digit
+                    pos += 1
+                    pos > len && break
+                    b = getbyte(buf, pos)
+                end
+            end
+        else
+            error = InvalidNumber
+            @goto invalid
+        end
+
+        # Check for decimal or exponent
+        if b == UInt8('.') || b == UInt8('e') || b == UInt8('E')
+            isfloat = true
+
+            # in strict JSON spec, we need at least one digit after the decimal
+            if b == UInt8('.')
+                pos += 1
+                if pos > len
+                    error = UnexpectedEOF
+                    @goto invalid
+                end
+                b = getbyte(buf, pos)
+                if !(UInt8('0') <= b <= UInt8('9'))
+                    error = InvalidNumber
+                    @goto invalid
+                end
             end
         end
     end
 
     if isfloat
+        if opts.allownan
+            # check for NaN, Inf, -Inf
+            @check_special(opts.nan, NaN)
+            @check_special(opts.inf, Inf)
+            @check_special(opts.ninf, -Inf)
+        end
+
         res = Parsers.xparse2(Float64, buf, startpos, len)
+
         if !opts.allownan && Parsers.specialvalue(res.code)
             # if we overflowed, then let's try BigFloat
             bres = Parsers.xparse2(BigFloat, buf, startpos, len)
@@ -674,10 +693,12 @@ isbigfloat(x::NumberResult) = x.tag == BIGFLOAT
                 return NumberResult(bres.val), startpos + Int(bres.tlen)
             end
         end
+
         if Parsers.invalid(res.code)
             error = InvalidNumber
             @goto invalid
         end
+
         return NumberResult(res.val), Int(startpos + res.tlen)
     else
         if overflow
