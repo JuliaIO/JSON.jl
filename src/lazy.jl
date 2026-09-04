@@ -54,7 +54,7 @@ In this example, we only parsed as much of the `very_large_json_object` as was r
 Then we fully materialized `y` into `z`, which is now a normal Julia object. We can now mutate or access values in `z`.
 
 Currently supported keyword arguments include:
-  - `allownan::Bool = false`: whether "special" float values shoudl be allowed while parsing (`NaN`, `Inf`, `-Inf`); these values are specifically _not allowed_ in the JSON spec, but many JSON libraries allow reading/writing
+  - `allownan::Bool = false`: whether "special" float values shoudl be allowed while parsing (`NaN`, `Inf`, `-Inf`); these values are specifically _not allowed_ in the JSON spec, but many JSON libraries allow reading/writing. When `true`, all numbers are parsed as `Float64` unless a specific numeric type is requested, in which case the number is parsed exactly as that type
   - `ninf::String = "-Infinity"`: the string that will be used to parse `-Inf` if `allownan=true`
   - `inf::String = "Infinity"`: the string that will be used to parse `Inf` if `allownan=true`
   - `nan::String = "NaN"`: the string that will be sued to parse `NaN` if `allownan=true`
@@ -527,33 +527,92 @@ function parsestring(x::LazyValue)
 end
 
 # core JSON number parsing function
-# we rely on functionality in Parsers to help infer what kind
-# of number we're parsing; valid return types include:
-# Int64, BigInt, Float64 or BigFloat
-const INT64_OVERFLOW_VAL = div(typemax(Int64), 10)
-const INT64_OVERFLOW_DIGIT = typemax(Int64) % 10
+# JSON validates the number token against the JSON grammar itself, then hands
+# the exact byte span to the Parsers kernels for conversion; valid return
+# types include: Int64, BigInt, Float64 or BigFloat
 
-macro check_special(special, value)
-    esc(quote
-        pos = startpos
+# match `special` at `pos`; returns the position after the match, or 0 if no match
+@inline function matchspecial(buf, pos, len, special::String)
+    bytes = codeunits(special)
+    n = length(bytes)
+    (n == 0 || pos + n - 1 > len) && return 0
+    for i = 1:n
+        getbyte(buf, pos + i - 1) == @inbounds(bytes[i]) || return 0
+    end
+    return pos + n
+end
+
+# integer digits are accumulated as a negative number so typemin(Int64) fits
+const INT64_MIN_DIV10 = div(typemin(Int64), 10)
+const INT64_MIN_LASTDIGIT = -rem(typemin(Int64), 10)
+# Parsers 2's xparse2 finds the end of a float itself, so the scanner stops at
+# the first '.'/'e'; the Parsers 3 kernels need the exact span, so it scans to the end
+const SCANFLOATTAIL = !isdefined(Parsers, :xparse2)
+
+# scan a JSON number token starting at `startpos`; returns the position after
+# the token (or after the integer part if !SCANFLOATTAIL), whether it has a
+# fraction or exponent, the integer value, and whether that value overflowed Int64;
+# nextpos == startpos means the bytes at startpos are not a valid JSON number
+@inline function scannumber(buf, startpos, len)
+    pos = startpos
+    b = getbyte(buf, pos)
+    isneg = b == UInt8('-')
+    # leading '+' only reaches here with allownan=true (see `_lazy`)
+    if isneg || b == UInt8('+')
+        pos += 1
+        pos > len && return startpos, false, Int64(0), false
         b = getbyte(buf, pos)
-        bytes = codeunits($special)
-        i = 1
-        while b == @inbounds(bytes[i])
-            pos += 1
-            i += 1
-            i > length(bytes) && break
-            if pos > len
-                error = UnexpectedEOF
-                @goto invalid
+    end
+    val = Int64(0)
+    overflow = false
+    # integer part; leading zeros are invalid JSON
+    if b == UInt8('0')
+        pos += 1
+        pos <= len && UInt8('0') <= getbyte(buf, pos) <= UInt8('9') && return startpos, false, val, false
+    elseif UInt8('1') <= b <= UInt8('9')
+        while true
+            digit = Int64(b - UInt8('0'))
+            if val < INT64_MIN_DIV10 || (val == INT64_MIN_DIV10 && digit > INT64_MIN_LASTDIGIT)
+                overflow = true
+            else
+                val = Int64(10) * val - digit
             end
+            pos += 1
+            pos > len && break
             b = getbyte(buf, pos)
-            i += 1
+            UInt8('0') <= b <= UInt8('9') || break
         end
-        if i > length(bytes)
-            return NumberResult($value), pos
+    else
+        return startpos, false, val, false
+    end
+    isfloat = false
+    # fraction: at least one digit required after '.'
+    if pos <= len && getbyte(buf, pos) == UInt8('.')
+        isfloat = true
+        pos += 1
+        (pos > len || !(UInt8('0') <= getbyte(buf, pos) <= UInt8('9'))) && return startpos, false, val, false
+        SCANFLOATTAIL || return pos, true, val, overflow
+        while pos <= len && UInt8('0') <= getbyte(buf, pos) <= UInt8('9')
+            pos += 1
         end
-    end)
+    end
+    # exponent: optional sign, at least one digit
+    if pos <= len && (getbyte(buf, pos) == UInt8('e') || getbyte(buf, pos) == UInt8('E'))
+        isfloat = true
+        SCANFLOATTAIL || return pos, true, val, overflow
+        pos += 1
+        if pos <= len && (getbyte(buf, pos) == UInt8('+') || getbyte(buf, pos) == UInt8('-'))
+            pos += 1
+        end
+        (pos > len || !(UInt8('0') <= getbyte(buf, pos) <= UInt8('9'))) && return startpos, false, val, false
+        while pos <= len && UInt8('0') <= getbyte(buf, pos) <= UInt8('9')
+            pos += 1
+        end
+    end
+    if !isneg
+        val == typemin(Int64) ? (overflow = true) : (val = -val)
+    end
+    return pos, isfloat, val, overflow
 end
 
 const INT = 0x00
@@ -579,109 +638,81 @@ isfloat(x::NumberResult) = x.tag == FLOAT
 isbigint(x::NumberResult) = x.tag == BIGINT
 isbigfloat(x::NumberResult) = x.tag == BIGFLOAT
 
-@inline function parsenumber(x::LazyValue)
+# Parsers converts the validated token span; Parsers 2 and 3 have different APIs
+@inline numberbytes(buf::AbstractString) = codeunits(buf)
+@inline numberbytes(buf) = buf
+
+@static if isdefined(Parsers, :xparse2)
+    # Parsers 2: `xparse2` parses the longest number prefix of buf[first:len]
+    @inline function parsefloat64(buf, first, nextpos, len, allownan)
+        res = Parsers.xparse2(Float64, buf, first, len)
+        nextpos = first + Int(res.tlen)
+        if !allownan && Parsers.specialvalue(res.code)
+            # overflowed to Inf; promote to BigFloat
+            bres = Parsers.xparse2(BigFloat, buf, first, len)
+            Parsers.invalid(bres.code) || return NumberResult(bres.val), nextpos
+        end
+        Parsers.invalid(res.code) && invalid(InvalidNumber, buf, first, "number")
+        return NumberResult(res.val), nextpos
+    end
+    @inline parsebigint(buf, first, last) = NumberResult(Parsers.xparse2(BigInt, buf, first, last).val)
+    # native `[+-]NaN`, `[+-]Inf`, `[+-]Infinity` spellings (case-insensitive)
+    @inline function parsenativespecial(buf, pos, len)
+        res = Parsers.xparse2(Float64, buf, pos, len)
+        (Parsers.invalid(res.code) || isfinite(res.val)) && return nothing
+        return NumberResult(res.val), pos + Int(res.tlen)
+    end
+else
+    # Parsers 3: the kernels convert exactly buf[first:nextpos-1]
+    @inline function parsefloat64(buf, first, nextpos, len, allownan)
+        bytes = numberbytes(buf)
+        val, code = Parsers.parsefloat(Float64, bytes, first, nextpos - 1)
+        if !allownan && code == Parsers.RC_OVERFLOW
+            # promote to BigFloat
+            return NumberResult(Parsers.parse(BigFloat, bytes, first, nextpos - 1)), nextpos
+        end
+        return NumberResult(val), nextpos
+    end
+    @inline parsebigint(buf, first, last) = NumberResult(Parsers.parsebigint(numberbytes(buf), first, last)[1])
+    # native `[+-]NaN`, `[+-]Inf`, `[+-]Infinity` spellings (case-insensitive)
+    @inline function parsenativespecial(buf, pos, len)
+        val, nextpos, code = Parsers.parsenext(Float64, numberbytes(buf), pos, len)
+        (code != Parsers.RC_OK || isfinite(val)) && return nothing
+        return NumberResult(val), nextpos
+    end
+end
+
+# `T` is the type requested for this value (`Any` when materializing untyped);
+# with `allownan=true`, all numbers materialize as `Float64` unless a specific
+# type was requested, in which case the token is parsed exactly for that type
+@inline function parsenumber(x::LazyValue, ::Type{T}=Any) where {T}
     buf = getbuf(x)
-    pos::Int = getpos(x)
+    startpos::Int = getpos(x)
     len = getlength(buf)
     opts = getopts(x)
-    b = getbyte(buf, pos)
-    startpos = pos
-    isneg = isfloat = overflow = false
-    if !opts.allownan
-        val = Int64(0)
-        isneg = b == UInt8('-')
-        if isneg || b == UInt8('+') # spec doesn't allow leading +, but we do
-            pos += 1
-            if pos > len
-                error = UnexpectedEOF
-                @goto invalid
-            end
-            b = getbyte(buf, pos)
-        end
-        # Parse integer part, check for leading zeros (invalid JSON)
-        if b == UInt8('0')
-            pos += 1
-            if pos <= len
-                b = getbyte(buf, pos)
-                if UInt8('0') <= b <= UInt8('9')
-                    error = InvalidNumber
-                    @goto invalid
-                end
-            end
-        elseif UInt8('1') <= b <= UInt8('9')
-            while UInt8('0') <= b <= UInt8('9')
-                digit = Int64(b - UInt8('0'))
-                if val > INT64_OVERFLOW_VAL || (val == INT64_OVERFLOW_VAL && digit > INT64_OVERFLOW_DIGIT)
-                    overflow = true
-                    break
-                end
-                val = Int64(10) * val + digit
-                pos += 1
-                pos > len && break
-                b = getbyte(buf, pos)
-            end
-            if overflow
-                bval = BigInt(val)
-                while UInt8('0') <= b <= UInt8('9')
-                    digit = BigInt(b - UInt8('0'))
-                    bval = BigInt(10) * bval + digit
-                    pos += 1
-                    pos > len && break
-                    b = getbyte(buf, pos)
-                end
-            end
-        else
-            error = InvalidNumber
-            @goto invalid
-        end
-        # Check for decimal or exponent
-        if b == UInt8('.') || b == UInt8('e') || b == UInt8('E')
-            isfloat = true
-            # in strict JSON spec, we need at least one digit after the decimal
-            if b == UInt8('.')
-                pos += 1
-                if pos > len
-                    error = UnexpectedEOF
-                    @goto invalid
-                end
-                b = getbyte(buf, pos)
-                if !(UInt8('0') <= b <= UInt8('9'))
-                    error = InvalidNumber
-                    @goto invalid
-                end
-            end
-        end
+    if opts.allownan
+        # check for configured NaN, Inf, -Inf spellings
+        pos = matchspecial(buf, startpos, len, opts.nan)
+        pos != 0 && return NumberResult(NaN), pos
+        pos = matchspecial(buf, startpos, len, opts.inf)
+        pos != 0 && return NumberResult(Inf), pos
+        pos = matchspecial(buf, startpos, len, opts.ninf)
+        pos != 0 && return NumberResult(-Inf), pos
     end
-    if isfloat || opts.allownan
+    nextpos, isfloat, val, overflow = scannumber(buf, startpos, len)
+    if nextpos == startpos
         if opts.allownan
-            # check for NaN, Inf, -Inf
-            @check_special(opts.nan, NaN)
-            @check_special(opts.inf, Inf)
-            @check_special(opts.ninf, -Inf)
+            res = parsenativespecial(buf, startpos, len)
+            res === nothing || return res
         end
-        res = Parsers.xparse2(Float64, buf, startpos, len)
-        if !opts.allownan && Parsers.specialvalue(res.code)
-            # if we overflowed, then let's try BigFloat
-            bres = Parsers.xparse2(BigFloat, buf, startpos, len)
-            if !Parsers.invalid(bres.code)
-                return NumberResult(bres.val), startpos + Int(bres.tlen)
-            end
-        end
-        if Parsers.invalid(res.code)
-            error = InvalidNumber
-            @goto invalid
-        end
-        return NumberResult(res.val), Int(startpos + res.tlen)
-    else
-        if overflow
-            return NumberResult(isneg ? -bval : bval), pos
-        else
-            return NumberResult(isneg ? -val : val), pos
-        end
+        invalid(InvalidNumber, buf, startpos, "number")
     end
-
-@label invalid
-    invalid(InvalidNumber, buf, startpos, "number")
+    if isfloat || (opts.allownan && T === Any)
+        return parsefloat64(buf, startpos, nextpos, len, opts.allownan)
+    end
+    overflow || return NumberResult(val), nextpos
+    # promote to BigInt
+    return parsebigint(buf, startpos, nextpos - 1), nextpos
 end
 
 # efficiently skip over a JSON value

@@ -9,8 +9,14 @@ on:
 
 jobs:
   test:
-    name: Julia ${{ matrix.version }} - ${{ matrix.os }} - ${{ matrix.arch }} - ${{ github.event_name }}
+    name: Julia ${{ matrix.version }} - ${{ matrix.os }} - ${{ matrix.arch }} - ${{ github.event_name }}${{ matrix.parsers && format(' - Parsers {0}', matrix.parsers) || '' }}
     runs-on: ${{ matrix.os }}
+    env:
+      # Arrow (test dep) -> TimeZones >= 1.6 -> InlineStrings, whose released
+      # versions cap Parsers at 2, so resolving Parsers 3 falls back to TimeZones
+      # 1.5.9, whose build step needs a single thread pool (JuliaTime/TimeZones.jl#429).
+      # Remove once InlineStrings releases its Parsers 3 support.
+      JULIA_NUM_THREADS: '1'
     strategy:
       fail-fast: false
       matrix:
@@ -30,6 +36,10 @@ jobs:
           - os: ubuntu-latest
             arch: x86
             version: 1
+          - os: ubuntu-latest
+            arch: x64
+            version: 1
+            parsers: '2'
     steps:
       - uses: actions/checkout@v7
       - uses: julia-actions/setup-julia@v3
@@ -38,6 +48,9 @@ jobs:
           arch: ${{ matrix.arch }}
       - uses: julia-actions/cache@v3
       - uses: julia-actions/julia-buildpkg@v1
+      - name: Pin Parsers ${{ matrix.parsers }}
+        if: matrix.parsers
+        run: julia --project=. -e 'using Pkg; Pkg.add(name="Parsers", version="${{ matrix.parsers }}")'
       - uses: julia-actions/julia-runtest@v1
       - uses: julia-actions/julia-processcoverage@v1
       - uses: codecov/codecov-action@v7
