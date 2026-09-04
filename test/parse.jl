@@ -435,10 +435,16 @@ JSON.lift(::DateMaterializedObjectStyle, ::Type{Date}, x::JSON.Object) = Date(x[
     @test JSON.parse("9223372036854775807.0", Int64; allownan=true) === typemax(Int64)
     @test JSON.parse("-9223372036854775808.0", Int64; allownan=true) === typemin(Int64)
     @test JSON.parse("18446744073709551615.0", UInt64; allownan=true) === typemax(UInt64)
+    @test JSON.parse("1000000000000000000000000000000000000000e-39", Int64; allownan=true) === 1
+    @test JSON.parse("-1000000000000000000000000000000000000000e-39", Int64; allownan=true) === -1
     @test_throws InexactError JSON.parse("1.5", Int64; allownan=true)
     @test_throws InexactError JSON.parse("1.25e1", Int64; allownan=true)
+    @test_throws InexactError JSON.parse("1000000000000000000000000000000000000000e-40", Int64; allownan=true)
     @test_throws InexactError JSON.parse("1e1000000000", Int64; allownan=true)
     @test_throws InexactError JSON.parse("1e-1000000000", Int64; allownan=true)
+    @test_throws InexactError JSON.parse("1e-$(repeat("9", 1000))", Int64; allownan=true)
+    @test_throws InexactError JSON.parse("$(repeat("9", 1000))e-1", Int64; allownan=true)
+    @test_throws InexactError JSON.parse("$(repeat("9", 40))e-$(repeat("9", 1000))", Int64; allownan=true)
     @test_throws InexactError JSON.parse("1e1000000000", BigInt; allownan=true)
     @test JSON.parse("{\"a\":$(typemax(Int64))}", TestAllownanInt; allownan=true).a === typemax(Int64)
     # jsonlines support
