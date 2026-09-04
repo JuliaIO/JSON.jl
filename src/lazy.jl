@@ -587,8 +587,23 @@ isbigfloat(x::NumberResult) = x.tag == BIGFLOAT
     b = getbyte(buf, pos)
     startpos = pos
     isneg = isfloat = overflow = false
-    if !opts.allownan
+    if opts.allownan
+        # If this doesn't start like an integer, let Parsers handle
+        # NaN/Inf/-Inf and the configured special values.
+        if b == UInt8('-') || b == UInt8('+')
+            if pos == len
+                error = UnexpectedEOF
+                @goto invalid
+            end
+            b = getbyte(buf, pos + 1)
+            isfloat = !(UInt8('0') <= b <= UInt8('9'))
+        else
+            isfloat = !(UInt8('0') <= b <= UInt8('9'))
+        end
+    end
+    if !isfloat
         val = Int64(0)
+        b = getbyte(buf, pos)
         isneg = b == UInt8('-')
         if isneg || b == UInt8('+') # spec doesn't allow leading +, but we do
             pos += 1
@@ -652,7 +667,8 @@ isbigfloat(x::NumberResult) = x.tag == BIGFLOAT
             end
         end
     end
-    if isfloat || opts.allownan
+
+    if isfloat
         if opts.allownan
             # check for NaN, Inf, -Inf
             @check_special(opts.nan, NaN)
