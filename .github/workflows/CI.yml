@@ -11,6 +11,11 @@ jobs:
   test:
     name: Julia ${{ matrix.version }} - ${{ matrix.os }} - ${{ matrix.arch }} - ${{ github.event_name }}
     runs-on: ${{ matrix.os }}
+    env:
+      # Arrow -> TimeZones >=1.6 -> InlineStrings currently requires Parsers 2.
+      # Parsers 3 therefore resolves TimeZones 1.5.9, whose build step fails when
+      # Julia uses multiple thread pools (JuliaTime/TimeZones.jl#429).
+      JULIA_NUM_THREADS: '1'
     strategy:
       fail-fast: false
       matrix:
