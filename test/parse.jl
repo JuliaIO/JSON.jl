@@ -422,7 +422,7 @@ JSON.lift(::DateMaterializedObjectStyle, ::Type{Date}, x::JSON.Object) = Date(x[
     # allownan=true materializes all numbers as Float64 when no type is requested...
     @test JSON.parse("1"; allownan=true) === 1.0
     @test JSON.parse("[1,2.5]"; allownan=true) == [1.0, 2.5]
-    @test JSON.parse("[1]", Vector{Any}; allownan=true) == [1.0]
+    @test only(JSON.parse("[1]", Vector{Any}; allownan=true)) === 1.0
     @test JSON.parse("1", Float64; allownan=true) === 1.0
     @test JSON.parse("[1,2]", Vector{Float64}; allownan=true) == [1.0, 2.0]
     # ...but a requested type parses the token exactly (#478)
@@ -430,6 +430,16 @@ JSON.lift(::DateMaterializedObjectStyle, ::Type{Date}, x::JSON.Object) = Date(x[
     @test JSON.parse(string(typemin(Int64)), Int64; allownan=true) === typemin(Int64)
     @test JSON.parse(string(typemax(UInt64)), UInt64; allownan=true) === typemax(UInt64)
     @test JSON.parse(string(typemax(Int128)), Int128; allownan=true) === typemax(Int128)
+    @test JSON.parse("9007199254740993e0", Int64; allownan=true) === Int64(9007199254740993)
+    @test JSON.parse("[9007199254740993e0]", Vector{Int64}; allownan=true) == Int64[9007199254740993]
+    @test JSON.parse("9223372036854775807.0", Int64; allownan=true) === typemax(Int64)
+    @test JSON.parse("-9223372036854775808.0", Int64; allownan=true) === typemin(Int64)
+    @test JSON.parse("18446744073709551615.0", UInt64; allownan=true) === typemax(UInt64)
+    @test JSON.parse("1.25e2", BigInt; allownan=true) == big(125)
+    @test_throws InexactError JSON.parse("1.5", Int64; allownan=true)
+    @test_throws InexactError JSON.parse("1.25e1", Int64; allownan=true)
+    @test_throws InexactError JSON.parse("1e1000000000", Int64; allownan=true)
+    @test_throws InexactError JSON.parse("1e-1000000000", Int64; allownan=true)
     @test JSON.parse("{\"a\":$(typemax(Int64))}", TestAllownanInt; allownan=true).a === typemax(Int64)
     # jsonlines support
     @test JSON.parse("1"; jsonlines=true) == [1]
