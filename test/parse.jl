@@ -705,7 +705,9 @@ JSON.lift(::DateMaterializedObjectStyle, ::Type{Date}, x::JSON.Object) = Date(x[
 
         if JSON._PARSERS_V3
             f32source = "1.000000059604644830901776231257827021181583404541015625"
-            expected32 = Base.parse(Float32, f32source)
+            # The source is just above the midpoint between 1.0f0 and its successor.
+            # Base.parse(Float32, ...) does not round this consistently across platforms.
+            expected32 = nextfloat(1.0f0)
             @test expected32 != Float32(Base.parse(Float64, f32source))
             @test JSON.parse(f32source, Float32) === expected32
             @test JSON.parse(Vector{UInt8}(codeunits(f32source)), Float32) === expected32
