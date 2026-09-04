@@ -54,7 +54,7 @@ In this example, we only parsed as much of the `very_large_json_object` as was r
 Then we fully materialized `y` into `z`, which is now a normal Julia object. We can now mutate or access values in `z`.
 
 Currently supported keyword arguments include:
-  - `allownan::Bool = false`: whether "special" float values shoudl be allowed while parsing (`NaN`, `Inf`, `-Inf`); these values are specifically _not allowed_ in the JSON spec, but many JSON libraries allow reading/writing. When `true`, untyped numbers are parsed as `Float64`. A requested integer type is parsed exactly from the number token
+  - `allownan::Bool = false`: whether "special" float values shoudl be allowed while parsing (`NaN`, `Inf`, `-Inf`); these values are specifically _not allowed_ in the JSON spec, but many JSON libraries allow reading/writing. When `true`, untyped numbers are parsed as `Float64`. A requested fixed-width integer type of up to 128 bits is parsed exactly from the number token
   - `ninf::String = "-Infinity"`: the string that will be used to parse `-Inf` if `allownan=true`
   - `inf::String = "Infinity"`: the string that will be used to parse `Inf` if `allownan=true`
   - `nan::String = "NaN"`: the string that will be sued to parse `NaN` if `allownan=true`
@@ -688,10 +688,9 @@ else
     @inline exactintegerend(buf, first, nextpos, len) = nextpos
 end
 
-# Convert a validated decimal or exponent token to an exact integer. This avoids
-# losing precision by first materializing the token as Float64.
-function parseexactinteger(buf, first, nextpos, len, ::Type{T}) where {T}
-    nextpos = exactintegerend(buf, first, nextpos, len)
+# BigInt fallback for tokens whose coefficient does not fit in UInt128. This is
+# only needed when a large coefficient is reduced by a negative decimal scale.
+function parseexactintegerbig(buf, first, nextpos, ::Type{T}) where {T}
     pos = first
     b = getbyte(buf, pos)
     isneg = b == UInt8('-')
@@ -733,11 +732,9 @@ function parseexactinteger(buf, first, nextpos, len, ::Type{T}) where {T}
     iszero(coefficient) && return NumberResult(coefficient), nextpos
     scale = exponent - fractiondigits
     if scale >= 0
-        if isconcretetype(T) && T !== BigInt
-            maxmagnitude = max(abs(BigInt(typemin(T))), abs(BigInt(typemax(T))))
-            ndigits(coefficient) + scale <= ndigits(maxmagnitude) ||
-                throw(InexactError(:parse, T, coefficient))
-        end
+        maxmagnitude = max(abs(BigInt(typemin(T))), abs(BigInt(typemax(T))))
+        ndigits(coefficient) + scale <= ndigits(maxmagnitude) ||
+            throw(InexactError(:parse, T, coefficient))
         scale <= typemax(Int) || throw(OverflowError("JSON integer exponent is too large"))
         coefficient *= big(10)^Int(scale)
     else
@@ -751,9 +748,99 @@ function parseexactinteger(buf, first, nextpos, len, ::Type{T}) where {T}
     return NumberResult(coefficient), nextpos
 end
 
+# Convert a validated decimal or exponent token to an exact fixed-width integer.
+# UInt128 keeps the common path allocation-free; unusually long coefficients
+# fall back to BigInt only when a negative scale can reduce them to fit.
+function parseexactinteger(buf, first, nextpos, len, ::Type{T}) where {T}
+    nextpos = exactintegerend(buf, first, nextpos, len)
+    pos = first
+    b = getbyte(buf, pos)
+    isneg = b == UInt8('-')
+    if isneg || b == UInt8('+')
+        pos += 1
+    end
+
+    coefficient = UInt128(0)
+    fractiondigits = 0
+    infraction = false
+    while pos < nextpos
+        b = getbyte(buf, pos)
+        if UInt8('0') <= b <= UInt8('9')
+            digit = UInt128(b - UInt8('0'))
+            coefficient <= div(typemax(UInt128) - digit, 10) ||
+                return parseexactintegerbig(buf, first, nextpos, T)
+            coefficient = coefficient * 10 + digit
+            infraction && (fractiondigits += 1)
+        elseif b == UInt8('.')
+            infraction = true
+        else
+            break
+        end
+        pos += 1
+    end
+
+    iszero(coefficient) && return NumberResult(Int64(0)), nextpos
+    exponent = 0
+    if pos < nextpos
+        pos += 1 # skip 'e' or 'E'
+        b = getbyte(buf, pos)
+        expneg = b == UInt8('-')
+        if expneg || b == UInt8('+')
+            pos += 1
+        end
+        # A UInt128 coefficient cannot survive an absolute decimal scale of 39.
+        # Saturating here prevents exponent text from overflowing Int.
+        explimit = expneg ? 39 : min(fractiondigits, typemax(Int) - 39) + 39
+        while pos < nextpos
+            digit = Int(getbyte(buf, pos) - UInt8('0'))
+            if exponent > div(explimit - digit, 10)
+                exponent = explimit
+                break
+            end
+            exponent = exponent * 10 + digit
+            pos += 1
+        end
+        expneg && (exponent = -exponent)
+    end
+
+    scale = exponent - fractiondigits
+    if scale >= 0
+        scale < 39 || throw(InexactError(:parse, T, coefficient))
+        for _ = 1:scale
+            coefficient <= div(typemax(UInt128), 10) ||
+                throw(InexactError(:parse, T, coefficient))
+            coefficient *= 10
+        end
+    else
+        -scale < 39 || throw(InexactError(:parse, T, coefficient))
+        divisor = UInt128(1)
+        for _ = 1:-scale
+            divisor *= 10
+        end
+        quotient, remainder = divrem(coefficient, divisor)
+        iszero(remainder) || throw(InexactError(:parse, T, coefficient))
+        coefficient = quotient
+    end
+
+    limit = if isneg
+        T <: Signed ? UInt128(typemax(T)) + 1 : UInt128(0)
+    else
+        UInt128(typemax(T))
+    end
+    coefficient <= limit || throw(InexactError(:parse, T, coefficient))
+    if coefficient <= UInt128(typemax(Int64))
+        val = Int64(coefficient)
+        return NumberResult(isneg ? -val : val), nextpos
+    elseif isneg && coefficient == UInt128(typemax(Int64)) + 1
+        return NumberResult(typemin(Int64)), nextpos
+    end
+    return NumberResult(isneg ? -BigInt(coefficient) : BigInt(coefficient)), nextpos
+end
+
 # `T` is the type requested for this value (`Number` when materializing untyped);
 # with `allownan=true`, untyped numbers materialize as `Float64`, while a
-# requested integer type is converted exactly from the number token
+# requested fixed-width integer type up to 128 bits is converted exactly from
+# the number token
 @inline function parsenumber(x::LazyValue, ::Type{T}=Any) where {T}
     buf = getbuf(x)
     startpos::Int = getpos(x)
@@ -776,7 +863,9 @@ end
         end
         invalid(InvalidNumber, buf, startpos, "number")
     end
-    if isfloat && opts.allownan && T <: Integer
+    exactint = isbitstype(T) && sizeof(T) <= sizeof(UInt128) &&
+        (T === Bool || T <: Signed || T <: Unsigned)
+    if isfloat && opts.allownan && exactint
         return parseexactinteger(buf, startpos, nextpos, len, T)
     elseif isfloat || (opts.allownan && (T === Any || T === Number))
         return parsefloat64(buf, startpos, nextpos, len, opts.allownan)
