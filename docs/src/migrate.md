@@ -22,10 +22,11 @@ There are six observable corrections:
   `-0e291` that lost the sign on the Parsers 2 compatibility path.
 - Long finite decimals now use correct Base-compatible rounding. This also
   avoids rare Parsers 1/2 failures and wrong results on valid JSON numbers.
-- Supported built-in typed numeric targets use the original token bytes with
-  Parsers 3. This avoids intermediate `Float64` rounding for `Float32` and
-  `BigFloat`. Custom `StructUtils` styles and field lifts keep the prior
-  adaptive conversion path.
+- Parsers 3 converts built-in floating-point targets from the original token
+  bytes. This avoids intermediate rounding for `Float16`, `Float32`, and
+  `BigFloat`. It also converts integer spellings directly for built-in integer
+  targets. Custom `StructUtils` styles, field lifts, and decimal or exponent
+  spellings requested as integers keep the prior adaptive conversion path.
 
 On the Parsers 1 and 2 compatibility paths, JSON gives validated finite float
 and overflowed integer spans to Base. A byte-vector input therefore needs a

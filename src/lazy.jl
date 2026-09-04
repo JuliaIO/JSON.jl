@@ -588,6 +588,16 @@ isbigfloat(x::NumberResult) = x.tag == BIGFLOAT
     return pos + n
 end
 
+@inline function _configuredspecial(buf, pos::Int, len::Int, opts::LazyOptions)
+    nextpos = _specialend(buf, pos, len, opts.nan)
+    nextpos != 0 && return NaN, nextpos
+    nextpos = _specialend(buf, pos, len, opts.inf)
+    nextpos != 0 && return Inf, nextpos
+    nextpos = _specialend(buf, pos, len, opts.ninf)
+    nextpos != 0 && return -Inf, nextpos
+    return nothing
+end
+
 @inline function _parselegacyspecial(buf, startpos::Int, len::Int)
     pos = startpos
     @inbounds if getbyte(buf, pos) == UInt8('-') || getbyte(buf, pos) == UInt8('+')
@@ -602,7 +612,8 @@ end
     end
     pos == wordstart && return nothing
     value = Base.tryparse(Float64, _numberspan(buf, startpos, pos - 1))
-    (value !== nothing && !isfinite(value)) || return nothing
+    value === nothing && return nothing
+    isfinite(value) && return nothing
     return NumberResult(value), pos
 end
 
@@ -663,7 +674,14 @@ end
     return pos, isfloat
 end
 
-@static if isdefined(Parsers, :parsenext)
+@noinline function _legacyintegerfallback(buf, startpos::Int, last::Int)
+    value = Base.tryparse(BigInt, _numberspan(buf, startpos, last))
+    value === nothing && return nothing
+    value == typemin(Int64) && return NumberResult(typemin(Int64))
+    return NumberResult(value)
+end
+
+@static if _PARSERS_V3
     @inline function _parsefinitenumber(buf, startpos::Int, nextpos::Int, isfloat::Bool)
         bytes = _numberbytes(buf)
         last = nextpos - 1
@@ -702,10 +720,7 @@ elseif isdefined(Parsers, :xparse2)
         if !Parsers.invalid(res.code) && Int(res.tlen) == span
             return NumberResult(res.val)
         end
-        value = Base.tryparse(BigInt, _numberspan(buf, startpos, last))
-        value === nothing && return nothing
-        value == typemin(Int64) && return NumberResult(typemin(Int64))
-        return NumberResult(value)
+        return _legacyintegerfallback(buf, startpos, last)
     end
 
     @inline _parsenativespecial(buf, startpos::Int, len::Int) =
@@ -728,10 +743,7 @@ else
         if Parsers.ok(code) && vpos == startpos && vlen == span && tlen == span
             return NumberResult(value)
         end
-        value = Base.tryparse(BigInt, _numberspan(buf, startpos, last))
-        value === nothing && return nothing
-        value == typemin(Int64) && return NumberResult(typemin(Int64))
-        return NumberResult(value)
+        return _legacyintegerfallback(buf, startpos, last)
     end
 
     @inline _parsenativespecial(buf, startpos::Int, len::Int) =
@@ -745,12 +757,8 @@ end
     opts = getopts(x)
 
     if opts.allownan
-        pos = _specialend(buf, startpos, len, opts.nan)
-        pos != 0 && return NumberResult(NaN), pos
-        pos = _specialend(buf, startpos, len, opts.inf)
-        pos != 0 && return NumberResult(Inf), pos
-        pos = _specialend(buf, startpos, len, opts.ninf)
-        pos != 0 && return NumberResult(-Inf), pos
+        special = _configuredspecial(buf, startpos, len, opts)
+        special === nothing || return NumberResult(special[1]), special[2]
     end
 
     nextpos, isfloat = _numbertoken(buf, startpos, len)

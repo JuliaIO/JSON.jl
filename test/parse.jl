@@ -15,6 +15,10 @@ struct SpecialIntField
     value::Int
 end
 
+struct AllownanIntField
+    a::Int64
+end
+
 struct A
     a::Int
     b::Int
@@ -429,11 +433,17 @@ JSON.lift(::DateMaterializedObjectStyle, ::Type{Date}, x::JSON.Object) = Date(x[
     @test JSON.parse("custom-inf"; inf="custom-inf", allownan=true) === Inf
     @test JSON.parse("Inf"; inf="custom-inf", allownan=true) === Inf
     @test_throws ArgumentError JSON.parse("+1"; allownan=true)
+    @test_throws ArgumentError JSON.parse("-"; allownan=true)
     @test JSON.parse(string(typemax(Int64)); allownan=true) === typemax(Int64)
+    @test JSON.parse(string(typemin(Int64)); allownan=true) === typemin(Int64)
     @test JSON.parse("9007199254740993"; allownan=true) === Int64(9007199254740993)
     @test JSON.parse(string(typemax(Int64)), Int64; allownan=true) === typemax(Int64)
     @test JSON.parse(string(typemax(Int128)), Int128; allownan=true) === typemax(Int128)
     @test JSON.parse(string(typemax(UInt64)), UInt64; allownan=true) === typemax(UInt64)
+    expected = AllownanIntField(typemax(Int64))
+    file = makefile("allownan-typemax.json", "")
+    JSON.json(file, expected; allownan=true)
+    @test JSON.parsefile(file, AllownanIntField; allownan=true) == expected
     # jsonlines support
     @test JSON.parse("1"; jsonlines=true) == [1]
     @test JSON.parse("1 \t"; jsonlines=true) == [1]
@@ -701,7 +711,12 @@ JSON.lift(::DateMaterializedObjectStyle, ::Type{Date}, x::JSON.Object) = Date(x[
             @test JSON.parse(Vector{UInt8}(codeunits(f32source)), Float32) === expected32
 
             f16source = "1.0004882812500000000000000000000000000000000000000000001"
-            @test JSON.parse(f16source, Float16) === Base.parse(Float16, f16source)
+            expected16 = setprecision(BigFloat, 256) do
+                Float16(Base.parse(BigFloat, f16source))
+            end
+            @test expected16 != Base.parse(Float16, f16source)
+            @test JSON.parse(f16source, Float16) === expected16
+            @test JSON.parse(Vector{UInt8}(codeunits(f16source)), Float16) === expected16
 
             setprecision(BigFloat, 256) do
                 source = "0.1000000000000000000000000000000000000000000000000000001"

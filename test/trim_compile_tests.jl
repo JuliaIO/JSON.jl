@@ -15,12 +15,15 @@ function _prepare_trim_project(project_path::String, trim_project::String)::Noth
     mkpath(trim_project)
     cp(joinpath(@__DIR__, "trim", "Project.toml"), joinpath(trim_project, "Project.toml"))
     original_project = Base.active_project()
+    parsers_uuid = Base.UUID("69de0a69-1ddd-5017-9359-2bf0b02dc9f0")
+    parsers_version = Pkg.dependencies()[parsers_uuid].version
     try
         Pkg.activate(trim_project)
+        Pkg.add(Pkg.PackageSpec(name = "Parsers", version = parsers_version))
         Pkg.develop(Pkg.PackageSpec(path = project_path))
-        parsers_path = get(ENV, "JSON_TEST_PARSERS_PATH", "")
-        isempty(parsers_path) || Pkg.develop(Pkg.PackageSpec(path = parsers_path))
         Pkg.instantiate()
+        resolved = Pkg.dependencies()[parsers_uuid].version
+        resolved == parsers_version || error("expected Parsers $parsers_version, resolved $resolved")
     finally
         if original_project !== nothing
             Pkg.activate(dirname(original_project))

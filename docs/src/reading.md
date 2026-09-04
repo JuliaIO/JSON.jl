@@ -261,12 +261,13 @@ date = JSON.parse("\"2023-05-08\"", Date)
 # Date("2023-05-08")
 ```
 
-With Parsers 3 on Julia 1.10 or later, supported built-in numeric targets are
-converted from the original JSON token bytes. In particular, `Float32` and
-`BigFloat` do not pass through an intermediate `Float64`. Numeric fields with
-a custom `StructUtils` style or field tag keep the adaptive value-and-lift
-path, so existing custom conversions continue to receive `Int64`, `BigInt`,
-`Float64`, or `BigFloat` values.
+With Parsers 3 on Julia 1.10 or later, built-in floating-point targets are
+converted from the original JSON token bytes. In particular, `Float16`,
+`Float32`, and `BigFloat` do not pass through an intermediate float. Integer
+spellings are also converted directly for built-in integer targets. Numeric
+fields with a custom `StructUtils` style or field tag keep the adaptive
+value-and-lift path. Decimal or exponent spellings requested as integers also
+keep that path for compatibility.
 
 ### Type conversions and handling nulls
 
