@@ -471,7 +471,7 @@ function StructUtils.lift(style::JSONReadStyle, ::Type{T}, x::LazyValues, tags=(
         end
         return str, pos
     elseif type == JSONTypes.NUMBER
-        num, pos = parsenumber(x)
+        num, pos = parsenumber(x, T)
         if isint(num)
             T === Int64 && return num.int, pos
             int, _ = StructUtils.lift(style, T, num.int, tags)

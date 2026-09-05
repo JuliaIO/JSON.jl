@@ -25,7 +25,7 @@ The core JSON parsing machinery is hence built around having an `AbstractVector{
 
 Each entrypoint function first calls [`JSON.lazy`](@ref), which will consume the JSON input until the type of the next JSON value can be identified (`{` for objects, `[` for arrays, `"` for strings, `t` for true, `f` for false, `n` for null, and `-` or a digit for numbers). [`JSON.lazy`](@ref) returns a [`JSON.LazyValue`](@ref), which wraps the JSON input buffer (`AbstractVector{UInt8}` or `AbstractString`), and marks the byte position the value starts at, the type of the value, and any keyword arguments that were provided that may affect parsing. Currently supported parsing-specific keyword arguments to [`JSON.lazy`](@ref) (and thus all other entrypoint functions) include:
 
-  - `allownan::Bool = false`: whether "special" float values shoudl be allowed while parsing (`NaN`, `Inf`, `-Inf`); these values are specifically _not allowed_ in the JSON spec, but many JSON libraries allow reading/writing
+  - `allownan::Bool = false`: whether "special" float values shoudl be allowed while parsing (`NaN`, `Inf`, `-Inf`); these values are specifically _not allowed_ in the JSON spec, but many JSON libraries allow reading/writing. When `true`, untyped numbers are parsed as `Float64`. A requested fixed-width integer type of up to 128 bits is parsed exactly from the number token
   - `ninf::String = "-Infinity"`: the string that will be used to parse `-Inf` if `allownan=true`
   - `inf::String = "Infinity"`: the string that will be used to parse `Inf` if `allownan=true`
   - `nan::String = "NaN"`: the string that will be sued to parse `NaN` if `allownan=true`

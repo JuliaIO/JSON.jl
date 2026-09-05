@@ -9,7 +9,7 @@ on:
 
 jobs:
   test:
-    name: Julia ${{ matrix.version }} - ${{ matrix.os }} - ${{ matrix.arch }} - ${{ github.event_name }}
+    name: Julia ${{ matrix.version }} - ${{ matrix.os }} - ${{ matrix.arch }} - ${{ github.event_name }} - Parsers ${{ matrix.parsers }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -23,13 +23,21 @@ jobs:
           - windows-latest
         arch:
           - x64
+        parsers:
+          - '3'
         include:
           - os: macOS-latest
             arch: aarch64
             version: 1
+            parsers: '3'
           - os: ubuntu-latest
             arch: x86
             version: 1
+            parsers: '3'
+          - os: ubuntu-latest
+            arch: x64
+            version: 1
+            parsers: '2.8.8'
     steps:
       - uses: actions/checkout@v7
       - uses: julia-actions/setup-julia@v3
@@ -38,6 +46,8 @@ jobs:
           arch: ${{ matrix.arch }}
       - uses: julia-actions/cache@v3
       - uses: julia-actions/julia-buildpkg@v1
+      - name: Pin Parsers ${{ matrix.parsers }}
+        run: julia --project=. -e 'using Pkg; Pkg.add(name="Parsers", version="${{ matrix.parsers }}"); Pkg.pin("Parsers")'
       - uses: julia-actions/julia-runtest@v1
       - uses: julia-actions/julia-processcoverage@v1
       - uses: codecov/codecov-action@v7
