@@ -1,6 +1,9 @@
 struct NotSet end
 const notset = NotSet()
 
+# empty Object: key, value, child all notset
+# root Object: key, value are notset, child is defined
+# non-root Object: key, value are set, child is notset for last node
 """
     JSON.Object{K,V}
 
@@ -11,9 +14,6 @@ Because of the linked-list representation, key lookups are O(n), using a simple 
 For small objects, this is very efficient, and worth the memory overhead vs. a full `Dict` or `OrderedDict`.
 For Objects with many entries (hundreds or thousands), this is not as efficient. In that case, consider using a `Dict` or `OrderedDict` instead.
 """
-# empty Object: key, value, child all notset
-# root Object: key, value are notset, child is defined
-# non-root Object: key, value are set, child is notset for last node
 mutable struct Object{K,V} <: AbstractDict{K,V}
     key::Union{NotSet, K} # for root object, key/value are notset
     value::Union{NotSet, V}
