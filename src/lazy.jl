@@ -919,7 +919,7 @@ end
         (T === Bool || T <: Signed || T <: Unsigned)
     if isfloat && opts.allownan && exactint
         return parseexactinteger(buf, startpos, nextpos, len, T)
-    elseif isfloat || (opts.allownan && (T === Any || T === Number))
+    elseif isfloat || (opts.allownan && !(T <: Integer))
         return parsefloat64(buf, startpos, nextpos, len, opts.allownan)
     end
     overflow || return NumberResult(val), nextpos
