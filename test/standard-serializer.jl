@@ -70,3 +70,21 @@ end
     @test json(Set()) == "[]"
     @test json(Set([1, 2])) in ["[1,2]", "[2,1]"]
 end
+
+@testset "Invalid UTF-8 bytes" begin
+    # `ESCAPED_ARRAY` is indexed with `byte + 1`. Computing that in `UInt8`
+    # wraps `0xff` around to `0x00`, which is an out-of-bounds index.
+    #
+    # Bytes >= 0x80 are copied verbatim, so the serialized form is the raw byte
+    # between two quotes -- note `Char(0xff)` would re-encode as two UTF-8 bytes
+    # and is *not* what gets written.
+    quoted(byte) = String(UInt8[UInt8('"'), byte, UInt8('"')])
+
+    for byte in 0x80:0xff
+        @test codeunits(json(String([byte]))) == codeunits(quoted(byte))
+    end
+
+    @test codeunits(json(Dict("k" => String([0xff])))) ==
+        codeunits(String(UInt8[UInt8('{'), UInt8('"'), UInt8('k'), UInt8('"'), UInt8(':'),
+                               UInt8('"'), 0xff, UInt8('"'), UInt8('}')]))
+end
