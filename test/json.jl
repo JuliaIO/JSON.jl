@@ -304,8 +304,13 @@ end
         @test JSON.json(x; omit_null=false) == "{\"id\":1,\"forced\":null,\"passthrough\":null}"
     end
     # custom style overload
-    JSON.lower(::CustomJSONStyle, x::Rational) = (num=x.num, den=x.den)
-    @test JSON.json(1//3; style=CustomJSONStyle()) == "{\"num\":1,\"den\":3}"
+    # Rational lowers to its num/den pair by default, so it round-trips exactly
+    @test JSON.json(1//3) == "{\"num\":1,\"den\":3}"
+    @test JSON.json(3//4) == "{\"num\":3,\"den\":4}"
+    @test JSON.json(-1//3) == "{\"num\":-1,\"den\":3}"
+    # ...and a custom style can still override that back to a float
+    JSON.lower(::CustomJSONStyle, x::Rational) = float(x)
+    @test JSON.json(1//3; style=CustomJSONStyle()) == "0.3333333333333333"
     # @omit_null and @omit_empty
     @test JSON.json(OmitNull(1, nothing)) == "{\"id\":1}"
     @test JSON.json(OmitNull(1, nothing); omit_null=false) == "{\"id\":1,\"name\":null}"

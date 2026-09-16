@@ -43,7 +43,7 @@ This guide provides an overview of how to migrate your code from either the pre-
     - Still used to transform Julia values into JSON-appropriate values
   - What changed:
     - `lower` technically now lives in the StructUtils.jl package (though overloading in JSON is fine)
-    - Can overload for a specific "style" for non-owned types, like `struct MyStyle <: JSON.JSONStyle end`, then `JSON.lower(::MyStyle, x::Rational) = (den=x.den, num=x.num)`, then have the style used when writing like `JSON.json(1//3; style=MyStyle())`
+    - Can overload for a specific "style" for non-owned types, like `struct MyStyle <: JSON.JSONStyle end`, then `JSON.lower(::MyStyle, x::Rational) = float(x)`, then have the style used when writing like `JSON.json(1//3; style=MyStyle())`
     - Probably don't need to `lower` except in rare cases; there are default `lower` defintions for common types and most structs/AbstractDict/AbstractArray will work out of the box; `lower` is mostly useful when wanting to have the JSON output of a struct be a string or a number, for example, so going between aggregate/non-aggregate from Julia to JSON
   - Why the changes:
     - Along with the new corresponding `lift` interface, the `lower` + `lift` combination is a powerful generalization of doing "domain transformations"
