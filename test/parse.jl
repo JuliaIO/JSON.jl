@@ -9,6 +9,11 @@ struct TestAllownanInt
     a::Int64
 end
 
+struct RationalHolder
+    r::Rational{Int}
+end
+Base.:(==)(a::RationalHolder, b::RationalHolder) = a.r == b.r
+
 struct A
     a::Int
     b::Int
@@ -902,6 +907,16 @@ JSON.lift(::DateMaterializedObjectStyle, ::Type{Date}, x::JSON.Object) = Date(x[
     @test fr.percentages == Dict(Percent(0.2) => 2, Percent(0.1) => 1)
     @test fr.json_properties == JSONText("{\"key\": \"value\"}")
     @test fr.matrix == [1.0 3.0; 2.0 4.0]
+    # Rational now writes the num/den pair reading already expected, so it round-trips
+    # exactly. Going via a float is lossy: 1//3 came back as
+    # 6004799503160661//18014398509481984.
+    for r in (1//3, 3//4, -1//3, 0//1, 7//1)
+        @test JSON.parse(JSON.json(r), Rational{Int}) === r
+    end
+    @test JSON.parse("{\"num\":3,\"den\":4}", Rational{Int}) === 3//4
+    @test JSON.parse(JSON.json(RationalHolder(1//3)), RationalHolder) == RationalHolder(1//3)
+    # Complex is likewise multi-component and unchanged
+    @test JSON.parse(JSON.json(Complex(1.0, 2.0)), Complex{Float64}) === Complex(1.0, 2.0)
     # test custom JSONStyle overload
     JSON.lift(::CustomJSONStyle, ::Type{Rational}, x) = Rational(x.num[], x.den[])
     @test JSON.parse("{\"num\": 1,\"den\":3}", Rational; style=CustomJSONStyle()) == 1//3

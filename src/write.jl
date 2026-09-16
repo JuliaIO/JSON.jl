@@ -130,6 +130,10 @@ StructUtils.lower(::JSONStyle, x::Dates.Time) = _lowertime(x)
 StructUtils.lower(::JSONStyle, x::Dates.DateTime) = _lowerdatetime(x)
 StructUtils.lower(::JSONStyle, x::Regex) = x.pattern
 StructUtils.lower(::JSONStyle, x::Complex) = (re=real(x), im=imag(x))
+# A Rational has no exact JSON number form: going through a float loses the value
+# (1//3 reads back as 6004799503160661//18014398509481984), so serialize the pair that
+# reading already expects. `lower` on a custom style restores a float if wanted.
+StructUtils.lower(::JSONStyle, x::Rational) = (num=x.num, den=x.den)
 StructUtils.lower(::JSONStyle, x::AbstractArray{<:Any,0}) = x[1]
 StructUtils.lower(::JSONStyle, x::AbstractArray{<:Any, N}) where {N} = (view(x, ntuple(_ -> :, N - 1)..., j) for j in axes(x, N))
 StructUtils.lower(::JSONStyle, x::AbstractVector) = x
@@ -414,8 +418,8 @@ All methods accept the following keyword arguments:
 
 - `style::JSONStyle=JSONWriteStyle()`: Custom style object that controls serialization behavior. This allows customizing
     certain aspects of serialization, like defining a custom `lower` method for a non-owned type. Like `struct MyStyle <: JSONStyle end`,
-    `JSON.lower(x::Rational) = (num=x.num, den=x.den)`, then calling `JSON.json(1//3; style=MyStyle())` will output
-    `{"num": 1, "den": 3}`.
+    `JSON.lower(::MyStyle, x::Rational) = float(x)`, then calling `JSON.json(1//3; style=MyStyle())` will output
+    `0.3333333333333333` instead of the default `{"num":1,"den":3}`.
 
 By default, `x` must be a JSON-serializable object. Supported types include:
   * `AbstractString` => JSON string: types must support the `AbstractString` interface, specifically with support for
