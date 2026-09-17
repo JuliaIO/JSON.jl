@@ -988,3 +988,24 @@ end
     @test !JSON.isvalidjson(input; duplicate_keys=:error)
     @test_throws ArgumentError JSON.parse("{}"; duplicate_keys=:keep_first)
 end
+
+@testset "Any and Object targets materialize like the untyped parse" begin
+    s = "{\"i\":1,\"f\":1.5,\"s\":\"x\",\"t\":true,\"n\":null,\"a\":[1,{\"b\":2}],\"big\":123456789012345678901234567890,\"bf\":1e400}"
+    x = JSON.parse(s, Any)
+    @test x == JSON.parse(s)
+    @test x isa JSON.Object{String,Any}
+    @test map(k -> typeof(x[k]), ["i", "f", "s", "t", "n", "a", "big", "bf"]) ==
+          [Int64, Float64, String, Bool, Nothing, Vector{Any}, BigInt, BigFloat]
+    @test x["a"][2] isa JSON.Object{String,Any}
+    # the style's object type and null value apply below an `Any` slot
+    @test JSON.parse(s, Any; dicttype=Dict{String,Any}) == JSON.parse(s; dicttype=Dict{String,Any})
+    @test JSON.parse(s, Dict{String,Any}; dicttype=Dict{String,Any})["a"][2] isa Dict{String,Any}
+    @test JSON.parse("[null]", Vector{Any}; null=missing)[1] === missing
+    # an Object target appends in order and keeps the duplicate-key policy
+    @test JSON.parse(s, JSON.Object{String,Any}) == JSON.parse(s)
+    @test JSON.parse("{\"a\":1,\"a\":2}", JSON.Object{String,Any}) == JSON.Object("a" => 2)
+    @test_throws JSON.DuplicateKeyError JSON.parse("{\"a\":1,\"a\":2}", JSON.Object{String,Any}; duplicate_keys=:error)
+    @test JSON.parse("{\"a\":1,\"a\":2}", Dict{String,Any}) == Dict("a" => 2)
+    @test_throws JSON.DuplicateKeyError JSON.parse("{\"a\":1,\"a\":2}", Dict{String,Any}; duplicate_keys=:error)
+    @test JSON.parse("[{\"a\":[{\"b\":null}]}]", Vector{JSON.Object{String,Any}}) == JSON.parse("[{\"a\":[{\"b\":null}]}]")
+end
