@@ -371,7 +371,7 @@ JSON.json(node; omit_null=false)
 
 ## Custom Dictionary Key Serialization
 
-Keys and array indices pass through `StructUtils.lowerkey`. JSON accepts a string or a real number from this hook. Its default numeric method returns the number unchanged: object keys are converted to strings when written or sorted, while unused array indices need no string allocation. Custom `lowerkey` methods still run for every key and index.
+Keys and array indices pass through `StructUtils.lowerkey`. JSON accepts a string or a real number from this hook. Its default numeric method returns the number unchanged: object keys are converted to strings when written or sorted, while unused array indices need no string allocation.
 
 For dictionaries with non-string keys, [`JSON.json`](@ref) writes quoted keys:
 
