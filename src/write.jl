@@ -178,7 +178,8 @@ end
 
 function StructUtils.applyeach(st::JSONStyle, f, x::AbstractVector{Any})
     for i in eachindex(x)
-        ret = @inbounds(isassigned(x, i)) ? _applyvalue(st, f, i, @inbounds(x[i])) : f(i, StructUtils.lower(st, nothing))
+        key = StructUtils.lowerkey(st, i)
+        ret = @inbounds(isassigned(x, i)) ? _applyvalue(st, f, key, @inbounds(x[i])) : f(key, StructUtils.lower(st, nothing))
         ret isa StructUtils.EarlyReturn && return ret
     end
     return StructUtils.defaultstate(st)
@@ -395,7 +396,10 @@ end
 
 StructUtils.lowerkey(::JSONStyle, s::AbstractString) = s
 StructUtils.lowerkey(::JSONStyle, sym::Symbol) = String(sym)
-StructUtils.lowerkey(::JSONStyle, s::Union{StringLike, Real}) = string(s)
+# Array indices also pass through this hook. Convert numeric object keys only
+# when writing or sorting them, so discarded array indices do not allocate.
+StructUtils.lowerkey(::JSONStyle, s::Real) = s
+StructUtils.lowerkey(::JSONStyle, s::StringLike) = string(s)
 StructUtils.lowerkey(::JSONStyle, x) = throw(ArgumentError("No key representation for $(typeof(x)). Define StructUtils.lowerkey(::JSON.JSONStyle, ::$(typeof(x)))"))
 """
     JSON.json(x) -> String
@@ -498,7 +502,10 @@ Circular references are tracked automatically and cycles are broken by writing `
 
 For pre-formatted JSON data as a String, use `JSONText(json)` to write the string out as-is.
 
-For `AbstractDict` objects with non-string keys, `StructUtils.lowerkey` will be called before serializing. This allows aggregate
+Keys and array indices pass through `StructUtils.lowerkey` before serializing.
+JSON accepts strings or real numbers from this hook. Numeric object keys are converted
+to strings when written or sorted; array indices are discarded without conversion.
+For `AbstractDict` objects with non-string keys, this allows aggregate
 or other types of dict keys to be converted to an appropriate string representation. See `StructUtils.liftkey`
 for the reverse operation, which is called when parsing JSON data back into a dict type.
 
@@ -714,7 +721,9 @@ function indent(buf, pos, ind, depth, io, bufsize)
     return pos
 end
 
-checkkey(s) = s isa AbstractString || throw(ArgumentError("Value returned from `StructUtils.lowerkey` must be a string: $(typeof(s))"))
+checkkey(s::AbstractString) = s
+checkkey(s::Real) = string(s)
+checkkey(s) = throw(ArgumentError("Value returned from `StructUtils.lowerkey` must be a string or real number: $(typeof(s))"))
 
 _sort_keys_by_default(x) = x isa Dict
 
@@ -741,10 +750,7 @@ function (f::WriteClosure{JS, arraylike, T, I})(key, val) where {JS, arraylike, 
     pos = indent(buf, pos, ind, f.depth, io, bufsize)
     # if not an array, we need to write the key + ':'
     if !arraylike
-        # skey = StructUtils.lowerkey(f.opts, key)
-        # check if the key is a string
-        checkkey(key)
-        pos = _string(buf, pos, key, io, bufsize)
+        pos = _string(buf, pos, checkkey(key), io, bufsize)
         @checkn 1
         buf[pos] = UInt8(':')
         pos += 1
@@ -843,7 +849,7 @@ function json!(buf, pos, x, opts::WriteOptions, ancestor_stack::Union{Nothing, V
             c = WriteClosure{typeof(opts), al, typeof(x), typeof(io)}(buf, Base.unsafe_convert(Ptr{Int}, ref), Base.unsafe_convert(Ptr{Bool}, wroteanyref), local_ind, depth + 1, opts, ancestor_stack, io, bufsize)
             _sort_keys = opts.sort_keys === true || (opts.sort_keys === nothing && !al && _sort_keys_by_default(x))
             if _sort_keys && !al && x isa AbstractDict
-                sorted_keys = sort!(collect(keys(x)), by=k -> StructUtils.lowerkey(opts.style, k))
+                sorted_keys = sort!(collect(keys(x)), by=k -> checkkey(StructUtils.lowerkey(opts.style, k)))
                 for k in sorted_keys
                     if valtype(x) === Any && opts.style isa JSONStyle
                         _applyvalue(opts.style, c, StructUtils.lowerkey(opts.style, k), x[k])

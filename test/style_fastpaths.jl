@@ -12,6 +12,42 @@ StructUtils.liftkey(::JSON.JSONReadStyle{O,N,CustomStyle}, ::Type{String}, x::St
 struct BareStyle <: StructUtils.StructStyle end
 StructUtils.lower(::BareStyle, x::String) = uppercase(x)
 
+struct KeyStyle <: JSON.JSONStyle
+    seen::Vector{Int}
+end
+function StructUtils.lowerkey(st::KeyStyle, x::Int)
+    push!(st.seen, x)
+    return "key$x"
+end
+
+@testset "Every index is lowered; numeric object keys stay quoted and sorted" begin
+    for x in ([10, 20], Any[10, 20], (10, 20), (v for v in [10, 20]),
+              Union{Int,String}[10, "a"], Vector{Any}(undef, 2), Core.svec(10, 20))
+        st = KeyStyle(Int[])
+        @test JSON.json(x; style=st) == JSON.json(x)
+        @test st.seen == [1, 2]
+    end
+    st = KeyStyle(Int[])
+    @test JSON.json(Set([10]); style=st) == "[10]"
+    @test st.seen == [1]
+    for x in (Dict(2 => 20, 10 => 100), Dict{Int,Any}(2 => 20, 10 => 100))
+        @test JSON.json(x) == "{\"10\":100,\"2\":20}"
+        @test JSON.json(x; style=KeyStyle(Int[])) == "{\"key10\":100,\"key2\":20}"
+        for sort_keys in (true, false)
+            @test JSON.parse(JSON.json(x; sort_keys), typeof(x)) == x
+        end
+    end
+    for k in (true, Int32(2), big(2), 1.5, big"1.5", 1//2, Inf, NaN)
+        @test JSON.json(Dict(k => 1)) == "{" * JSON.json(string(k)) * ":1}"
+        @test JSON.json([k => 1]) == "{" * JSON.json(string(k)) * ":1}"
+    end
+    # Mixed numeric/string keys must still sort by their serialized spelling.
+    @test JSON.json(Dict{Any,Any}(2 => 1, "10" => 2, :a => 3)) == "{\"10\":2,\"2\":1,\"a\":3}"
+    substring = SubString("_key_", 2, 4)
+    @test JSON.checkkey(substring) === substring
+    @test JSON.json(Dict(substring => 1)) == "{\"key\":1}"
+end
+
 struct ValueStyle <: JSON.JSONStyle end
 for T in (Nothing, Missing, Bool, Int64, Float64, BigInt, BigFloat)
     @eval JSON.lower(::ValueStyle, x::$T) = string(typeof(x))

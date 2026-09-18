@@ -43,6 +43,7 @@ JSON.applyany(::TrimJSONStyle, f, key, @nospecialize(value)) =
     throw(ArgumentError("unsupported JSON value"))
 
 function exercise_nested_any()::Nothing
+    checked(JSON.json(Dict(2 => 20, 10 => 100)) == "{\"10\":100,\"2\":20}", "numeric key sorting failed")
     text = "{\"a\":[1,\"x\",null,{\"b\":[true,1.5]}]}"
     object = JSON.parse(text, JSON.Object{String,Any})
     checked(JSON.json(object; style=TrimJSONStyle()) == text, "nested Object write failed")

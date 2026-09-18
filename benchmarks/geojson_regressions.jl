@@ -65,6 +65,11 @@ function measure(name, f)
     flush(stdout)
 end
 for n in (4, 137, 10000)
+    # Numeric keys must retain string ordering without allocating for indices.
+    for T in (Int, Float64), sort_keys in (true, false)
+        dict = Dict(T(i) => i for i in 1:n)
+        measure("write_numeric_keys_$(T)_$(sort_keys)_$n", () -> JSON.json(dict; sort_keys))
+    end
     for (name, values) in (("Int32", Int32.(1:n)), ("Float32", Float32.(1:n)),
                            ("Float64", Float64.(1:n)), ("Date", fill(Date(2026, 1, 1), n)),
                            ("struct", fill(SmallRecord(1, "x"), n)),
