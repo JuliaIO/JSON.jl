@@ -801,7 +801,8 @@ end
     # any other element type lowers through `applyany`, which a style can close off
     @test JSON.json(Any[Int8(1), (a=1,)]) == "[1,{\"a\":1}]"
     @test JSON.json(Dict{String,Any}("z" => Int8(1), "a" => (b=1,)); sort_keys=true) == "{\"a\":{\"b\":1},\"z\":1}"
-    @test JSON.json(Any[1, "x"]; style=ClosedStyle()) == "[1,\"x\"]"
+    # the parse produces `Int64` on every platform, so the literal is written as one (`Int32` on x86 would take `applyany`)
+    @test JSON.json(Any[Int64(1), "x"]; style=ClosedStyle()) == "[1,\"x\"]"
     @test_throws ArgumentError JSON.json(Any[Int8(1)]; style=ClosedStyle())
     @test_throws ArgumentError JSON.json(Dict{String,Any}("z" => Int8(1)); style=ClosedStyle(), sort_keys=true)
     # outputs far past the initial size guess grow the buffer correctly
