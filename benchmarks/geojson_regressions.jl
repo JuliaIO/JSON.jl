@@ -14,7 +14,7 @@ if mode in ("load", "precompile")
         else
             @timed Base.compilecache(Base.PkgId(UUID(uuid), name))
         end
-        println(join((name, result.time, result.bytes, result.compile_time), '\t'))
+        println(join((name, result.time, result.bytes, get(result, :compile_time, NaN)), '\t'))
         flush(stdout)
     end
     exit()
@@ -41,7 +41,7 @@ if mode == "cold"
         ("read_any", :(JSON.parse("{\"a\":[1,\"x\",null]}", JSON.Object{String,Any}))),
         ("write_tree", :(JSON.json(RecursiveRecord(1, [RecursiveRecord(2, RecursiveRecord[])])))))
         result = @timed Core.eval(Main, expression)
-        println(join((name, result.time, result.bytes, result.compile_time), '\t'))
+        println(join((name, result.time, result.bytes, get(result, :compile_time, NaN)), '\t'))
         flush(stdout)
     end
     for width in (10, 30, 60)
@@ -51,7 +51,7 @@ if mode == "cold"
         end
         value = Core.eval(Main, Expr(:call, name, fill(1, width)...))
         result = @timed Core.eval(Main, :(JSON.json($value)))
-        println(join((name, result.time, result.bytes, result.compile_time), '\t'))
+        println(join((name, result.time, result.bytes, get(result, :compile_time, NaN)), '\t'))
         flush(stdout)
     end
     exit()

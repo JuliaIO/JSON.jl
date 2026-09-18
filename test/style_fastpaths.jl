@@ -98,4 +98,31 @@ end
     end
 end
 
+JSON.lift(::CustomStyle, ::Type{Bool}, x::Bool) = !x
+JSON.lift(::CustomStyle, ::Type{Nothing}, ::Nothing) = "nullvalue"
+
+@testset "Custom materialization and mismatched container shapes" begin
+    source = "{\"arr\":[true,false,null,1,\"x\",{}]}"
+    value = JSON.parse(source, JSON.Object{String,Any}; style=CustomStyle())
+    @test value["ARR"] == Any[false, true, "nullvalue", 2, "X", JSON.Object{String,Any}()]
+    @test only(JSON.parse("[null]", Vector{Any}; style=CustomStyle())) == "nullvalue"
+    @test only(JSON.parse("[false]", Vector{Any})) === false
+
+    # The callback API must use the same custom hooks as typed parsing.
+    style = JSON.JSONReadStyle{JSON.Object{String,Any}}(nothing, CustomStyle())
+    values = Any[]
+    pos = JSON.applyvalue(x -> push!(values, x), JSON.lazy(source), style)
+    @test only(values) == value
+    @test pos == ncodeunits(source) + 1
+
+    # Fast container methods must preserve the generic shape fallback.
+    @test JSON.parse("{}", Vector{Any}) == Any[]
+    for T in (JSON.Object{String,Any}, Dict{String,Any})
+        @test isempty(JSON.parse("[]", T))
+    end
+    for T in (Vector{Any}, JSON.Object{String,Any}, Dict{String,Any}), source in ("1", "null")
+        @test_throws ArgumentError JSON.parse(source, T)
+    end
+end
+
 end
