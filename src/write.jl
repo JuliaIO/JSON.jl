@@ -149,28 +149,16 @@ type is none of the types the untyped `JSON.parse` produces (`nothing`, `Bool`, 
 `Dict{String,Any}` or `missing`. The default lowers the value and hands it to the writer,
 `f(key, StructUtils.lower(style, value))`, a dynamic call. A custom style whose `Any`-valued
 containers only ever hold the types above can overload this to throw, so a program built
-with `juliac --trim=safe` has no dynamic call on its write path.
+with `juliac --trim=safe` can resolve the write path statically. Its `lower` methods
+must also return statically known types. Keep the fallback unspecialized, for example:
+
+```julia
+struct ClosedJSONStyle <: JSON.JSONStyle end
+JSON.applyany(::ClosedJSONStyle, f, key, @nospecialize(value)) =
+    throw(ArgumentError("unsupported JSON value"))
+```
 """
 applyany(st::JSONStyle, f, key, @nospecialize(value)) = f(key, StructUtils.lower(st, value))
-
-# The value types the untyped parse produces each reach the write closure as one concrete
-# type, so writing parsed JSON back out is static dispatch all the way down and needs no
-# `lower` call; anything else goes through `applyany`. `v` is not specialized on, so the
-# call here is one resolved method rather than a dynamic dispatch on the element type.
-@noinline function _applyvalue(st::JSONStyle, f, key, @nospecialize(v))
-    v isa String && return f(key, v)
-    v isa Int64 && return f(key, v)
-    v isa Float64 && return f(key, v)
-    v === nothing && return f(key, nothing)
-    v isa Bool && return f(key, v)
-    v isa Vector{Any} && return f(key, v)
-    v isa Object{String,Any} && return f(key, v)
-    v isa Dict{String,Any} && return f(key, v)
-    v === missing && return f(key, nothing)
-    v isa BigInt && return f(key, v)
-    v isa BigFloat && return f(key, v)
-    return applyany(st, f, key, v)
-end
 
 function StructUtils.applyeach(st::JSONStyle, f, x::AbstractDict{<:Any,Any})
     for (k, v) in x
@@ -190,7 +178,7 @@ end
 
 function StructUtils.applyeach(st::JSONStyle, f, x::AbstractVector{Any})
     for i in eachindex(x)
-        ret = @inbounds(isassigned(x, i)) ? _applyvalue(st, f, i, @inbounds(x[i])) : f(i, nothing)
+        ret = @inbounds(isassigned(x, i)) ? _applyvalue(st, f, i, @inbounds(x[i])) : f(i, StructUtils.lower(st, nothing))
         ret isa StructUtils.EarlyReturn && return ret
     end
     return StructUtils.defaultstate(st)
@@ -692,6 +680,27 @@ struct WriteClosure{JS, arraylike, T, I} # T is the type of the parent object/ar
     bufsize::Int
 end
 
+# Keep each parsed value concrete at the write closure, while preserving custom
+# lowering. Dict parents need a separate method: otherwise inference widens the
+# recursive Object -> array -> Dict -> array cycle and safe trimming cannot
+# resolve the Vector{Any} write. Generate both bodies here so they stay identical.
+for F in (Any, WriteClosure{JS,A,Dict{String,Any},I} where {JS,A,I})
+    @eval @noinline function _applyvalue(st::JSONStyle, f::$F, key, @nospecialize(v))
+        v isa String && return f(key, StructUtils.lower(st, v))
+        v isa Int64 && return f(key, StructUtils.lower(st, v))
+        v isa Float64 && return f(key, StructUtils.lower(st, v))
+        v === nothing && return f(key, StructUtils.lower(st, v))
+        v isa Bool && return f(key, StructUtils.lower(st, v))
+        v isa Vector{Any} && return f(key, StructUtils.lower(st, v))
+        v isa Object{String,Any} && return f(key, StructUtils.lower(st, v))
+        v isa Dict{String,Any} && return f(key, StructUtils.lower(st, v))
+        v === missing && return f(key, StructUtils.lower(st, v))
+        v isa BigInt && return f(key, StructUtils.lower(st, v))
+        v isa BigFloat && return f(key, StructUtils.lower(st, v))
+        return applyany(st, f, key, v)
+    end
+end
+
 function indent(buf, pos, ind, depth, io, bufsize)
     if ind > 0
         n = ind * depth + 1
@@ -836,7 +845,11 @@ function json!(buf, pos, x, opts::WriteOptions, ancestor_stack::Union{Nothing, V
             if _sort_keys && !al && x isa AbstractDict
                 sorted_keys = sort!(collect(keys(x)), by=k -> StructUtils.lowerkey(opts.style, k))
                 for k in sorted_keys
-                    _applyvalue(opts.style, c, StructUtils.lowerkey(opts.style, k), x[k])
+                    if valtype(x) === Any && opts.style isa JSONStyle
+                        _applyvalue(opts.style, c, StructUtils.lowerkey(opts.style, k), x[k])
+                    else
+                        c(StructUtils.lowerkey(opts.style, k), StructUtils.lower(opts.style, x[k]))
+                    end
                 end
             else
                 StructUtils.applyeach(opts.style, c, x)

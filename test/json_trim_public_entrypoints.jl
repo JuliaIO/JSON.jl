@@ -37,6 +37,23 @@ struct TrimTemporal
     tick::Dates.Time
 end
 
+# Close the extension point for the types produced by untyped parsing.
+struct TrimJSONStyle <: JSON.JSONStyle end
+JSON.applyany(::TrimJSONStyle, f, key, @nospecialize(value)) =
+    throw(ArgumentError("unsupported JSON value"))
+
+function exercise_nested_any()::Nothing
+    text = "{\"a\":[1,\"x\",null,{\"b\":[true,1.5]}]}"
+    object = JSON.parse(text, JSON.Object{String,Any})
+    checked(JSON.json(object; style=TrimJSONStyle()) == text, "nested Object write failed")
+    dict = JSON.parse(text, Dict{String,Any})
+    checked(JSON.json(dict; style=TrimJSONStyle()) == text, "nested Dict write failed")
+    io = IOBuffer()
+    JSON.json(io, object; style=TrimJSONStyle(), bufsize=16)
+    checked(String(take!(io)) == text, "nested IO write failed")
+    return nothing
+end
+
 function checked(cond::Bool, msg::String)::Nothing
     cond || error(msg)
     return nothing
@@ -144,6 +161,7 @@ function run_json_trim_public_entrypoints()::Nothing
     exercise_lazy_entrypoints()
     exercise_parse_entrypoints()
     exercise_write_entrypoints()
+    exercise_nested_any()
     return nothing
 end
 
