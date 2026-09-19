@@ -140,6 +140,51 @@ StructUtils.lower(::JSONStyle, x::AbstractVector) = x
 StructUtils.arraylike(::JSONStyle, x::AbstractVector{<:Pair}) = false
 StructUtils.structlike(::JSONStyle, ::Type{<:NamedTuple}) = true
 
+"""
+    JSON.applyany(style::JSONStyle, f, key, value)
+
+Called by the writer for a value whose container element type is `Any` when its runtime
+type is none of the types the untyped `JSON.parse` produces (`nothing`, `Bool`, `Int64`,
+`Float64`, `String`, `BigInt`, `BigFloat`, `Vector{Any}`, `JSON.Object{String,Any}`), nor
+`Dict{String,Any}` or `missing`. The default lowers the value and hands it to the writer,
+`f(key, StructUtils.lower(style, value))`, a dynamic call. A custom style whose `Any`-valued
+containers only ever hold the types above can overload this to throw, so a program built
+with `juliac --trim=safe` can resolve the write path statically. Its `lower` methods
+must also return statically known types. Keep the fallback unspecialized, for example:
+
+```julia
+struct ClosedJSONStyle <: JSON.JSONStyle end
+JSON.applyany(::ClosedJSONStyle, f, key, @nospecialize(value)) =
+    throw(ArgumentError("unsupported JSON value"))
+```
+"""
+applyany(st::JSONStyle, f, key, @nospecialize(value)) = f(key, StructUtils.lower(st, value))
+
+function StructUtils.applyeach(st::JSONStyle, f, x::AbstractDict{<:Any,Any})
+    for (k, v) in x
+        ret = _applyvalue(st, f, StructUtils.lowerkey(st, k), v)
+        ret isa StructUtils.EarlyReturn && return ret
+    end
+    return StructUtils.defaultstate(st)
+end
+
+function StructUtils.applyeach(st::JSONStyle, f, x::AbstractVector{Pair{K,Any}}) where {K}
+    for (k, v) in x
+        ret = _applyvalue(st, f, StructUtils.lowerkey(st, k), v)
+        ret isa StructUtils.EarlyReturn && return ret
+    end
+    return StructUtils.defaultstate(st)
+end
+
+function StructUtils.applyeach(st::JSONStyle, f, x::AbstractVector{Any})
+    for i in eachindex(x)
+        key = StructUtils.lowerkey(st, i)
+        ret = @inbounds(isassigned(x, i)) ? _applyvalue(st, f, key, @inbounds(x[i])) : f(key, StructUtils.lower(st, nothing))
+        ret isa StructUtils.EarlyReturn && return ret
+    end
+    return StructUtils.defaultstate(st)
+end
+
 # for pre-1.0 compat, which serialized Tuple object keys by default
 StructUtils.lowerkey(::JSONStyle, x::Tuple) = string(x)
 
@@ -351,7 +396,10 @@ end
 
 StructUtils.lowerkey(::JSONStyle, s::AbstractString) = s
 StructUtils.lowerkey(::JSONStyle, sym::Symbol) = String(sym)
-StructUtils.lowerkey(::JSONStyle, s::Union{StringLike, Real}) = string(s)
+# Array indices also pass through this hook. Convert numeric object keys only
+# when writing or sorting them, so discarded array indices do not allocate.
+StructUtils.lowerkey(::JSONStyle, s::Real) = s
+StructUtils.lowerkey(::JSONStyle, s::StringLike) = string(s)
 StructUtils.lowerkey(::JSONStyle, x) = throw(ArgumentError("No key representation for $(typeof(x)). Define StructUtils.lowerkey(::JSON.JSONStyle, ::$(typeof(x)))"))
 """
     JSON.json(x) -> String
@@ -454,7 +502,10 @@ Circular references are tracked automatically and cycles are broken by writing `
 
 For pre-formatted JSON data as a String, use `JSONText(json)` to write the string out as-is.
 
-For `AbstractDict` objects with non-string keys, `StructUtils.lowerkey` will be called before serializing. This allows aggregate
+Keys and array indices pass through `StructUtils.lowerkey` before serializing.
+JSON accepts strings or real numbers from this hook. Numeric object keys are converted
+to strings when written or sorted; array indices are discarded without conversion.
+For `AbstractDict` objects with non-string keys, this allows aggregate
 or other types of dict keys to be converted to an appropriate string representation. See `StructUtils.liftkey`
 for the reverse operation, which is called when parsing JSON data back into a dict type.
 
@@ -618,7 +669,7 @@ macro checkn(n, force_resize=false)
             end
             # Resize buffer if still needed
             if (pos + $n - 1) > length(buf)
-                resize!(buf, newlen(pos + $n))
+                resize!(buf, max(newlen(pos + $n), 2 * length(buf)))
             end
         end
     end)
@@ -636,6 +687,27 @@ struct WriteClosure{JS, arraylike, T, I} # T is the type of the parent object/ar
     bufsize::Int
 end
 
+# Keep each parsed value concrete at the write closure, while preserving custom
+# lowering. Dict parents need a separate method: otherwise inference widens the
+# recursive Object -> array -> Dict -> array cycle and safe trimming cannot
+# resolve the Vector{Any} write. Generate both bodies here so they stay identical.
+for F in (Any, WriteClosure{JS,A,Dict{String,Any},I} where {JS,A,I})
+    @eval @noinline function _applyvalue(st::JSONStyle, f::$F, key, @nospecialize(v))
+        v isa String && return f(key, StructUtils.lower(st, v))
+        v isa Int64 && return f(key, StructUtils.lower(st, v))
+        v isa Float64 && return f(key, StructUtils.lower(st, v))
+        v === nothing && return f(key, StructUtils.lower(st, v))
+        v isa Bool && return f(key, StructUtils.lower(st, v))
+        v isa Vector{Any} && return f(key, StructUtils.lower(st, v))
+        v isa Object{String,Any} && return f(key, StructUtils.lower(st, v))
+        v isa Dict{String,Any} && return f(key, StructUtils.lower(st, v))
+        v === missing && return f(key, StructUtils.lower(st, v))
+        v isa BigInt && return f(key, StructUtils.lower(st, v))
+        v isa BigFloat && return f(key, StructUtils.lower(st, v))
+        return applyany(st, f, key, v)
+    end
+end
+
 function indent(buf, pos, ind, depth, io, bufsize)
     if ind > 0
         n = ind * depth + 1
@@ -649,7 +721,9 @@ function indent(buf, pos, ind, depth, io, bufsize)
     return pos
 end
 
-checkkey(s) = s isa AbstractString || throw(ArgumentError("Value returned from `StructUtils.lowerkey` must be a string: $(typeof(s))"))
+checkkey(s::AbstractString) = s
+checkkey(s::Real) = string(s)
+checkkey(s) = throw(ArgumentError("Value returned from `StructUtils.lowerkey` must be a string or real number: $(typeof(s))"))
 
 _sort_keys_by_default(x) = x isa Dict
 
@@ -676,10 +750,7 @@ function (f::WriteClosure{JS, arraylike, T, I})(key, val) where {JS, arraylike, 
     pos = indent(buf, pos, ind, f.depth, io, bufsize)
     # if not an array, we need to write the key + ':'
     if !arraylike
-        # skey = StructUtils.lowerkey(f.opts, key)
-        # check if the key is a string
-        checkkey(key)
-        pos = _string(buf, pos, key, io, bufsize)
+        pos = _string(buf, pos, checkkey(key), io, bufsize)
         @checkn 1
         buf[pos] = UInt8(':')
         pos += 1
@@ -697,7 +768,7 @@ function (f::WriteClosure{JS, arraylike, T, I})(key, val) where {JS, arraylike, 
         track_ref && push!(f.ancestor_stack, val)
         # if jsonlines, we need to recursively set to false
         if f.opts.jsonlines
-            opts = WriteOptions(; omit_null=f.opts.omit_null, omit_empty=f.opts.omit_empty, allownan=f.opts.allownan, jsonlines=false, pretty=f.opts.pretty, ninf=f.opts.ninf, inf=f.opts.inf, nan=f.opts.nan, inline_limit=f.opts.inline_limit, float_style=f.opts.float_style, float_precision=f.opts.float_precision, sort_keys=f.opts.sort_keys)
+            opts = WriteOptions(; omit_null=f.opts.omit_null, omit_empty=f.opts.omit_empty, allownan=f.opts.allownan, jsonlines=false, pretty=f.opts.pretty, ninf=f.opts.ninf, inf=f.opts.inf, nan=f.opts.nan, inline_limit=f.opts.inline_limit, float_style=f.opts.float_style, float_precision=f.opts.float_precision, sort_keys=f.opts.sort_keys, bufsize=f.opts.bufsize, style=f.opts.style)
         else
             opts = f.opts
         end
@@ -778,9 +849,13 @@ function json!(buf, pos, x, opts::WriteOptions, ancestor_stack::Union{Nothing, V
             c = WriteClosure{typeof(opts), al, typeof(x), typeof(io)}(buf, Base.unsafe_convert(Ptr{Int}, ref), Base.unsafe_convert(Ptr{Bool}, wroteanyref), local_ind, depth + 1, opts, ancestor_stack, io, bufsize)
             _sort_keys = opts.sort_keys === true || (opts.sort_keys === nothing && !al && _sort_keys_by_default(x))
             if _sort_keys && !al && x isa AbstractDict
-                sorted_keys = sort!(collect(keys(x)), by=k -> StructUtils.lowerkey(opts.style, k))
+                sorted_keys = sort!(collect(keys(x)), by=k -> checkkey(StructUtils.lowerkey(opts.style, k)))
                 for k in sorted_keys
-                    c(StructUtils.lowerkey(opts.style, k), StructUtils.lower(opts.style, x[k]))
+                    if valtype(x) === Any && opts.style isa JSONStyle
+                        _applyvalue(opts.style, c, StructUtils.lowerkey(opts.style, k), x[k])
+                    else
+                        c(StructUtils.lowerkey(opts.style, k), StructUtils.lower(opts.style, x[k]))
+                    end
                 end
             else
                 StructUtils.applyeach(opts.style, c, x)

@@ -371,7 +371,9 @@ JSON.json(node; omit_null=false)
 
 ## Custom Dictionary Key Serialization
 
-For dictionaries with non-string keys, [`JSON.json`](@ref) has a few default `lowerkey` definitions to convert keys to strings:
+Keys and array indices pass through `StructUtils.lowerkey`. JSON accepts a string or a real number from this hook. Its default numeric method returns the number unchanged: object keys are converted to strings when written or sorted, while unused array indices need no string allocation.
+
+For dictionaries with non-string keys, [`JSON.json`](@ref) writes quoted keys:
 
 ```julia
 # Integer keys

@@ -167,6 +167,9 @@ objecttype(::JSONReadStyle{OT}) where {OT} = OT
 nullvalue(::StructStyle) = nothing
 nullvalue(st::JSONReadStyle) = st.null
 
+# Custom styles retain the generic make/lift hooks, including lazy-source lifts.
+const _DefaultReadStyle = JSONReadStyle{O,N,StructUtils.DefaultStyle} where {O,N}
+
 StructUtils.initialize(::JSONReadStyle, ::Type{Object}, source) = DEFAULT_OBJECT_TYPE()
 
 # this allows struct fields to specify tags under the json key specifically to override JSON behavior
@@ -321,16 +324,35 @@ end
 mutable struct ObjectClosure{T}
     root::Object{String,Any}
     obj::Object{String,Any}
-    keys::Set{String}
-    null::T
+    keys::Union{Nothing,Set{String}}
+    count::Int
+    ctx::T # the null value of an untyped parse, or the style of a typed one
 end
 
-ObjectClosure(obj, null) = ObjectClosure(obj, obj, sizehint!(Set{String}(), 16), null)
+ObjectClosure(obj, ctx) = ObjectClosure(obj, obj, nothing, 0, ctx)
 
 @inline function insert_or_overwrite!(oc::ObjectClosure, key, val)
-    # in! does both a hash lookup and also sets the key if not present
-    if _in!(key, oc.keys)
-        # slow path for dups; does a linear scan from our root object
+    # Scan at most four entries before allocating a hash table for larger objects.
+    # Once the object grows, use the set so distinct-key insertion stays O(n).
+    keys = oc.keys
+    if keys === nothing
+        node = find_node_by_key(oc.root, key)
+        if node !== nothing
+            setfield!(node, :value, val)
+            return
+        end
+        oc.count += 1
+        if oc.count == 5
+            keys = sizehint!(Set{String}(), 16)
+            node = _ch(oc.root)
+            while node isa Object{String,Any}
+                push!(keys, _k(node)::String)
+                node = _ch(node)
+            end
+            push!(keys, key)
+            oc.keys = keys
+        end
+    elseif _in!(key, keys)
         setindex!(oc.root, val, key)
         return
     end
@@ -339,7 +361,9 @@ ObjectClosure(obj, null) = ObjectClosure(obj, obj, sizehint!(Set{String}(), 16),
     oc.obj = Object{String,Any}(oc.obj, key, val) # fast append path
 end
 
-(oc::ObjectClosure)(k, v) = applyvalue(val -> insert_or_overwrite!(oc, convert(String, k), val), v, oc.null)
+_objectkey(ctx, k) = convert(String, k)
+_objectkey(st::StructStyle, k) = StructUtils.liftkey(st, String, k)
+(oc::ObjectClosure)(k, v) = applyvalue(val -> insert_or_overwrite!(oc, _objectkey(oc.ctx, k), val), v, oc.ctx)
 
 # generic apply `f` to LazyValue, using default types to materialize, depending on type
 function applyvalue(f, x::LazyValues, null)
@@ -392,8 +416,61 @@ function applyvalue(f, x::LazyValues, null)
     end
 end
 
-# we overload make! for Any for LazyValues because we can dispatch to more specific
-# types base on the LazyValue type
+# The typed counterparts of the untyped closures above: `Any` slots under a typed parse and
+# the container types the untyped parse produces. A value materializes exactly as the untyped
+# parse would, except that the style's object type and null value apply. A target that is
+# not the matching JSON kind falls through to the generic `StructUtils.make`.
+"""
+    JSON.applyvalue(f, x::LazyValue, style::StructUtils.StructStyle) -> pos
+
+Materialize `x` as the untyped `JSON.parse` would, with `style`'s object type and null
+value, call `f(value)`, and return the position past `x`. With the default read style,
+`value` reaches `f` with its concrete type, so no `(value::Any, pos)` pair is boxed.
+Custom styles use their `StructUtils.make` and `StructUtils.lift` hooks instead.
+"""
+function applyvalue(f, x::LazyValues, st::_DefaultReadStyle)
+    type = gettype(x)
+    if type == JSONTypes.OBJECT
+        obj, pos = StructUtils.make(st, objecttype(st), x)
+        f(obj)
+        return pos
+    elseif type == JSONTypes.ARRAY
+        arr, pos = StructUtils.make(st, Vector{Any}, x)
+        f(arr)
+        return pos
+    elseif type == JSONTypes.STRING
+        buf = getbuf(x)
+        GC.@preserve buf begin
+            str, pos = parsestring(x)
+            f(convert(String, str))
+        end
+        return pos
+    elseif type == JSONTypes.NUMBER
+        num, pos = parsenumber(x)
+        if isint(num)
+            f(num.int)
+        elseif isfloat(num)
+            f(num.float)
+        elseif isbigint(num)
+            f(num.bigint)
+        else
+            f(num.bigfloat)
+        end
+        return pos
+    elseif type == JSONTypes.NULL
+        f(nullvalue(st))
+        return getpos(x) + 4
+    elseif type == JSONTypes.TRUE
+        f(true)
+        return getpos(x) + 4
+    elseif type == JSONTypes.FALSE
+        f(false)
+        return getpos(x) + 5
+    else
+        throw(ArgumentError("cannot parse json"))
+    end
+end
+
 function StructUtils.make(st::StructStyle, ::Type{Any}, x::LazyValues)
     type = gettype(x)
     if type == JSONTypes.OBJECT
@@ -411,6 +488,44 @@ function StructUtils.make(st::StructStyle, ::Type{Any}, x::LazyValues)
     else
         throw(ArgumentError("cannot parse $x"))
     end
+end
+
+function applyvalue(f, x::LazyValues, st::StructStyle)
+    val, pos = StructUtils.make(st, Any, x)
+    f(val)
+    return pos
+end
+
+function StructUtils.make(st::_DefaultReadStyle, ::Type{Any}, x::LazyValues)
+    box = Ref{Any}()
+    pos = applyvalue(v -> (box[] = v), x, st)
+    return box[], pos
+end
+
+function StructUtils.make(st::_DefaultReadStyle, ::Type{Vector{Any}}, x::LazyValues)
+    gettype(x) == JSONTypes.ARRAY ||
+        return @invoke StructUtils.make(st::StructStyle, Vector{Any}::Type, x::Any)
+    arr = sizehint!(StructUtils.initialize(st, Vector{Any}, x), 16)
+    pos = applyarray((_, v) -> applyvalue(val -> push!(arr, val), v, st), x)
+    return arr, pos
+end
+
+# `ObjectClosure` with the style as its context appends in O(n) with the untyped path's
+# duplicate handling; the generic `makedict` went through `setindex!`, a linear scan per key.
+function StructUtils.make(st::_DefaultReadStyle, ::Type{Object{String,Any}}, x::LazyValues)
+    gettype(x) == JSONTypes.OBJECT ||
+        return @invoke StructUtils.make(st::StructStyle, Object{String,Any}::Type, x::Any)
+    obj = StructUtils.initialize(st, Object{String,Any}, x)
+    pos = applyobject(ObjectClosure(obj, st), x)
+    return obj, pos
+end
+
+function StructUtils.make(st::_DefaultReadStyle, ::Type{T}, x::LazyValues) where {T<:AbstractDict{String,Any}}
+    gettype(x) == JSONTypes.OBJECT ||
+        return @invoke StructUtils.make(st::StructStyle, T::Type, x::Any)
+    dict = StructUtils.initialize(st, T, x)
+    pos = applyobject((k, v) -> applyvalue(val -> StructUtils.addkeyval!(dict, StructUtils.liftkey(st, String, k), val), v, st), x)
+    return dict, pos
 end
 
 # catch PtrString via lift or make! so we can ensure it never "escapes" to user-level
