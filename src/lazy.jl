@@ -182,12 +182,12 @@ Selectors.@selectors LazyValues
 Base.lastindex(x::LazyValues) = length(x)
 
 # this ensures LazyValues can be "sources" in StructUtils.make
-function StructUtils.applyeach(::StructUtils.StructStyle, f, x::LazyValues)
+function StructUtils.applyeach(st::StructUtils.StructStyle, f, x::LazyValues)
     type = gettype(x)
     if type == JSONTypes.OBJECT
-        return applyobject(f, x)
+        return applyobject(_contextcallback(st, f), x)
     elseif type == JSONTypes.ARRAY
-        return applyarray(f, x)
+        return applyarray(_contextcallback(st, f), x)
     end
     typename = get(JSONTypes.names, type, "UNKNOWN")
     throw(ArgumentError(string(
