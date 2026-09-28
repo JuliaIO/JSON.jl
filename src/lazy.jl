@@ -471,9 +471,6 @@ Base.:(==)(x::AbstractString, y::PtrString) = y == x
 Base.:(==)(x::PtrString, y::PtrString) = x.escaped || y.escaped ?
     convert(String, x) == convert(String, y) :
     x.len == y.len && ccall(:memcmp, Cint, (Ptr{UInt8}, Ptr{UInt8}, Csize_t), x.ptr, y.ptr, x.len) == 0
-Base.isequal(x::PtrString, y::AbstractString) = x == y
-Base.isequal(x::AbstractString, y::PtrString) = y == x
-Base.isequal(x::PtrString, y::PtrString) = x == y
 Base.hash(x::PtrString, h::UInt) = x.escaped ?
     hash(convert(String, x), h) :
     hash(unsafe_string(x.ptr, x.len), h)
