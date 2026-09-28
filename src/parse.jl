@@ -216,7 +216,7 @@ function _unknownoption(option::Symbol)
     return Base.isidentifier(value) ? string(':', value) :
         string("Symbol(", _quotedstring(value), ')')
 end
-_unknownkey(key::PtrString) = _quotedstring(convert(String, key))
+_unknownkey(key::PtrString) = _quotedstring(String(key))
 _unknownkey(key::AbstractString) = _quotedstring(key)
 _unknownkey(key::Symbol) = _unknownoption(key)
 _unknownkey(key::Integer) = string(key)
@@ -361,7 +361,7 @@ ObjectClosure(obj, ctx) = ObjectClosure(obj, obj, nothing, 0, ctx)
     oc.obj = Object{String,Any}(oc.obj, key, val) # fast append path
 end
 
-_objectkey(ctx, k) = convert(String, k)
+_objectkey(ctx, k) = String(k)
 _objectkey(st::StructStyle, k) = StructUtils.liftkey(st, String, k)
 (oc::ObjectClosure)(k, v) = applyvalue(val -> insert_or_overwrite!(oc, _objectkey(oc.ctx, k), val), v, oc.ctx)
 
@@ -387,7 +387,7 @@ function applyvalue(f, x::LazyValues, null)
         buf = getbuf(x)
         GC.@preserve buf begin
             str, pos = parsestring(x)
-            f(convert(String, str))
+            f(String(str))
         end
         return pos
     elseif type == JSONTypes.NUMBER
@@ -442,7 +442,7 @@ function applyvalue(f, x::LazyValues, st::_DefaultReadStyle)
         buf = getbuf(x)
         GC.@preserve buf begin
             str, pos = parsestring(x)
-            f(convert(String, str))
+            f(String(str))
         end
         return pos
     elseif type == JSONTypes.NUMBER
@@ -530,11 +530,11 @@ end
 
 # catch PtrString via lift or make! so we can ensure it never "escapes" to user-level
 StructUtils.liftkey(st::JSONReadStyle, ::Type{T}, x::PtrString) where {T} =
-    StructUtils.liftkey(st, T, convert(String, x))
+    StructUtils.liftkey(st, T, String(x))
 StructUtils.lift(st::JSONReadStyle, ::Type{T}, x::PtrString, tags) where {T} =
-    StructUtils.lift(st, T, convert(String, x), tags)
+    StructUtils.lift(st, T, String(x), tags)
 StructUtils.lift(st::JSONReadStyle, ::Type{T}, x::PtrString) where {T} =
-    StructUtils.lift(st, T, convert(String, x))
+    StructUtils.lift(st, T, String(x))
 
 # liftkey for numeric dict key types to enable round-tripping Dict{Int,V}, Dict{Float64,V}, etc.
 # these correspond to the lowerkey definitions in write.jl that convert numeric keys to strings

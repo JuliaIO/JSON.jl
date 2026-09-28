@@ -890,7 +890,6 @@ end
 
 _string(buf, pos, x, io, bufsize) = _string(buf, pos, string(x), io, bufsize)
 _string(buf, pos, x::LazyValues, io, bufsize) = _string(buf, pos, getindex(x), io, bufsize)
-_string(buf, pos, x::PtrString, io, bufsize) = _string(buf, pos, convert(String, x), io, bufsize)
 
 function _string(buf, pos, x::AbstractString, io, bufsize)
     sz = ncodeunits(x)
