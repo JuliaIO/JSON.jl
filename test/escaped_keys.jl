@@ -74,7 +74,10 @@ end
     @test key[] == "alpha"
     @test isequal(key[], "alpha")
     @test hash(key[]) == hash("alpha")
-    @test convert(Symbol, key[]) === :alpha
+    @test propertynames(source) == [:alpha]
+    @test source.alpha[] == 1
+    # a Base.convert(::Type{Symbol}, ::PtrString) method would invalidate compiled code on load
+    @test !hasmethod(convert, Tuple{Type{Symbol}, JSON.PtrString})
 
     plain_key = Ref{Any}()
     escaped_key = Ref{Any}()

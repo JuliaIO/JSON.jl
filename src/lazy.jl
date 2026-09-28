@@ -443,6 +443,9 @@ else
     _tostr(m::Memory{UInt8}, slen) = ccall(:jl_genericmemory_to_string, Ref{String}, (Any, Int), m, slen)
 end
 
+# `convert(String, x)` is how `applyobject` and `parsestring` callers materialize a PtrString.
+# This method invalidates compiled `convert(String, ::Any)` calls when JSON loads, so PtrString
+# gets no other `Base.convert` methods.
 function Base.convert(::Type{String}, x::PtrString)
     if x.escaped
         m = mem(x.len)
@@ -452,17 +455,12 @@ function Base.convert(::Type{String}, x::PtrString)
     return unsafe_string(x.ptr, x.len)
 end
 
-Base.convert(::Type{Symbol}, x::PtrString) = x.escaped ?
+# StructUtils' selectors (`propertynames`, `hasproperty`) turn keys into Symbols with this
+# helper; a `Base.convert(::Type{Symbol}, ::PtrString)` method would instead invalidate
+# every compiled `convert(Symbol, ::Any)` call.
+Selectors._symbol(x::PtrString) = x.escaped ?
     Symbol(convert(String, x)) :
     ccall(:jl_symbol_n, Ref{Symbol}, (Ptr{UInt8}, Int), x.ptr, x.len)
-
-function Base.convert(::Type{T}, x::PtrString) where {T <: Enum}
-    sym = convert(Symbol, x)
-    for (k, v) in Base.Enums.namemap(T)
-        v === sym && return T(k)
-    end
-    throw(ArgumentError("invalid `$T` string value: \"$sym\""))
-end
 
 Base.:(==)(x::PtrString, y::AbstractString) = x.escaped ?
     convert(String, x) == y :
@@ -476,7 +474,7 @@ Base.hash(x::PtrString, h::UInt) = x.escaped ?
     hash(unsafe_string(x.ptr, x.len), h)
 StructUtils.keyeq(x::PtrString, y::AbstractString) = x == y
 StructUtils.keyeq(x::PtrString, y::String) = x == y
-StructUtils.keyeq(x::PtrString, y::Symbol) = convert(Symbol, x) == y
+StructUtils.keyeq(x::PtrString, y::Symbol) = Selectors._symbol(x) == y
 
 # JSON owns PtrString and its comparison semantics, so it can use the ordered
 # field cursor without changing StructUtils' behavior for arbitrary key types.
