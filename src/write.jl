@@ -728,6 +728,9 @@ checkkey(s) = throw(ArgumentError("Value returned from `StructUtils.lowerkey` mu
 _sort_keys_by_default(x) = x isa Dict
 
 function (f::WriteClosure{JS, arraylike, T, I})(key, val) where {JS, arraylike, T, I}
+    # materialize a nested LazyValue (see `json!`) before the omit checks below,
+    # so they see the parsed value
+    val isa LazyValue && return f(key, StructUtils.lower(f.opts.style, val[]))
     track_ref = ismutabletype(typeof(val))
     is_circ_ref = track_ref && any(x -> x === val, f.ancestor_stack)
     val isa Omit && return
@@ -826,6 +829,11 @@ function json!(buf, pos, x, opts::WriteOptions, ancestor_stack::Union{Nothing, V
     # null
     elseif x === nothing
         return _null(buf, pos, io, bufsize)
+    # a LazyValue is written as its default materialization, `x[]`. This isn't a
+    # `StructUtils.lower` method because `StructUtils.make` also calls `lower` on
+    # the lazy source it parses from, and parsing must keep that source lazy.
+    elseif x isa LazyValue
+        return json!(buf, pos, StructUtils.lower(opts.style, x[]), opts, ancestor_stack, io, ind, depth, bufsize)
     # object or array
     elseif StructUtils.dictlike(opts.style, x) || StructUtils.arraylike(opts.style, x) || StructUtils.structlike(opts.style, x)
         al = StructUtils.arraylike(opts.style, x)
