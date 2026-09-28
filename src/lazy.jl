@@ -202,7 +202,7 @@ end
 @inline function Base.foreach(f, x::LazyValues)
     type = gettype(x)
     if type == JSONTypes.OBJECT
-        applyobject((k, v) -> f(convert(String, k) => v), x)
+        applyobject((k, v) -> f(String(k) => v), x)
     elseif type == JSONTypes.ARRAY
         applyarray((i, v) -> f(v), x)
     else
@@ -264,7 +264,7 @@ end
 # `keyvalfunc` receives a PtrString => LazyValue pair
 # `keyvalfunc` can return `StructUtils.EarlyReturn` to short-circuit parsing
 # otherwise, it should return a `pos::Int` value that notes the next position to continue parsing
-# to materialize the key, call `convert(String, key)`
+# to materialize the key, call `String(key)`
 # PtrString can be compared to String via `==` or `isequal` to help avoid allocating the full String in some cases
 # returns a `pos` value that notes the next position where parsing should continue
 # this is essentially the `StructUtils.applyeach` implementation for LazyValues w/ type OBJECT
@@ -288,7 +288,7 @@ function applyobject(keyvalfunc, x::LazyValues)
         GC.@preserve buf begin
             key, pos = @inline parsestring(LazyValue(buf, pos, JSONTypes.STRING, opts, false))
             if seen !== nothing
-                decoded = convert(String, key)
+                decoded = String(key)
                 decoded in seen && throw(DuplicateKeyError(decoded, keypos))
                 push!(seen, decoded)
             end
@@ -443,10 +443,11 @@ else
     _tostr(m::Memory{UInt8}, slen) = ccall(:jl_genericmemory_to_string, Ref{String}, (Any, Int), m, slen)
 end
 
-# `convert(String, x)` is how `applyobject` and `parsestring` callers materialize a PtrString.
-# This method invalidates compiled `convert(String, ::Any)` calls when JSON loads, so PtrString
-# gets no other `Base.convert` methods.
-function Base.convert(::Type{String}, x::PtrString)
+# `String(x)` materializes a PtrString, for example a key passed to an `applyobject` callback.
+# PtrString deliberately has no `Base.convert` methods: `convert(::Type{String}, ::PtrString)`
+# or `convert(::Type{Symbol}, ::PtrString)` would invalidate every compiled
+# `convert(String, ::Any)` or `convert(Symbol, ::Any)` call when JSON loads.
+function Base.String(x::PtrString)
     if x.escaped
         m = mem(x.len)
         slen = GC.@preserve m unsafe_unescape_to_buffer(x.ptr, x.len, pointer(m))
@@ -455,22 +456,20 @@ function Base.convert(::Type{String}, x::PtrString)
     return unsafe_string(x.ptr, x.len)
 end
 
-# StructUtils' selectors (`propertynames`, `hasproperty`) turn keys into Symbols with this
-# helper; a `Base.convert(::Type{Symbol}, ::PtrString)` method would instead invalidate
-# every compiled `convert(Symbol, ::Any)` call.
+# StructUtils' selectors (`propertynames`, `hasproperty`) turn keys into Symbols with this helper.
 Selectors._symbol(x::PtrString) = x.escaped ?
-    Symbol(convert(String, x)) :
+    Symbol(String(x)) :
     ccall(:jl_symbol_n, Ref{Symbol}, (Ptr{UInt8}, Int), x.ptr, x.len)
 
 Base.:(==)(x::PtrString, y::AbstractString) = x.escaped ?
-    convert(String, x) == y :
+    String(x) == y :
     x.len == sizeof(y) && ccall(:memcmp, Cint, (Ptr{UInt8}, Ptr{UInt8}, Csize_t), x.ptr, pointer(y), x.len) == 0
 Base.:(==)(x::AbstractString, y::PtrString) = y == x
 Base.:(==)(x::PtrString, y::PtrString) = x.escaped || y.escaped ?
-    convert(String, x) == convert(String, y) :
+    String(x) == String(y) :
     x.len == y.len && ccall(:memcmp, Cint, (Ptr{UInt8}, Ptr{UInt8}, Csize_t), x.ptr, y.ptr, x.len) == 0
 Base.hash(x::PtrString, h::UInt) = x.escaped ?
-    hash(convert(String, x), h) :
+    hash(String(x), h) :
     hash(unsafe_string(x.ptr, x.len), h)
 StructUtils.keyeq(x::PtrString, y::AbstractString) = x == y
 StructUtils.keyeq(x::PtrString, y::String) = x == y
@@ -958,7 +957,7 @@ struct IterateObjectClosure
 end
 
 function (f::IterateObjectClosure)(k, v)
-    push!(f.kvs, convert(String, k) => v)
+    push!(f.kvs, String(k) => v)
     return
 end
 
@@ -1010,7 +1009,7 @@ function Base.show(io::IO, x::LazyValue)
         buf = getbuf(x)
         GC.@preserve buf begin
             str, _ = parsestring(x)
-            Base.print(io, "JSON.LazyValue(", repr(convert(String, str)), ")")
+            Base.print(io, "JSON.LazyValue(", repr(String(str)), ")")
         end
     elseif T == JSONTypes.NULL
         Base.print(io, "JSON.LazyValue(nothing)")
