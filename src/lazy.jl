@@ -182,12 +182,12 @@ Selectors.@selectors LazyValues
 Base.lastindex(x::LazyValues) = length(x)
 
 # this ensures LazyValues can be "sources" in StructUtils.make
-function StructUtils.applyeach(::StructUtils.StructStyle, f, x::LazyValues)
+function StructUtils.applyeach(st::StructUtils.StructStyle, f, x::LazyValues)
     type = gettype(x)
     if type == JSONTypes.OBJECT
-        return applyobject(f, x)
+        return applyobject(f, x, _context(st))
     elseif type == JSONTypes.ARRAY
-        return applyarray(f, x)
+        return applyarray(f, x, _context(st))
     end
     typename = get(JSONTypes.names, type, "UNKNOWN")
     throw(ArgumentError(string(
@@ -261,6 +261,7 @@ end
 
 # core JSON object parsing function
 # takes a `keyvalfunc` that is applied to each key/value pair
+# an `ErrorContext` `ctx` is pointed at each value while `keyvalfunc` builds it
 # `keyvalfunc` receives a PtrString => LazyValue pair
 # `keyvalfunc` can return `StructUtils.EarlyReturn` to short-circuit parsing
 # otherwise, it should return a `pos::Int` value that notes the next position to continue parsing
@@ -268,7 +269,7 @@ end
 # PtrString can be compared to String via `==` or `isequal` to help avoid allocating the full String in some cases
 # returns a `pos` value that notes the next position where parsing should continue
 # this is essentially the `StructUtils.applyeach` implementation for LazyValues w/ type OBJECT
-function applyobject(keyvalfunc, x::LazyValues)
+function applyobject(keyvalfunc::F, x::LazyValues, ctx=nothing) where {F}
     pos::Int = getpos(x)
     buf = getbuf(x)
     len = getlength(buf)
@@ -301,7 +302,9 @@ function applyobject(keyvalfunc, x::LazyValues)
             @nextbyte
             # we're now positioned at the start of the value
             val = _lazy(buf, pos, len, b, opts)
+            ctx === nothing || _track!(ctx, buf, pos)
             ret = keyvalfunc(key, val)
+            ctx === nothing || _track!(ctx, buf, _valuepos(x))
         end
         # if ret is an EarlyReturn, then we're short-circuiting
         # parsing via e.g. selection syntax, so return immediately
@@ -372,12 +375,13 @@ end
 
 # core JSON array parsing function
 # takes a `keyvalfunc` that is applied to each index => value element
+# an `ErrorContext` `ctx` is pointed at each value while `keyvalfunc` builds it
 # `keyvalfunc` is provided a Int => LazyValue pair
 # applyeach always requires a key-value pair function
 # so we use the index as the key
 # returns a `pos` value that notes the next position where parsing should continue
 # this is essentially the `StructUtils.applyeach` implementation for LazyValues w/ type ARRAY
-function applyarray(keyvalfunc, x::LazyValues)
+function applyarray(keyvalfunc::F, x::LazyValues, ctx=nothing) where {F}
     pos::Int = getpos(x)
     buf = getbuf(x)
     len = getlength(buf)
@@ -402,7 +406,9 @@ function applyarray(keyvalfunc, x::LazyValues)
     while true
         # we're now positioned at the start of the value
         val = _lazy(buf, pos, len, b, opts)
+        ctx === nothing || _track!(ctx, buf, pos)
         ret = keyvalfunc(i, val)
+        ctx === nothing || _track!(ctx, buf, _valuepos(x))
         ret isa StructUtils.EarlyReturn && return ret
         # if keyvalfunc didn't materialize `val` and return an
         # updated `pos`, then we need to skip val ourselves

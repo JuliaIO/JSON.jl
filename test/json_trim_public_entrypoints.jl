@@ -76,6 +76,11 @@ function exercise_parse_entrypoints()::Nothing
     checked((name::String) == "Ada", "untyped string value failed")
 
     checked(JSON.parse("7", Int) == 7, "typed scalar parse failed")
+    checked(JSON.parse("7", Int; error_context=false) == 7, "disabled error context parse failed")
+    checked(JSON.parse(JSON.lazy(ARRAY_JSON), Vector{Int}; error_context=true) == [1, 2, 3],
+        "error context lazy parse failed")
+    checked(JSON.parse("{\"name\":\"Ada\"}"; error_context=true) isa JSON.Object{String,Any},
+        "error context untyped parse failed")
     checked(JSON.parse(IOBuffer(STRING_JSON), String) == "Ada", "typed IO parse failed")
     checked(JSON.parse(ARRAY_JSON, Vector{Int}) == [1, 2, 3], "typed array parse failed")
     checked(JSON.parse("{\"score\":7}", Dict{String,Int}) == Dict("score" => 7),
@@ -90,6 +95,16 @@ function exercise_parse_entrypoints()::Nothing
         "nested vector parse failed")
     checked(root.tags == ["a"] && root.note === nothing, "nullable field parse failed")
 
+    located = try
+        JSON.parse("{\"item\":null,\"items\":[{\"id\":2}],\"tags\":[],\"note\":null}", TrimRoot;
+            error_context=true)
+        nothing
+    catch err
+        err
+    end
+    checked(located isa JSON.ParseError && (located::JSON.ParseError).path == "/items/0",
+        "error context path failed")
+
     tagged = JSON.parse(
         "{\"wire\":4,\"secret\":99}",
         TrimTagged;
@@ -100,6 +115,10 @@ function exercise_parse_entrypoints()::Nothing
     mutable_value = TrimMutable()
     JSON.parse!("{\"value\":8}", mutable_value; unknown_fields=:error)
     checked(mutable_value.value == 8, "parse! failed")
+    JSON.parse!(IOBuffer("{\"value\":9}"), mutable_value; error_context=true)
+    checked(mutable_value.value == 9, "error context IO parse! failed")
+    JSON.parse!(JSON.lazy("{\"value\":10}"), mutable_value; error_context=false)
+    checked(mutable_value.value == 10, "disabled error context lazy parse! failed")
 
     unknown = try
         JSON.parse("{\"extra\":1}", TrimLeaf; unknown_fields=:error)

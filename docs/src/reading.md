@@ -202,6 +202,36 @@ json = """
 employee = JSON.parse(json, Employee)
 ```
 
+### Locating conversion failures
+
+Pass `error_context=true` to find out which input value failed to convert:
+
+```julia
+err = try
+    JSON.parse("""{"counts":[1,"bad"]}""", @NamedTuple{counts::Vector{Int}};
+        error_context=true)
+catch err
+    err
+end
+
+err.path                  # "/counts/1"
+err.position              # 14
+err.cause isa MethodError # true
+```
+
+The error is rethrown as a [`JSON.ParseError`](@ref). Its `path` is an
+[RFC 6901 JSON Pointer](https://www.rfc-editor.org/rfc/rfc6901) to the value that
+failed, using the input's key names: array indices start at zero, `~` in a key is
+written `~0` and `/` is written `~1`, and `""` is the whole input. `position` is the
+byte where that value starts. Missing fields and constructor errors point at the
+object being built, JSON Lines inputs are indexed like an array, and for a selected
+`LazyValue` the path is relative to that value.
+
+The option works with `parse`, `parse!`, `parsefile`, and IO inputs, and is off by
+default because tracking the current value slows parsing slightly. If a custom
+`StructUtils.make` or `lift` method catches an error and then throws, `path` may
+point at a value inside the one that method was building.
+
 ### Arrays and collections
 
 You can parse JSON arrays directly into Julia arrays with a specific element type:

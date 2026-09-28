@@ -15,7 +15,7 @@ export JSONText, StructUtils, @noarg, @kwarg, @defaults, @tags, @choosetype, @no
     eval(Expr(:public,
         :parse, :parse!, :parsefile, :parsefile!,
         :lazy, :lazyfile, :LazyValue,
-        :isvalidjson, :DuplicateKeyError,
+        :isvalidjson, :DuplicateKeyError, :ParseError,
         :json, :print,
         :lower, :lift,
         :omit_null, :omit_empty,
@@ -36,6 +36,27 @@ end
 
 function Base.showerror(io::IO, err::DuplicateKeyError)
     Base.print(io, "duplicate JSON object key ", repr(err.key), " at byte position ", err.position)
+end
+
+"""
+    JSON.ParseError
+
+Thrown in place of the original error when parsing with `error_context=true` fails.
+`path` is an RFC 6901 JSON Pointer to the value that failed, relative to the parsed
+input (`""` is the input itself), or `nothing` if it can't be determined. `position`
+is the byte where that value starts, and `cause` is the original exception.
+"""
+struct ParseError <: Exception
+    path::Union{Nothing,String}
+    position::Int
+    cause::Any
+end
+
+function Base.showerror(io::IO, err::ParseError)
+    Base.print(io, "JSON parse error")
+    err.path === nothing || Base.print(io, " at ", repr(err.path))
+    Base.print(io, " (value starts at byte ", err.position, "): ")
+    Base.showerror(io, err.cause)
 end
 
 @enum Error InvalidJSON UnexpectedEOF ExpectedOpeningObjectChar ExpectedOpeningQuoteChar ExpectedOpeningArrayChar ExpectedClosingArrayChar ExpectedComma ExpectedColon ExpectedNewline InvalidChar InvalidNumber InvalidUTF16

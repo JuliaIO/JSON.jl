@@ -5,6 +5,7 @@ include(joinpath(dirname(pathof(JSON)), "../test/lazy.jl"))
 include(joinpath(dirname(pathof(JSON)), "../test/parse.jl"))
 include(joinpath(dirname(pathof(JSON)), "../test/escaped_keys.jl"))
 include(joinpath(dirname(pathof(JSON)), "../test/inbound_tags.jl"))
+include(joinpath(dirname(pathof(JSON)), "../test/error_context.jl"))
 include(joinpath(dirname(pathof(JSON)), "../test/json.jl"))
 include(joinpath(dirname(pathof(JSON)), "../test/style_fastpaths.jl"))
 # Arrow.jl is broken on 32 bit systems for now :(
