@@ -75,6 +75,10 @@ end
     @test isequal(key[], "alpha")
     @test hash(key[]) == hash("alpha")
     @test String(key[]) == "alpha"
+    # the writer's PtrString method writes the unescaped key
+    out = Vector{UInt8}(undef, 16)
+    pos = JSON._string(out, 1, key[], nothing, length(out))
+    @test String(out[1:pos-1]) == "\"alpha\""
     @test propertynames(source) == [:alpha]
     @test source.alpha[] == 1
     # Base.convert methods on PtrString would invalidate compiled code on load
