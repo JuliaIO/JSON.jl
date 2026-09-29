@@ -111,6 +111,82 @@ x = JSON.parse("[1,2,3]", JSONText)
 struct JSONText
     value::String
 end
+JSON.JSONText(js::JSONText) = js
+
+VERSION >= v"1.11" && eval(Meta.parse("public @js_str"))
+
+"""
+    js" -> JSONText
+
+Construct a JSONText. String interpolation is supported via the `i` flag.
+### Examples
+```
+js\"\"\"alert("Hello World")\"\"\"
+# JSONText("alert(\"Hello World\")")
+
+js\"\"\"alert("1 + 2 == \$(1 + 2)")\"\"\"i
+# JSONText("alert(\"1 + 2 == 3\")")
+```
+"""
+macro js_str(s)
+    :( JSONText($(esc(s))) )
+end
+
+macro js_str(s, flags)
+    flags == "i" || @warn "Only 'i' flag currently supported (string interpolation)."
+    if 'i' in flags
+        parts = Any[]
+        io = IOBuffer()
+        
+        i = 1
+        len = lastindex(s)
+        backslash_odd = false
+        
+        while i ≤ len
+            c = s[i]
+            
+            if c == '\\'
+                # only write one of consecutive backslashes
+                backslash_odd || write(io, c)
+                backslash_odd = ! backslash_odd
+                i = nextind(s, i)
+            elseif c == '$' && ! backslash_odd
+                # parse content after non-escaped '$'
+
+                # push io content to parts
+                io.size > 0 && push!(parts, String(take!(io)))
+                
+                expr, i = Meta.parse(s, nextind(s, i), greedy=false)
+
+                if expr === nothing || expr == :()
+                    throw(Meta.ParseError("syntax: empty interpolation in string"))
+                end
+
+                # push parsed content to parts
+                push!(parts, esc(expr))
+            else
+                # if if a backslash precedes a special character, overwrite the backslash
+                if backslash_odd && c in raw"$nt"
+                    seek(io, position(io) - 1)
+                    if c == 'n'
+                        c = '\n'
+                    elseif c == 't'
+                        c = '\t'
+                    end
+                end
+                write(io, c)
+                backslash_odd = false
+                i = nextind(s, i)
+            end
+        end
+        
+        io.size > 0 && push!(parts, String(take!(io)))
+
+        :( JSONText(string($(parts...))) )
+    else
+        :( JSONText($(esc(s))) )
+    end
+end
 
 include("lazy.jl")
 include("parse.jl")
