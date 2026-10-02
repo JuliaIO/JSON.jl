@@ -18,6 +18,9 @@ JSON.json(io::IO, x) -> IO
 
 # Serialize to a file
 JSON.json(file_name::String, x) -> String
+
+# Serialize to a byte vector
+JSON.json(Vector{UInt8}, x) -> Vector{UInt8}
 ```
 
 The [`JSON.json`](@ref) function accepts a wide range of Julia types and transforms them into their JSON representation by knowing how to serialize a core set of types:
