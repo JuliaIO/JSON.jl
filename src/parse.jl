@@ -19,6 +19,7 @@ Currently supported keyword arguments include:
   * `dicttype`: a custom `AbstractDict` type to use instead of `$DEFAULT_OBJECT_TYPE` as the default type for JSON object materialization
   * `null`: a custom value to use for JSON null values (default: `nothing`)
   * `unknown_fields`: controls how unmatched JSON object keys or positional values are handled when parsing into a target type or existing object; supported values are `:ignore` (default) and `:error`
+  * `error_context`: when `true`, wrap materialization failures in [`ParseError`](@ref) with an input path, value-start byte position, original exception and backtrace (default: `false`)
   * `style`: a custom `StructUtils.StructStyle` subtype instance to be used in calls to `StructUtils.make` and `StructUtils.lift`. This allows overriding
     default behaviors for non-owned types.
 
@@ -153,14 +154,152 @@ abstract type JSONStyle <: StructStyle end
 
 # defining a custom style allows us to pass a non-default dicttype `O` through JSON.parse,
 # while still delegating custom behavior to an inner StructStyle if one was provided
-struct JSONReadStyle{O,T,S} <: JSONStyle
+struct JSONReadStyle{O,T,S,C} <: JSONStyle
     null::T
     style::S
     ignore_unknown_fields::Bool
+    context::C
 end
 
 JSONReadStyle{O}(null::T, style::S=StructUtils.DefaultStyle(), ignore_unknown_fields::Bool=true) where {O,T,S} =
-    JSONReadStyle{O,T,S}(null, style, ignore_unknown_fields)
+    JSONReadStyle{O,T,S,Nothing}(null, style, ignore_unknown_fields, nothing)
+
+JSONReadStyle{O,T,S}(null::T, style::S, ignore_unknown_fields::Bool) where {O,T,S} =
+    JSONReadStyle{O,T,S,Nothing}(null, style, ignore_unknown_fields, nothing)
+
+struct _ParseFailure
+    position::Int
+    jsonlines::Bool
+    cause::Any
+    backtrace::Any
+end
+
+mutable struct _ErrorContext{B}
+    buffer::B
+    failure::Union{Nothing,_ParseFailure}
+end
+_ErrorContext(x::LazyValues) = _ErrorContext(getbuf(x), nothing)
+
+_contextstyle(st::JSONReadStyle{O,T,S}, context::C) where {O,T,S,C} =
+    JSONReadStyle{O,T,S,C}(st.null, st.style, st.ignore_unknown_fields, context)
+
+_contextfatal(err) = err isa Union{InterruptException,OutOfMemoryError,StackOverflowError}
+
+@noinline function _recordfailure!(context::_ErrorContext, saved, err, x::LazyValues)
+    bt = catch_backtrace()
+    child = context.failure
+    # A hook may catch a failure and later throw the same exception again.
+    # Only a new child record with the same original backtrace is propagating.
+    if !(child !== nothing && child !== saved && child.cause === err && child.backtrace == bt)
+        context.failure = getbuf(x) === context.buffer ?
+            _ParseFailure(getpos(x), getopts(x).jsonlines, err, bt) : nothing
+    end
+    return context.failure
+end
+
+struct _ContextCallback{F,C}
+    f::F
+    context::C
+end
+function (f::_ContextCallback)(k, v)
+    saved = f.context.failure
+    try
+        result = f.f(k, v)
+        f.context.failure = saved
+        return result
+    catch err
+        _contextfatal(err) && rethrow()
+        _recordfailure!(f.context, saved, err, v)
+        rethrow()
+    end
+end
+
+@inline _contextcallback(ctx, f) = f
+@inline _contextcallback(st::JSONReadStyle{O,T,S,<:_ErrorContext}, f) where {O,T,S} =
+    _ContextCallback(f, st.context)
+
+# The untyped parser carries its null value separately from typed style hooks.
+struct _UntypedContext{N,C}
+    null::N
+    context::C
+end
+@inline _contextcallback(ctx::_UntypedContext, f) = _ContextCallback(f, ctx.context)
+_untypednull(null) = null
+_untypednull(ctx::_UntypedContext) = ctx.null
+_untypedcontext(null, st::StructStyle) = null
+_untypedcontext(null, st::JSONReadStyle{O,T,S,<:_ErrorContext}) where {O,T,S} =
+    _UntypedContext(null, st.context)
+# A style supplied as the null value retains its existing applyvalue dispatch.
+_untypedcontext(null::StructStyle, st::JSONReadStyle{O,T,S,<:_ErrorContext}) where {O,T,S} = null
+
+@inline _contextmake(st::StructStyle, ::Type{T}, x) where {T} = StructUtils.make(st, T, x)
+function _contextmake(st::JSONReadStyle{O,N,S,<:_ErrorContext}, ::Type{T}, x) where {O,N,S,T}
+    saved = st.context.failure
+    try
+        result = StructUtils.make(st, T, x)
+        st.context.failure = saved
+        return result
+    catch err
+        _contextfatal(err) && rethrow()
+        _recordfailure!(st.context, saved, err, x)
+        rethrow()
+    end
+end
+
+# Return a pointer suffix when found, otherwise the next byte position. Returning
+# positions lets the existing traversal avoid rescanning completed subtrees.
+function _failurepath(x::LazyValues, failure::_ParseFailure)
+    if getpos(x) == failure.position && getopts(x).jsonlines == failure.jsonlines
+        return StructUtils.EarlyReturn("")
+    end
+    type = gettype(x)
+    if type == JSONTypes.OBJECT || type == JSONTypes.ARRAY
+        callback = function (k, v)
+            getpos(v) > failure.position && return StructUtils.EarlyReturn(nothing)
+            found = _failurepath(v, failure)
+            if found isa StructUtils.EarlyReturn
+                found.value === nothing && return found
+                key = type == JSONTypes.ARRAY ? string(k - 1) : String(k)
+                token = replace(key, "~" => "~0", "/" => "~1")
+                return StructUtils.EarlyReturn(string('/', token, found.value))
+            end
+            return found
+        end
+        return type == JSONTypes.OBJECT ? applyobject(callback, x) : applyarray(callback, x)
+    end
+    return skip(x)
+end
+
+function _withparsecontext(f::F, root::LazyValue, context::_ErrorContext) where {F}
+    try
+        return f()
+    catch err
+        _contextfatal(err) && rethrow()
+        failure = _recordfailure!(context, nothing, err, root)::_ParseFailure
+        path = try
+            found = _failurepath(root, failure)
+            found isa StructUtils.EarlyReturn ? found.value : nothing
+        catch recovery
+            _contextfatal(recovery) && rethrow()
+            nothing
+        end
+        throw(ParseError(path, failure.position, failure.cause, failure.backtrace))
+    end
+end
+
+function _parsecontext(x, ::Type{T}, dicttype, null, style) where {T}
+    context = _ErrorContext(x)
+    return _withparsecontext(x, context) do
+        _parse(x, T, dicttype, null, _contextstyle(style, context))
+    end
+end
+
+function _parsecontext!(x, obj, style)
+    context = _ErrorContext(x)
+    return _withparsecontext(x, context) do
+        StructUtils.make!(_contextstyle(style, context), obj, x)
+    end
+end
 
 objecttype(::StructStyle) = DEFAULT_OBJECT_TYPE
 objecttype(::JSONReadStyle{OT}) where {OT} = OT
@@ -247,30 +386,47 @@ parsefile!(file, x::T; jsonlines::Union{Bool,Nothing}=nothing, kw...) where {T} 
 
 parse(io::Union{IO,Base.AbstractCmd}, ::Type{T}=Any; kw...) where {T} = parse(Base.read(io), T; kw...)
 
-parse!(io::Union{IO,Base.AbstractCmd}, x::T; kw...) where {T} = parse!(Base.read(io), x; kw...)
+# Keep literal options visible through the mutating entrypoints in native builds.
+@inline parse!(io::Union{IO,Base.AbstractCmd}, x::T; kw...) where {T} = parse!(Base.read(io), x; kw...)
 
-# No forced @inline through the entry chain: inlining the typed descent into
-# these forwarding bodies makes each entry's compilation unit re-optimize the
-# entire per-type parse tower instead of calling the already-compiled
-# instances (measured at +12s on the first parse of a 35-field Union-typed
-# struct, and 30-50% of the first parse of a 13-type struct family). The buffer
-# entry therefore calls the positional core directly. Typed customization for
-# buffer inputs stays at the StructUtils style/make/lift boundary. A parse
-# method specialized on LazyValue applies when the caller passes one directly.
-parse(buf::Union{AbstractVector{UInt8},AbstractString}, ::Type{T}=Any;
-    dicttype::Type{O}=DEFAULT_OBJECT_TYPE, null=nothing, style::StructStyle=StructUtils.DefaultStyle(),
-    unknown_fields::Symbol=:ignore, kw...) where {T,O} =
-    _parse(lazy(buf; kw...), T, dicttype, null, jsonreadstyle(T, O, null, style, unknown_fields))
+# Absence is known from the keyword tuple's type, so default calls do not infer
+# the diagnostics path. Remove only this option before forwarding lazy options.
+function _errorcontext(kw)
+    value = get(kw, :error_context, false)
+    value isa Bool || throw(TypeError(Symbol("keyword argument"), :error_context, Bool, value))
+    return value
+end
 
-parse!(buf::Union{AbstractVector{UInt8},AbstractString}, x::T;
-    dicttype::Type{O}=DEFAULT_OBJECT_TYPE, null=nothing, style::StructStyle=StructUtils.DefaultStyle(),
-    unknown_fields::Symbol=:ignore, kw...) where {T,O} =
-    StructUtils.make!(jsonreadstyle(typeof(x), O, null, style, unknown_fields), x, lazy(buf; kw...))
+_withoutcontext(kw) = Base.structdiff(values(kw), NamedTuple{(:error_context,)})
 
-parse(x::LazyValue, ::Type{T}=Any;
+# Buffer customization stays at the StructUtils style/make/lift boundary;
+# a parse method specialized on LazyValue applies to direct LazyValue inputs.
+function parse(buf::Union{AbstractVector{UInt8},AbstractString}, ::Type{T}=Any;
     dicttype::Type{O}=DEFAULT_OBJECT_TYPE, null=nothing, style::StructStyle=StructUtils.DefaultStyle(),
-    unknown_fields::Symbol=:ignore) where {T,O} =
-    _parse(x, T, dicttype, null, jsonreadstyle(T, O, null, style, unknown_fields))
+    unknown_fields::Symbol=:ignore, kw...) where {T,O}
+    error_context = _errorcontext(kw)
+    x = lazy(buf; _withoutcontext(kw)...)
+    st = jsonreadstyle(T, O, null, style, unknown_fields)
+    return error_context ? _parsecontext(x, T, dicttype, null, st) : _parse(x, T, dicttype, null, st)
+end
+
+@inline function parse!(buf::Union{AbstractVector{UInt8},AbstractString}, x::T;
+    dicttype::Type{O}=DEFAULT_OBJECT_TYPE, null=nothing, style::StructStyle=StructUtils.DefaultStyle(),
+    unknown_fields::Symbol=:ignore, kw...) where {T,O}
+    error_context = _errorcontext(kw)
+    st = jsonreadstyle(T, O, null, style, unknown_fields)
+    source = lazy(buf; _withoutcontext(kw)...)
+    return error_context ? _parsecontext!(source, x, st) : _parse!(source, x, st)
+end
+
+function parse(x::LazyValue, ::Type{T}=Any;
+    dicttype::Type{O}=DEFAULT_OBJECT_TYPE, null=nothing, style::StructStyle=StructUtils.DefaultStyle(),
+    unknown_fields::Symbol=:ignore, kw...) where {T,O}
+    error_context = _errorcontext(kw)
+    isempty(_withoutcontext(kw)) || Base.kwerr(values(kw), parse, x, T)
+    st = jsonreadstyle(T, O, null, style, unknown_fields)
+    return error_context ? _parsecontext(x, T, dicttype, null, st) : _parse(x, T, dicttype, null, st)
+end
 
 function _parse(x::LazyValue, ::Type{T}, dicttype::Type{O}, null, style::StructStyle) where {T,O}
     y, pos = StructUtils.make(style, T, x)
@@ -285,17 +441,24 @@ end
 
 (f::ValueClosure)(v) = setfield!(f, :value, v)
 
-function _parse(x::LazyValue, ::Type{Any}, ::Type{DEFAULT_OBJECT_TYPE}, null, ::StructStyle)
+function _parse(x::LazyValue, ::Type{Any}, ::Type{DEFAULT_OBJECT_TYPE}, null, st::StructStyle)
     out = ValueClosure()
-    pos = applyvalue(out, x, null)
+    pos = applyvalue(out, x, _untypedcontext(null, st))
     getisroot(x) && checkendpos(x, Any, pos)
     return out.value
 end
 
-parse!(x::LazyValue, obj::T;
+@inline function parse!(x::LazyValue, obj::T;
     dicttype::Type{O}=DEFAULT_OBJECT_TYPE, null=nothing, style::StructStyle=StructUtils.DefaultStyle(),
-    unknown_fields::Symbol=:ignore) where {T,O} =
-    StructUtils.make!(jsonreadstyle(T, O, null, style, unknown_fields), obj, x)
+    unknown_fields::Symbol=:ignore, kw...) where {T,O}
+    error_context = _errorcontext(kw)
+    isempty(_withoutcontext(kw)) || Base.kwerr(values(kw), parse!, x, obj)
+    st = jsonreadstyle(T, O, null, style, unknown_fields)
+    return error_context ? _parsecontext!(x, obj, st) : _parse!(x, obj, st)
+end
+
+# Compile typed mutation separately from the inlined keyword forwarders.
+@noinline _parse!(x::LazyValue, obj, style::StructStyle) = StructUtils.make!(style, obj, x)
 
 # for LazyValue, if x started at the beginning of the JSON input,
 # then we want to ensure that the entire input was consumed
@@ -326,7 +489,7 @@ mutable struct ObjectClosure{T}
     obj::Object{String,Any}
     keys::Union{Nothing,Set{String}}
     count::Int
-    ctx::T # the null value of an untyped parse, or the style of a typed one
+    ctx::T # the null value/diagnostic context of an untyped parse, or a typed style
 end
 
 ObjectClosure(obj, ctx) = ObjectClosure(obj, obj, nothing, 0, ctx)
@@ -370,7 +533,7 @@ function applyvalue(f, x::LazyValues, null)
     type = gettype(x)
     if type == JSONTypes.OBJECT
         obj = Object{String,Any}()
-        pos = applyobject(ObjectClosure(obj, null), x)
+        pos = applyobject(_contextcallback(null, ObjectClosure(obj, null)), x)
         f(obj)
         return pos
     elseif type == JSONTypes.ARRAY
@@ -378,9 +541,7 @@ function applyvalue(f, x::LazyValues, null)
         # a reallocation in many cases
         arr = Vector{Any}(undef, 16)
         resize!(arr, 0)
-        pos = applyarray(x) do _, v
-            applyvalue(val -> push!(arr, val), v, null)
-        end
+        pos = applyarray(_contextcallback(null, (_, v) -> applyvalue(val -> push!(arr, val), v, null)), x)
         f(arr)
         return pos
     elseif type == JSONTypes.STRING
@@ -403,7 +564,7 @@ function applyvalue(f, x::LazyValues, null)
         end
         return pos
     elseif type == JSONTypes.NULL
-        f(null)
+        f(_untypednull(null))
         return getpos(x) + 4
     elseif type == JSONTypes.TRUE
         f(true)
@@ -506,7 +667,7 @@ function StructUtils.make(st::_DefaultReadStyle, ::Type{Vector{Any}}, x::LazyVal
     gettype(x) == JSONTypes.ARRAY ||
         return @invoke StructUtils.make(st::StructStyle, Vector{Any}::Type, x::Any)
     arr = sizehint!(StructUtils.initialize(st, Vector{Any}, x), 16)
-    pos = applyarray((_, v) -> applyvalue(val -> push!(arr, val), v, st), x)
+    pos = applyarray(_contextcallback(st, (_, v) -> applyvalue(val -> push!(arr, val), v, st)), x)
     return arr, pos
 end
 
@@ -516,7 +677,7 @@ function StructUtils.make(st::_DefaultReadStyle, ::Type{Object{String,Any}}, x::
     gettype(x) == JSONTypes.OBJECT ||
         return @invoke StructUtils.make(st::StructStyle, Object{String,Any}::Type, x::Any)
     obj = StructUtils.initialize(st, Object{String,Any}, x)
-    pos = applyobject(ObjectClosure(obj, st), x)
+    pos = applyobject(_contextcallback(st, ObjectClosure(obj, st)), x)
     return obj, pos
 end
 
@@ -524,7 +685,7 @@ function StructUtils.make(st::_DefaultReadStyle, ::Type{T}, x::LazyValues) where
     gettype(x) == JSONTypes.OBJECT ||
         return @invoke StructUtils.make(st::StructStyle, T::Type, x::Any)
     dict = StructUtils.initialize(st, T, x)
-    pos = applyobject((k, v) -> applyvalue(val -> StructUtils.addkeyval!(dict, StructUtils.liftkey(st, String, k), val), v, st), x)
+    pos = applyobject(_contextcallback(st, (k, v) -> applyvalue(val -> StructUtils.addkeyval!(dict, StructUtils.liftkey(st, String, k), val), v, st)), x)
     return dict, pos
 end
 
@@ -698,7 +859,7 @@ end
                 @nextbyte
             end
             x = _lazy(buf, pos, len, b, opts)
-            j_{i}, pos = StructUtils.make(st, fieldtype(T, i), x)
+            j_{i}, pos = _contextmake(st, fieldtype(T, i), x)
             @nextbyte
             if typ == JSONTypes.OBJECT && b == UInt8('}')
                 if Base.@nany($N, k->!@isdefined(j_{k}))

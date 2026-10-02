@@ -202,6 +202,54 @@ json = """
 employee = JSON.parse(json, Employee)
 ```
 
+### Locating conversion failures
+
+Pass `error_context=true` to identify the input value that failed while parsing:
+
+```julia
+err = try
+    JSON.parse("""{"counts":[1,"bad"]}""", @NamedTuple{counts::Vector{Int}};
+        error_context=true)
+catch err
+    err
+end
+
+err.path                 # "/counts/1"
+err.position             # 14
+err.cause isa MethodError # true
+```
+
+[`JSON.ParseError`](@ref) keeps the original exception in `cause` and its
+backtrace in `backtrace`. Its `path` is an
+[RFC 6901 JSON Pointer](https://www.rfc-editor.org/rfc/rfc6901): array indices
+start at zero, `~` becomes `~0`, and `/` becomes `~1` within an object key.
+The empty path `""` identifies the input root. Input names are used even when
+field tags rename Julia fields. Duplicate keys can share a pointer; `position`
+distinguishes their occurrences.
+
+The byte position is one-based and identifies the start of the value being
+converted, rather than a cursor inside a syntax error. Missing fields and
+constructor failures identify the containing object. When parsing a selected
+`LazyValue`, the pointer is relative to that selected value, while the position
+still refers to its original buffer. JSON Lines inputs use array indices for
+their lines.
+
+This option also works with `parse!`, `parsefile`, and IO inputs. It does not
+retry parsing or rerun conversion hooks to discover the path. Hooks still see
+their original exceptions and can recover from them; only an error escaping
+the parse call is wrapped. If a hook parses a different input or handles
+multiple errors before rethrowing an older one, the enclosing conversion may
+be the most precise available location. If structural path recovery fails,
+`path` is `nothing` and the original cause remains available.
+
+Diagnostics are off by default. Enabling them adds tracking to successful
+conversions and a structural scan on failure. Omitting `error_context` gives the
+lowest first-use cost; passing `false` disables tracking but may still add compiler work.
+Existing partial updates from
+`parse!` are preserved. Errors from validating options or recognizing the
+initial input value, before materialization starts, keep their existing types;
+interrupts, out-of-memory errors, and stack-overflow errors are never wrapped.
+
 ### Arrays and collections
 
 You can parse JSON arrays directly into Julia arrays with a specific element type:
