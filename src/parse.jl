@@ -259,7 +259,7 @@ function _failurepath(x::LazyValues, failure::_ParseFailure)
             found = _failurepath(v, failure)
             if found isa StructUtils.EarlyReturn
                 found.value === nothing && return found
-                key = type == JSONTypes.ARRAY ? string(k - 1) : convert(String, k)
+                key = type == JSONTypes.ARRAY ? string(k - 1) : String(k)
                 token = replace(key, "~" => "~0", "/" => "~1")
                 return StructUtils.EarlyReturn(string('/', token, found.value))
             end
