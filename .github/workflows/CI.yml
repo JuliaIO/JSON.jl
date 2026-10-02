@@ -1,68 +1,56 @@
 name: CI
 
 on:
-  push:
-    branches: [main, master]
-    tags: ["*"]
-  pull_request:
-  release:
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
-  test:
-    name: Julia ${{ matrix.version }} - ${{ matrix.os }} - ${{ matrix.arch }} - ${{ github.event_name }} - Parsers ${{ matrix.parsers }}
-    runs-on: ${{ matrix.os }}
+  trace:
+    name: Windows corpus - ${{ matrix.label }}
+    runs-on: windows-latest
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
-        version:
-          - '1' # automatically expands to the latest stable 1.x release of Julia
-          - 'min'
-          - 'pre'
-        os:
-          - ubuntu-latest
-          - windows-latest
-        arch:
-          - x64
-        parsers:
-          - '3'
         include:
-          - os: macOS-latest
-            arch: aarch64
-            version: 1
-            parsers: '3'
-          - os: ubuntu-latest
-            arch: x86
-            version: 1
-            parsers: '3'
-          - os: ubuntu-latest
-            arch: x64
-            version: 1
-            parsers: '2.8.8'
+          - label: unchanged master
+            revision: a69c082751529014ceeac89a2b803dd4d79945eb
+          - label: error context
+            revision: 7c16fd8d4621d036f757efea7becc94a46a8e0f7
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ matrix.revision }}
       - uses: julia-actions/setup-julia@v3
         with:
-          version: ${{ matrix.version }}
-          arch: ${{ matrix.arch }}
-      - uses: julia-actions/cache@v3
+          version: '1.10.12'
+          arch: x64
       - uses: julia-actions/julia-buildpkg@v1
-      - name: Pin Parsers ${{ matrix.parsers }}
-        run: julia --project=. -e 'using Pkg; Pkg.add(name="Parsers", version="${{ matrix.parsers }}"); Pkg.pin("Parsers")'
+      - name: Match dependencies and trace the malformed-input corpus
+        shell: pwsh
+        run: |
+          $taskJuliaScript = @'
+          using Pkg
+          Pkg.add([PackageSpec(name="Parsers", version="3.0.0"), PackageSpec(name="StructUtils", version="2.9.2")])
+          Pkg.pin("Parsers")
+          Pkg.pin("StructUtils")
+          file = joinpath(pwd(), "test", "runtests.jl")
+          source = read(file, String)
+          needle = "        parse_testfile(i, file, data)"
+          replacement = raw"""
+                  println("CORPUS START ", i, " ", file)
+                  flush(stdout)
+                  parse_testfile(i, file, data)
+                  println("CORPUS DONE ", i, " ", file)
+                  flush(stdout)
+          """
+          @assert length(findall(needle, source)) == 1
+          write(file, replace(source, needle => replacement))
+          @assert isempty(read(`git diff -- src`, String))
+          '@
+          $taskScriptPath = Join-Path $env:RUNNER_TEMP 'json-corpus-trace.jl'
+          Set-Content -Path $taskScriptPath -Value $taskJuliaScript -Encoding utf8
+          julia --startup-file=no --project=. $taskScriptPath
       - uses: julia-actions/julia-runtest@v1
-      - uses: julia-actions/julia-processcoverage@v1
-      - uses: codecov/codecov-action@v7
-        with:
-          files: lcov.info
-          token: ${{ secrets.CODECOV_TOKEN }}
-  docs:
-    name: Documentation
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v7
-      - uses: julia-actions/julia-buildpkg@latest
-      - uses: julia-actions/julia-docdeploy@latest
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          DOCUMENTER_KEY: ${{ secrets.DOCUMENTER_KEY }}
