@@ -24,25 +24,19 @@ end
 
 function _setup_trim_env()
     # JuliaC requires Julia 1.12+ and can't be in [extras] without breaking
-    # Pkg.test() on older Julia versions.  Create a temp project that dev's
-    # StructUtils from the local checkout and adds JuliaC.
+    # Pkg.test() on older Julia versions.  Create a temp project with this
+    # JSON checkout, the exact StructUtils source this test session loaded
+    # (a dev checkout, registry copy, or git-tracked clone alike), and JuliaC.
+    # Parsers resolves from the registry; trim compatibility needs >= 2.8.7.
     json_path = normpath(joinpath(@__DIR__, ".."))
-    # use whatever StructUtils this test session resolved: a dev checkout is
-    # dev'd into the temp env; a registry copy is added normally
     su_path = normpath(joinpath(dirname(pathof(StructUtils)), ".."))
-    su_setup = startswith(su_path, joinpath(homedir(), ".julia", "packages")) ?
-        "Pkg.add(\"StructUtils\")" : "Pkg.develop(path=$(repr(su_path)))"
     env_path = mktempdir()
     julia = joinpath(Sys.BINDIR, Base.julia_exename())
     setup_script = joinpath(env_path, "setup.jl")
-    # TODO: drop once Parsers.jl#207 (trim fixes for the float overflow-widening
-    # ladder) is released — JSON's number parsing pulls Parsers' float path into
-    # every workload graph
     write(setup_script, """
     import Pkg
-    $(su_setup)
+    Pkg.develop(path=$(repr(su_path)))
     Pkg.develop(path=$(repr(json_path)))
-    Pkg.add(url="https://github.com/JuliaData/Parsers.jl", rev="trim-verifier-fixes")
     Pkg.add("JuliaC")
     """)
     println("[trim] setting up temp environment with JuliaC...")

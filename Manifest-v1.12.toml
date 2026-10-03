@@ -1,6 +1,6 @@
 # This file is machine-generated - editing it directly is not advised
 
-julia_version = "1.12.3"
+julia_version = "1.12.6"
 manifest_format = "2.0"
 project_hash = "19f7a579e8486201e771cd906646aaa821873ea9"
 
@@ -58,8 +58,10 @@ uuid = "ea8e919c-243c-51af-8825-aaa63cd721ce"
 version = "0.7.0"
 
 [[deps.StructUtils]]
-deps = ["Dates", "UUIDs"]
-git-tree-sha1 = "82bee338d650aa515f31866c460cb7e3bcef90b8"
+deps = ["Dates", "PrecompileTools", "Preferences", "UUIDs"]
+git-tree-sha1 = "ab7d3370dcf0f2a3966f9d524578354b4698814c"
+repo-rev = "37b6ae46159d971800031a3a9f5b310ff46d6c8a"
+repo-url = "https://github.com/JuliaServices/StructUtils.jl"
 uuid = "ec057cc2-7a8d-4b58-b3b3-92acb9f63b42"
 version = "2.8.2"
 
