@@ -819,4 +819,21 @@ end
     @test JSON.json(strs) == "[" * join(("\"" * x * "\"" for x in strs), ",") * "]"
 end
 
+@testset "LazyValue is written as its materialized value" begin
+    for s in ("{\"a\":1}", "[1,{\"b\":2}]", "\"s\"", "1", "1.5", "true", "null", "[]", "{}",
+              "{\"a\":{\"b\":[true,null,\"x\",{\"c\":[]}]}}")
+        x = JSON.lazy(s)
+        @test JSON.json(x) == s
+        @test sprint(JSON.print, x) == s
+        @test JSON.json([x]) == "[$s]"
+        @test JSON.json(x, 2) == JSON.json(x[], 2)
+    end
+    @test JSON.json(JSON.lazy("{\"a\":[1]}"), 2) == "{\n  \"a\": [\n    1\n  ]\n}"
+    # escaped keys are decoded, then escaped again only where JSON requires it
+    @test JSON.json(JSON.lazy("{\"a\\u0041\":1}")) == "{\"aA\":1}"
+    @test JSON.json(JSON.lazy("{\"q\\\"k\":\"v\\n\"}")) == "{\"q\\\"k\":\"v\\n\"}"
+    # nested lazy values are materialized before the omit checks
+    @test JSON.json((a=JSON.lazy("null"), b=1); omit_null=true) == "{\"b\":1}"
+end
+
 end # @testset "JSON.json"
