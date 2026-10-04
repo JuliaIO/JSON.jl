@@ -424,3 +424,65 @@ using JSON, Test
         @test merged_mixed.bool == true
     end
 end
+
+@testset "Popping JSON.Object entries" begin
+    for ks in (("a", "b", "c"), (:a, :b, :c), (1, 2, 3), (1, :b, "c")), index in 1:3, with_default in (false, true)
+        entries = [ks[i] => 10i for i in 1:3]
+        obj = JSON.Object(entries...)
+        value = with_default ? pop!(obj, ks[index], nothing) : pop!(obj, ks[index])
+        @test value === 10index
+        @test collect(obj) == entries[setdiff(1:3, index)]
+        @test !haskey(obj, ks[index])
+    end
+
+    obj = JSON.Object("a" => 1, "b" => 2)
+    fallback = Ref(:absent)
+    @test pop!(obj, "absent", fallback) === fallback
+    @test pop!(obj, 1, fallback) === fallback
+    @test_throws KeyError pop!(obj, "absent")
+    @test collect(obj) == ["a" => 1, "b" => 2]
+    @test pop!(obj, :a) == 1
+    @test pop!(obj, SubString("_b", 2), nothing) == 2
+    @test isempty(obj)
+    @test pop!(obj, "absent", fallback) === fallback
+    @test_throws KeyError pop!(obj, "absent")
+
+    obj = JSON.Object(:a => 1, :b => 2)
+    @test pop!(obj, "a") == 1
+    @test pop!(obj, "b", nothing) == 2
+    @test isempty(obj)
+
+    for value in (nothing, missing, JSON.notset, Ref(1))
+        obj = JSON.Object{String,Any}("a" => value)
+        @test pop!(obj, "a", value) === value
+        @test isempty(obj)
+    end
+
+    obj = JSON.Object(1 => :value)
+    @test pop!(obj, 1.0) === :value
+    @test isempty(obj)
+    obj = JSON.Object(NaN => 1, -0.0 => 2, 0.0 => 3)
+    @test pop!(obj, NaN) == 1
+    @test pop!(obj, 0.0) == 3
+    @test pop!(obj, -0.0) == 2
+    @test isempty(obj)
+
+    obj = JSON.Object("a" => 1, "a" => 2, "b" => 3)
+    @test pop!(obj, "a") == 1
+    @test collect(obj) == ["a" => 2, "b" => 3]
+    @test pop!(obj, "a") == 2
+    @test collect(obj) == ["b" => 3]
+
+    obj = JSON.parse("{\"a\":1,\"b\":null,\"c\":3}")
+    @test pop!(obj) == ("c" => 3)
+    @test popfirst!(obj) == ("a" => 1)
+    @test JSON.json(obj) == "{\"b\":null}"
+    @test pop!(obj) == ("b" => nothing)
+    @test isempty(obj)
+    @test isempty(propertynames(obj))
+    @test_throws ArgumentError pop!(obj)
+    @test_throws ArgumentError popfirst!(obj)
+    obj["d"] = 4
+    @test popfirst!(obj) == ("d" => 4)
+    @test isempty(obj)
+end

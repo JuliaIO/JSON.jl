@@ -132,6 +132,14 @@ function exercise_write_entrypoints()::Nothing
     checked(haskey(obj, "score"), "Object setindex! failed")
     delete!(obj, :score)
     checked(!haskey(obj, "score"), "Object delete! failed")
+    obj[:score] = 11
+    checked(pop!(obj, :score) == 11, "Object keyed pop! failed")
+    checked(pop!(obj, :score, -1) == -1, "Object pop! default failed")
+    obj["first"] = 1
+    obj["last"] = 2
+    checked(pop!(obj) == ("last" => 2), "Object last-pair pop! failed")
+    checked(popfirst!(obj) == ("first" => 1), "Object popfirst! failed")
+    checked(isempty(obj), "Object remains nonempty after popping its pairs")
 
     checked(JSON.json([1, 2, 3]) == ARRAY_JSON, "json string output failed")
 
