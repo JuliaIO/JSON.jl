@@ -405,10 +405,12 @@ StructUtils.lowerkey(::JSONStyle, x) = throw(ArgumentError("No key representatio
     JSON.json(x) -> String
     JSON.json(io, x)
     JSON.json(file_name, x)
+    JSON.json(Vector{UInt8}, x) -> Vector{UInt8}
 
 Serialize `x` to JSON format. The 1st method takes just the object and returns a `String`.
 In the 2nd method, `io` is an `IO` object, and the JSON output will be written to it.
 For the 3rd method, `file_name` is a `String`, a file will be opened and the JSON output will be written to it.
+The 4th method returns the UTF-8 encoded JSON output as a regular `Vector{UInt8}`.
 
 All methods accept the following keyword arguments:
 
@@ -462,7 +464,7 @@ All methods accept the following keyword arguments:
 
 - `bufsize::Int=2^22`: Buffer size in bytes for IO operations. When writing to IO, the buffer will be flushed 
   to the IO stream once it reaches this size. This helps control memory usage during large write operations.
-  Default is 4MB (2^22 bytes). This parameter is ignored when returning a String.
+  Default is 4MB (2^22 bytes). This parameter is ignored when returning a `String` or `Vector{UInt8}`.
 
 - `style::JSONStyle=JSONWriteStyle()`: Custom style object that controls serialization behavior. This allows customizing
     certain aspects of serialization, like defining a custom `lower` method for a non-owned type. Like `struct MyStyle <: JSONStyle end`,
@@ -606,11 +608,16 @@ float_precision_check(fs, fp) = (fs == :shortest || fp > 0) || float_precision_t
 _jsonlines_pretty_check(jsonlines, pretty) = jsonlines && pretty !== false && !iszero(pretty) && _jsonlines_pretty_throw()
 @noinline _root_omit_throw() = throw(ArgumentError("JSON.Omit() is only valid inside arrays or objects"))
 
-function json(io::IO, x::T; pretty::Union{Integer,Bool}=false, kw...) where {T}
+function writeoptions(pretty::Union{Integer,Bool}, kw)
     opts = WriteOptions(; pretty=pretty === true ? 2 : Int(pretty), kw...)
     _jsonlines_pretty_check(opts.jsonlines, opts.pretty)
     float_style_check(opts.float_style)
     float_precision_check(opts.float_style, opts.float_precision)
+    return opts
+end
+
+function json(io::IO, x::T; pretty::Union{Integer,Bool}=false, kw...) where {T}
+    opts = writeoptions(pretty, kw)
     y = StructUtils.lower(opts.style, x)
     # Use smaller initial buffer size, limited by bufsize
     initial_size = min(sizeguess(y), opts.bufsize)
@@ -630,14 +637,20 @@ else
 end
 
 function json(x; pretty::Union{Integer,Bool}=false, kw...)
-    opts = WriteOptions(; pretty=pretty === true ? 2 : Int(pretty), kw...)
-    _jsonlines_pretty_check(opts.jsonlines, opts.pretty)
-    float_style_check(opts.float_style)
-    float_precision_check(opts.float_style, opts.float_precision)
+    opts = writeoptions(pretty, kw)
     y = StructUtils.lower(opts.style, x)
     buf = stringvec(sizeguess(y))
     pos = json!(buf, 1, y, opts, Any[y], nothing)
     return String(resize!(buf, pos - 1))
+end
+
+function json(::Type{Vector{UInt8}}, x; pretty::Union{Integer,Bool}=false, kw...)
+    opts = writeoptions(pretty, kw)
+    y = StructUtils.lower(opts.style, x)
+    buf = Vector{UInt8}(undef, sizeguess(y))
+    pos = json!(buf, 1, y, opts, Any[y], nothing)
+    resize!(buf, pos - 1)
+    return buf
 end
 
 function json(fname, obj; kw...)
@@ -898,7 +911,6 @@ end
 
 _string(buf, pos, x, io, bufsize) = _string(buf, pos, string(x), io, bufsize)
 _string(buf, pos, x::LazyValues, io, bufsize) = _string(buf, pos, getindex(x), io, bufsize)
-_string(buf, pos, x::PtrString, io, bufsize) = _string(buf, pos, convert(String, x), io, bufsize)
 
 function _string(buf, pos, x::AbstractString, io, bufsize)
     sz = ncodeunits(x)

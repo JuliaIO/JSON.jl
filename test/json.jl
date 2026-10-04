@@ -220,6 +220,7 @@ JSON.applyany(::ClosedStyle, f, k, v) = throw(ArgumentError("closed"))
     io = IOBuffer()
     JSON.json(io, missing)
     @test String(take!(io)) == "null"
+    @test JSON.json(Vector{UInt8}, missing) == b"null"
     fname, io = mktemp()
     close(io)
     JSON.json(fname, missing)
@@ -330,6 +331,14 @@ JSON.applyany(::ClosedStyle, f, k, v) = throw(ArgumentError("closed"))
     io = IOBuffer()
     @test_throws ArgumentError JSON.json(io, Float64(π); float_style=:fixed, float_precision=0)
     @test_throws ArgumentError JSON.json(Float64(π); float_style=:not_a_style)
+end
+
+@testset "JSON.json(Vector{UInt8}, x) matches JSON.json(x)" begin
+    for x in Any[nothing, true, 2, -1.5, "a\"b\\c\u00e9", :sym, [1, 2, 3], (1, "a"), Dict("a" => 1, "b"=>nothing)]
+        for kw in ((;), (; pretty=true), (; omit_null=true))
+            @test JSON.json(Vector{UInt8}, x; kw...)::Vector{UInt8} == codeunits(JSON.json(x; kw...))
+        end
+    end
 end
 
 @testset "Enhanced @omit_null and @omit_empty macros" begin
