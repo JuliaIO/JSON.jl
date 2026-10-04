@@ -486,3 +486,64 @@ end
     @test popfirst!(obj) == ("d" => 4)
     @test isempty(obj)
 end
+
+
+@testset "JSON.Object mutation contracts" begin
+    for (K, ks) in ((String, ("a", "b")), (Symbol, (:a, :b)), (Int, (1, 2)), (Any, (1, "b")))
+        obj = JSON.Object{K,Int}()
+        @test setindex!(obj, 1.0, ks[1]) === obj
+        @test setindex!(obj, 2.0, ks[2]) === obj
+        @test setindex!(obj, 3.0, ks[1]) === obj
+        @test collect(obj) == [ks[1] => 3, ks[2] => 2]
+    end
+
+    obj = JSON.Object{String,Int}()
+    @test setindex!(obj, 1, :a) === obj
+    @test setindex!(obj, 2, SubString("_b", 2)) === obj
+    @test setindex!(obj, 3, :a) === obj
+    @test collect(obj) == ["a" => 3, "b" => 2]
+    obj = JSON.Object{Symbol,Int}()
+    @test setindex!(obj, 1, "a") === obj
+    @test setindex!(obj, 2, "a") === obj
+    @test collect(obj) == [:a => 2]
+
+    for make in (() -> JSON.Object{Int,Int}(1.0 => 2.0), () -> JSON.Object{Int,Int}([1.0 => 2.0]), () -> JSON.Object{Int,Int}([(1.0, 2.0)]), () -> JSON.Object{Int,Int}(Dict(1.0 => 2.0)))
+        @test collect(make()) == [1 => 2]
+    end
+    @test collect(JSON.Object{String,Int}(SubString("_a", 2) => 1.0)) == ["a" => 1]
+    obj = JSON.Object{String,Int}()
+    @test_throws InexactError setindex!(obj, 1.5, "a")
+    @test isempty(obj)
+    @test setindex!(obj, 1.0, "a") === obj
+    @test_throws InexactError setindex!(obj, 2.5, "a")
+    @test obj["a"] == 1
+
+    layouts = ((), (1,), (1, 1), (1, 1, 2), (2, 1, 1), (1, 2, 1), (2, 1, 1, 3, 1), (1, 1, 1), (2, 3))
+    for ks in (("a", "b", "c"), (:a, :b, :c), (1, 2, 3)), layout in layouts
+        entries = [ks[i] => n for (n, i) in enumerate(layout)]
+        obj = JSON.Object{eltype(ks),Int}(entries)
+        expected = filter(p -> !isequal(first(p), ks[1]), entries)
+        @test delete!(obj, ks[1]) === obj
+        @test collect(obj) == expected
+        @test !haskey(obj, ks[1])
+        @test length(obj) == length(expected)
+    end
+
+    obj = JSON.Object("a" => 1, "a" => 2, "b" => 3)
+    @test delete!(obj, :a) === obj
+    @test JSON.json(obj) == "{\"b\":3}"
+    @test delete!(obj, SubString("_b", 2)) === obj
+    @test isempty(obj)
+    @test setindex!(obj, 4, :c) === obj
+    @test JSON.json(obj) == "{\"c\":4}"
+    obj = JSON.Object(:a => 1, :a => 2, :b => 3)
+    @test delete!(obj, "a") === obj
+    @test collect(obj) == [:b => 3]
+
+    obj = JSON.Object(NaN => 1, NaN => 2, -0.0 => 3, 0.0 => 4)
+    @test delete!(obj, NaN) === obj
+    @test !haskey(obj, NaN)
+    @test collect(obj) == [-0.0 => 3, 0.0 => 4]
+    @test delete!(obj, 0.0) === obj
+    @test collect(obj) == [-0.0 => 3]
+end
