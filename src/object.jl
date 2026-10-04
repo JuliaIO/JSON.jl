@@ -13,6 +13,11 @@ The `Object` type is used to represent JSON objects in a mutable way, allowing f
 Because of the linked-list representation, key lookups are O(n), using a simple linear scan.
 For small objects, this is very efficient, and worth the memory overhead vs. a full `Dict` or `OrderedDict`.
 For Objects with many entries (hundreds or thousands), this is not as efficient. In that case, consider using a `Dict` or `OrderedDict` instead.
+
+`pop!(obj, key)` removes a key and returns its value, or throws `KeyError` when the key is absent.
+`pop!(obj, key, default)` returns `default` for an absent key. Without a key, `pop!(obj)`
+removes the last inserted pair, while `popfirst!(obj)` removes the first pair. Both throw
+`ArgumentError` for an empty object. Removing a pair preserves the order of the remaining pairs.
 """
 mutable struct Object{K,V} <: AbstractDict{K,V}
     key::Union{NotSet, K} # for root object, key/value are notset
@@ -208,6 +213,47 @@ function _delete!(obj::Object{K,V}, key::K) where {K,V}
     return root
 end
 Base.delete!(obj::Object{K,V}, key::K) where {K,V} = _delete!(obj, key)
+
+function _pop!(f::Base.Callable, obj::Object{K,V}, key) where {K,V}
+    parent = obj
+    node = _ch(obj)
+    while node !== notset
+        node = node::Object{K,V}
+        if isequal(_k(node)::K, key)
+            setfield!(parent, :child, _ch(node))
+            return _v(node)::V
+        end
+        parent = node
+        node = _ch(node)
+    end
+    return f()
+end
+
+Base.pop!(obj::Object, key) = _pop!(() -> throw(KeyError(key)), obj, key)
+Base.pop!(obj::Object, key, default) = _pop!(() -> default, obj, key)
+Base.pop!(obj::Object{String}, key::Symbol) = pop!(obj, String(key))
+Base.pop!(obj::Object{String}, key::Symbol, default) = pop!(obj, String(key), default)
+Base.pop!(obj::Object{Symbol}, key::String) = pop!(obj, Symbol(key))
+Base.pop!(obj::Object{Symbol}, key::String, default) = pop!(obj, Symbol(key), default)
+
+function Base.pop!(obj::Object{K,V}) where {K,V}
+    _ch(obj) === notset && throw(ArgumentError("Object must be non-empty"))
+    parent = obj
+    node = _ch(obj)::Object{K,V}
+    while _ch(node) !== notset
+        parent = node
+        node = _ch(node)::Object{K,V}
+    end
+    setfield!(parent, :child, notset)
+    return Pair{K,V}(_k(node)::K, _v(node)::V)
+end
+
+function Base.popfirst!(obj::Object{K,V}) where {K,V}
+    _ch(obj) === notset && throw(ArgumentError("Object must be non-empty"))
+    node = _ch(obj)::Object{K,V}
+    setfield!(obj, :child, _ch(node))
+    return Pair{K,V}(_k(node)::K, _v(node)::V)
+end
 
 function Base.empty!(obj::Object)
     setfield!(obj, :child, notset)
