@@ -126,13 +126,13 @@ function exercise_parse_entrypoints()::Nothing
 end
 
 function exercise_write_entrypoints()::Nothing
-    obj = JSON.Object{String, Int}("score" => 7)
+    obj = JSON.Object{String, Int}("score" => 7.0)
     obj[:score] = 10
     checked(obj.score == 10, "Object property access failed")
     checked(haskey(obj, "score"), "Object setindex! failed")
     delete!(obj, :score)
     checked(!haskey(obj, "score"), "Object delete! failed")
-    obj[:score] = 11
+    checked(setindex!(obj, 11, :score) === obj, "Object insertion must return the object")
     checked(pop!(obj, :score) == 11, "Object keyed pop! failed")
     checked(pop!(obj, :score, -1) == -1, "Object pop! default failed")
     obj["first"] = 1
@@ -140,6 +140,10 @@ function exercise_write_entrypoints()::Nothing
     checked(pop!(obj) == ("last" => 2), "Object last-pair pop! failed")
     checked(popfirst!(obj) == ("first" => 1), "Object popfirst! failed")
     checked(isempty(obj), "Object remains nonempty after popping its pairs")
+
+    duplicates = JSON.Object("a" => 1, "a" => 2, "b" => 3)
+    checked(delete!(duplicates, :a) === duplicates, "Object deletion must return the object")
+    checked(JSON.json(duplicates) == "{\"b\":3}", "Object deletion retained a duplicate key")
 
     checked(JSON.json([1, 2, 3]) == ARRAY_JSON, "json string output failed")
 

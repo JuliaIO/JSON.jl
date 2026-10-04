@@ -14,7 +14,11 @@ Because of the linked-list representation, key lookups are O(n), using a simple 
 For small objects, this is very efficient, and worth the memory overhead vs. a full `Dict` or `OrderedDict`.
 For Objects with many entries (hundreds or thousands), this is not as efficient. In that case, consider using a `Dict` or `OrderedDict` instead.
 
-`pop!(obj, key)` removes a key and returns its value, or throws `KeyError` when the key is absent.
+Typed constructors convert keys and values to `K` and `V`. Pair and iterator constructors
+preserve input order and may contain repeated keys. `setindex!(obj, value, key)` returns
+`obj`, while `delete!(obj, key)` removes all matching entries and returns `obj`.
+
+`pop!(obj, key)` removes the first matching entry and returns its value, or throws `KeyError` when the key is absent.
 `pop!(obj, key, default)` returns `default` for an absent key. Without a key, `pop!(obj)`
 removes the last inserted pair, while `popfirst!(obj)` removes the first pair. Both throw
 `ArgumentError` for an empty object. Removing a pair preserves the order of the remaining pairs.
@@ -34,7 +38,7 @@ mutable struct Object{K,V} <: AbstractDict{K,V}
     # WARNING: this constructor can allow duplicate `k` in a root Object as no check is done
     function Object{K,V}(obj::Object{K,V}, k, v) where {K,V}
         @assert _ch(obj) === notset "Object child already defined"
-        nobj = new{K,V}(k, v, notset)
+        nobj = new{K,V}(convert(K, k), convert(V, v), notset)
         setfield!(obj, :child, nobj)
         return nobj
     end
@@ -185,7 +189,7 @@ function _setindex!(obj::Object{K,V}, value, key::K) where {K,V}
     end
     # if we reach here, we need to insert a new node
     Object{K,V}(obj, key, value)
-    return value
+    return root
 end
 Base.setindex!(obj::Object{K,V}, value, key::K) where {K,V} = _setindex!(obj, value, key)
 
@@ -205,9 +209,10 @@ function _delete!(obj::Object{K,V}, key::K) where {K,V}
             else
                 setfield!(parent, :child, _ch(obj)::Object{K,V})
             end
+        else
+            parent = obj
         end
         _ch(obj) === notset && break
-        parent = obj
         obj = _ch(obj)::Object{K,V}
     end
     return root
