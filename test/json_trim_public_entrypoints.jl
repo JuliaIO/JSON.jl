@@ -129,6 +129,9 @@ function exercise_write_entrypoints()::Nothing
     obj = JSON.Object{String, Int}("score" => 7.0)
     obj[:score] = 10
     checked(obj.score == 10, "Object property access failed")
+    names = propertynames(obj)
+    checked(names isa Tuple{Symbol}, "Object property names shape failed")
+    checked((names::Tuple{Symbol}) == (:score,), "Object property names failed")
     checked(haskey(obj, "score"), "Object setindex! failed")
     delete!(obj, :score)
     checked(!haskey(obj, "score"), "Object delete! failed")
@@ -140,8 +143,12 @@ function exercise_write_entrypoints()::Nothing
     checked(pop!(obj) == ("last" => 2), "Object last-pair pop! failed")
     checked(popfirst!(obj) == ("first" => 1), "Object popfirst! failed")
     checked(isempty(obj), "Object remains nonempty after popping its pairs")
+    checked(isempty(propertynames(obj)), "Empty Object property names failed")
 
     duplicates = JSON.Object("a" => 1, "a" => 2, "b" => 3)
+    duplicate_names = propertynames(duplicates)
+    checked(duplicate_names isa NTuple{3,Symbol}, "Duplicate Object property names shape failed")
+    checked((duplicate_names::NTuple{3,Symbol}) == (:a, :a, :b), "Duplicate Object property names failed")
     checked(delete!(duplicates, :a) === duplicates, "Object deletion must return the object")
     checked(JSON.json(duplicates) == "{\"b\":3}", "Object deletion retained a duplicate key")
 
