@@ -164,12 +164,7 @@ Base.get(obj::Object{Symbol}, key::String, default) = get(obj, Symbol(key), defa
 # support getproperty for dot access
 Base.getproperty(obj::Object{Symbol}, sym::Symbol) = getindex(obj, sym)
 Base.getproperty(obj::Object{String}, sym::Symbol) = getindex(obj, String(sym))
-Base.propertynames(obj::Object{K,V}) where {K,V} = _k(obj) === notset && _ch(obj) === notset ? () : _propertynames(_ch(obj)::Object{K,V}, ())
-
-function _propertynames(obj::Object{K,V}, acc) where {K,V}
-    new = (acc..., Symbol(_k(obj)::K))
-    return _ch(obj) === notset ? new : _propertynames(_ch(obj)::Object{K,V}, new)
-end
+Base.propertynames(obj::Object) = Tuple(Symbol(key) for key in keys(obj))
 
 # haskey
 Base.haskey(obj::Object, key) = find_node_by_key(obj, key) !== nothing

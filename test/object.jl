@@ -547,3 +547,41 @@ end
     @test delete!(obj, 0.0) === obj
     @test collect(obj) == [-0.0 => 3]
 end
+
+@testset "JSON.Object property names" begin
+    for K in (String, Symbol), V in (Int, Any)
+        key = K === String ? identity : Symbol
+        obj = JSON.Object{K,V}(key("first") => 1, key("first") => 2, key("second") => 3)
+        @test propertynames(obj) == (:first, :first, :second)
+        @test propertynames(obj, true) == (:first, :first, :second)
+        @test obj.first == 1
+        delete!(obj, key("first"))
+        @test propertynames(obj) == (:second,)
+        obj.third = 4
+        @test propertynames(obj) == (:second, :third)
+        @test popfirst!(obj) == (key("second") => 3)
+        @test propertynames(obj) == (:third,)
+        empty!(obj)
+        @test propertynames(obj) === ()
+    end
+    obj = JSON.Object("" => 1, "two words" => 2, "a/b" => 3, "λ" => 4, "key" => 5, "value" => 6, "child" => 7)
+    @test propertynames(obj) == (Symbol(""), Symbol("two words"), Symbol("a/b"), :λ, :key, :value, :child)
+    @test obj.key == 5
+    @test obj.value == 6
+    @test obj.child == 7
+    @test propertynames(JSON.Object()) === ()
+
+    obj = JSON.Object{String,Int}(string(i) => i for i in 1:100)
+    expected = Tuple(Symbol(string(i)) for i in 1:100)
+    @test propertynames(obj) == expected
+    @test @allocated(propertynames(obj)) <= 20_000
+
+    @testset "large object" begin
+        large = JSON.Object{String,Int}(string(i) => i for i in 1:10_000)
+        names = propertynames(large)
+        @test names == Tuple(Symbol(string(i)) for i in 1:10_000)
+        @test first(names) == Symbol("1")
+        @test last(names) == Symbol("10000")
+        @test length(names) == length(large)
+    end
+end
