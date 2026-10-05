@@ -16,6 +16,7 @@ Currently supported keyword arguments include:
   * `nan`: string to use for `NaN` (default: `"NaN"`)
   * `jsonlines`: treat the `json` input as an implicit JSON array, delimited by newlines, each element being parsed from each row/line in the input
   * `isroot`: whether this is the root LazyValue encompassing the entire json buffer. If `false` parses only the first JSON value and ignores trailing characters. (default: `true`)
+  * `maxdepth`: the deepest nesting of objects and arrays that will be parsed; deeper input throws an `ArgumentError` instead of overflowing the stack (default: `512`)
   * `dicttype`: a custom `AbstractDict` type to use instead of `$DEFAULT_OBJECT_TYPE` as the default type for JSON object materialization
   * `null`: a custom value to use for JSON null values (default: `nothing`)
   * `unknown_fields`: controls how unmatched JSON object keys or positional values are handled when parsing into a target type or existing object; supported values are `:ignore` (default) and `:error`
@@ -832,6 +833,8 @@ end
         opts = getopts(x)
         b = getbyte(buf, pos)
         typ = gettype(x)
+        depth = getdepth(x) + Int32(1)
+        depth > opts.maxdepth && toodeep(pos, opts.maxdepth)
         if typ == JSONTypes.OBJECT && b != UInt8('{')
             error = ExpectedOpeningObjectChar
             @goto invalid
@@ -848,7 +851,7 @@ end
             if typ == JSONTypes.OBJECT
                 # consume key
                 GC.@preserve buf begin
-                    _, pos = @inline parsestring(LazyValue(buf, pos, JSONTypes.STRING, opts, false))
+                    _, pos = @inline parsestring(LazyValue(buf, pos, JSONTypes.STRING, opts, false, depth))
                 end
                 @nextbyte
                 if b != UInt8(':')
@@ -858,7 +861,7 @@ end
                 pos += 1
                 @nextbyte
             end
-            x = _lazy(buf, pos, len, b, opts)
+            x = _lazy(buf, pos, len, b, opts, false, depth)
             j_{i}, pos = _contextmake(st, fieldtype(T, i), x)
             @nextbyte
             if typ == JSONTypes.OBJECT && b == UInt8('}')
@@ -885,7 +888,7 @@ end
             if typ == JSONTypes.OBJECT
                 # consume key
                 GC.@preserve buf begin
-                    _, pos = @inline parsestring(LazyValue(buf, pos, JSONTypes.STRING, opts, false))
+                    _, pos = @inline parsestring(LazyValue(buf, pos, JSONTypes.STRING, opts, false, depth))
                 end
                 @nextbyte
                 if b != UInt8(':')
@@ -895,7 +898,7 @@ end
                 pos += 1
                 @nextbyte
             end
-            pos = skip(_lazy(buf, pos, len, b, opts))
+            pos = skip(_lazy(buf, pos, len, b, opts, false, depth))
             @nextbyte
             if typ == JSONTypes.OBJECT && b == UInt8('}')
                 return Base.@ntuple($N, j), pos + 1

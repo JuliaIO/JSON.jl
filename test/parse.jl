@@ -259,6 +259,14 @@ JSON.lift(::DateObjectStyle, ::Type{Date}, x::JSON.LazyValue) = Date(x.time[])
 JSON.lower(::DateMaterializedObjectStyle, d::Date) = (; time=string(d))
 JSON.lift(::DateMaterializedObjectStyle, ::Type{Date}, x::JSON.Object) = Date(x["time"])
 
+# recursive and Any-field targets for the maxdepth tests
+struct DepthNode
+    children::Vector{DepthNode}
+end
+struct DepthBox
+    x::Any
+end
+
 @testset "JSON.parse" begin
     @testset "errors" begin
         # Unexpected character in array
@@ -294,6 +302,8 @@ JSON.lift(::DateMaterializedObjectStyle, ::Type{Date}, x::JSON.Object) = Date(x[
         end
         # Same for the typed and lazy entry points.
         @test_throws ArgumentError JSON.parse("{\"a\":", @NamedTuple{a::Int})
+        @test_throws ArgumentError JSON.parse("{\"x\":\"a\"", DepthBox)
+        @test_throws ArgumentError JSON.parse("   ", DepthBox)
         @test_throws ArgumentError JSON.lazy("{\"a\":")[]
         # ...and when the buffer is bytes rather than a string.
         @test_throws ArgumentError JSON.parse(Vector{UInt8}("{\"a\":"))
@@ -312,6 +322,44 @@ JSON.lift(::DateMaterializedObjectStyle, ::Type{Date}, x::JSON.Object) = Date(x[
         @test occursin("line 3", msg)
         @test occursin("<EOF>", msg)
     end # @testset "truncated input reports UnexpectedEOF"
+
+    @testset "nesting deeper than maxdepth" begin
+        nested(n) = repeat("[", n) * repeat("]", n)
+        tree(n) = repeat("{\"children\":[", n) * repeat("]}", n) # 2 levels per n
+        depthmsg(f) = try f(); "" catch e; e isa ArgumentError ? e.msg : string(typeof(e)) end
+        # the default limit is 512 levels; the 513th is refused before recursing
+        @test length(JSON.parse(nested(512))) == 1
+        @test occursin("exceeds the `maxdepth` limit of 512", depthmsg(() -> JSON.parse(nested(513))))
+        # unterminated input far past the limit stops at the limit on every
+        # entry point instead of overflowing the stack
+        deep = repeat("[", 100_000)
+        for f in (() -> JSON.parse(deep), () -> JSON.parse(deep, Any),
+                  () -> JSON.parse(deep, Vector{Any}), () -> JSON.parse(deep; dicttype=Dict{String,Any}),
+                  () -> JSON.parse(Vector{UInt8}(deep)), () -> JSON.lazy(deep)[],
+                  () -> JSON.parse(repeat("{\"a\":", 100_000)),
+                  () -> JSON.parse!(repeat("{\"a\":", 100_000), Dict{String,Any}()),
+                  () -> JSON.parse(tree(50_000), DepthNode),
+                  () -> JSON.parse("{\"x\":$deep", DepthBox),
+                  () -> JSON.parse("{\"skipped\":$deep", DepthBox),
+                  () -> JSON.parse("[$deep", Tuple{Vector{Any}}),
+                  () -> JSON.parse(deep, Vector{Any}; style=CustomJSONStyle()),
+                  () -> JSON.parse(deep; jsonlines=true))
+            @test occursin("`maxdepth` limit of 512", depthmsg(f))
+        end
+        @test !JSON.isvalidjson(deep)
+        # with error_context the limit error arrives as the ParseError cause
+        err = try JSON.parse(tree(300), DepthNode; error_context=true) catch e; e end
+        @test err isa JSON.ParseError && err.cause isa ArgumentError
+        # typed targets get the full 512 levels too
+        @test JSON.parse(tree(256), DepthNode) isa DepthNode
+        # maxdepth raises or lowers the limit
+        @test length(JSON.parse(nested(1000); maxdepth=1000)) == 1
+        @test occursin("limit of 1000", depthmsg(() -> JSON.parse(nested(1001); maxdepth=1000)))
+        @test JSON.parse("[1]"; maxdepth=1) == [1]
+        @test JSON.parse("{\"x\":1}", DepthBox; maxdepth=1).x == 1
+        @test occursin("limit of 1", depthmsg(() -> JSON.parse("[[1]]"; maxdepth=1)))
+        @test occursin("limit of 1", depthmsg(() -> JSON.parse("{\"x\":[1]}", DepthBox; maxdepth=1)))
+    end # @testset "nesting deeper than maxdepth"
 
     # JSON.jl pre-1.0 compat
     x = JSON.parse("{}")
@@ -348,7 +396,7 @@ JSON.lift(::DateMaterializedObjectStyle, ::Type{Date}, x::JSON.Object) = Date(x[
     @test !JSON.isvalidjson(collect(codeunits("JSON")))
     x = JSON.parse("{}")
     @test isempty(x) && typeof(x) == JSON.Object{String, Any}
-    @test_throws ArgumentError JSON.parse(JSON.LazyValue(".", 1, JSON.JSONTypes.OBJECT, JSON.LazyOptions(), true))
+    @test_throws ArgumentError JSON.parse(JSON.LazyValue(".", 1, JSON.JSONTypes.OBJECT, JSON.LazyOptions(), true, Int32(0)))
     x = JSON.lazy("1")
     @test_throws ArgumentError JSON.StructUtils.applyeach((k, v) -> nothing, x)
     x = JSON.parse("{\"a\": 1}")
