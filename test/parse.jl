@@ -356,7 +356,7 @@ end
         @test length(JSON.parse(nested(1000); maxdepth=1000)) == 1
         @test occursin("limit of 1000", depthmsg(() -> JSON.parse(nested(1001); maxdepth=1000)))
         @test JSON.parse("[1]"; maxdepth=1) == [1]
-        @test JSON.parse("{\"x\":1}", DepthBox; maxdepth=1) == DepthBox(1)
+        @test JSON.parse("{\"x\":1}", DepthBox; maxdepth=1).x == 1
         @test occursin("limit of 1", depthmsg(() -> JSON.parse("[[1]]"; maxdepth=1)))
         @test occursin("limit of 1", depthmsg(() -> JSON.parse("{\"x\":[1]}", DepthBox; maxdepth=1)))
     end # @testset "nesting deeper than maxdepth"
