@@ -106,6 +106,12 @@ end
     throw(ArgumentError(msg))
 end
 
+# Parsing recurses once per nested object/array, so input nested deeper than
+# `maxdepth` is refused up front rather than overflowing the stack.
+@noinline toodeep(pos::Int, maxdepth::Int32) = throw(ArgumentError(string(
+    "JSON nesting depth at byte position ", pos, " exceeds the `maxdepth` limit of ", maxdepth,
+    "; pass a larger `maxdepth` keyword argument to parse deeper input")))
+
 include("utils.jl")
 include("object.jl")
 

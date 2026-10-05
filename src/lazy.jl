@@ -60,6 +60,7 @@ Currently supported keyword arguments include:
   - `nan::String = "NaN"`: the string that will be sued to parse `NaN` if `allownan=true`
   - `jsonlines::Bool = false`: whether the JSON input should be treated as an implicit array, with newlines separating individual JSON elements with no leading `'['` or trailing `']'` characters. Common in logging or streaming workflows. Defaults to `true` when used with `JSON.parsefile` and the filename extension is `.jsonl` or `ndjson`. Note this ensures that parsing will _always_ return an array at the root-level.
   - `duplicate_keys::Symbol = :overwrite`: how repeated object keys are handled. `:overwrite` preserves the default last-value-wins behavior. `:error` throws [`JSON.DuplicateKeyError`](@ref).
+  - `maxdepth::Integer = 512`: the deepest nesting of objects and arrays that will be parsed; deeper input throws an `ArgumentError` instead of overflowing the stack. `jsonlines` input counts its implicit outer array as one level
   - `isroot::Bool = true`: whether this is the root LazyValue encompassing the entire json buffer. If `false` parses only the first JSON value and ignores trailing characters.
 
 Note that validation is only fully done on `null`, `true`, and `false`,
@@ -82,6 +83,8 @@ function lazy end
     inf::String = "Infinity"
     nan::String = "NaN"
     jsonlines::Bool = false
+    # Int32 fills padding after `jsonlines`, so LazyValues stay the same size
+    maxdepth::Int32 = 512
     duplicate_keys::Symbol = :overwrite
 end
 
@@ -122,7 +125,7 @@ function lazy(buf::Union{AbstractVector{UInt8}, AbstractString}; isroot::Bool=tr
     # detect and ignore UTF-8 BOM
     pos = (len >= 3 && getbyte(buf, pos) == 0xef && getbyte(buf, pos + 1) == 0xbb && getbyte(buf, pos + 2) == 0xbf) ? pos + 3 : pos
     @nextbyte
-    return _lazy(buf, pos, len, b, opts, isroot)
+    return _lazy(buf, pos, len, b, opts, isroot, Int32(0))
 
 @label invalid
     invalid(error, buf, pos, Any)
@@ -141,6 +144,7 @@ struct LazyValue{T}
     type::JSONTypes.T # scoped enum for type of value: OBJECT, ARRAY, etc.
     opts::LazyOptions
     isroot::Bool # true if this is the root LazyValue
+    depth::Int32 # number of objects/arrays enclosing this value; fills padding after `isroot`
 end
 
 # convenience types only used for defining `show` on LazyValue
@@ -152,7 +156,8 @@ struct LazyObject{T} <: AbstractDict{String, LazyValue}
     pos::Int
     opts::LazyOptions
     isroot::Bool
-    LazyObject(x::LazyValue{T}) where {T} = new{T}(getbuf(x), getpos(x), getopts(x), getisroot(x))
+    depth::Int32
+    LazyObject(x::LazyValue{T}) where {T} = new{T}(getbuf(x), getpos(x), getopts(x), getisroot(x), getdepth(x))
 end
 
 struct LazyArray{T} <: AbstractVector{LazyValue}
@@ -160,7 +165,8 @@ struct LazyArray{T} <: AbstractVector{LazyValue}
     pos::Int
     opts::LazyOptions
     isroot::Bool
-    LazyArray(x::LazyValue{T}) where {T} = new{T}(getbuf(x), getpos(x), getopts(x), getisroot(x))
+    depth::Int32
+    LazyArray(x::LazyValue{T}) where {T} = new{T}(getbuf(x), getpos(x), getopts(x), getisroot(x), getdepth(x))
 end
 
 # helper accessors so we can overload getproperty for convenience
@@ -169,6 +175,7 @@ getpos(x) = getfield(x, :pos)
 gettype(x) = getfield(x, :type)
 getopts(x) = getfield(x, :opts)
 getisroot(x) = getfield(x, :isroot)
+getdepth(x) = getfield(x, :depth)
 
 const LazyValues{T} = Union{LazyValue{T}, LazyObject{T}, LazyArray{T}}
 
@@ -217,33 +224,33 @@ StructUtils.nulllike(::StructUtils.StructStyle, x::LazyValues) = gettype(x) == J
 
 # core method that detects what JSON value is at the current position
 # and immediately returns an appropriate LazyValue instance
-function _lazy(buf, pos::Int, len, b, opts, isroot=false)
+function _lazy(buf, pos::Int, len, b, opts, isroot, depth)
     if opts.jsonlines
-        return LazyValue(buf, pos, JSONTypes.ARRAY, opts, isroot)
+        return LazyValue(buf, pos, JSONTypes.ARRAY, opts, isroot, depth)
     elseif b == UInt8('{')
-        return LazyValue(buf, pos, JSONTypes.OBJECT, opts, isroot)
+        return LazyValue(buf, pos, JSONTypes.OBJECT, opts, isroot, depth)
     elseif b == UInt8('[')
-        return LazyValue(buf, pos, JSONTypes.ARRAY, opts, isroot)
+        return LazyValue(buf, pos, JSONTypes.ARRAY, opts, isroot, depth)
     elseif b == UInt8('"')
-        return LazyValue(buf, pos, JSONTypes.STRING, opts, isroot)
+        return LazyValue(buf, pos, JSONTypes.STRING, opts, isroot, depth)
     elseif b == UInt8('n') && pos + 3 <= len &&
         getbyte(buf, pos + 1) == UInt8('u') &&
         getbyte(buf, pos + 2) == UInt8('l') &&
         getbyte(buf, pos + 3) == UInt8('l')
-        return LazyValue(buf, pos, JSONTypes.NULL, opts, isroot)
+        return LazyValue(buf, pos, JSONTypes.NULL, opts, isroot, depth)
     elseif b == UInt8('t') && pos + 3 <= len &&
         getbyte(buf, pos + 1) == UInt8('r') &&
         getbyte(buf, pos + 2) == UInt8('u') &&
         getbyte(buf, pos + 3) == UInt8('e')
-        return LazyValue(buf, pos, JSONTypes.TRUE, opts, isroot)
+        return LazyValue(buf, pos, JSONTypes.TRUE, opts, isroot, depth)
     elseif b == UInt8('f') && pos + 4 <= len &&
         getbyte(buf, pos + 1) == UInt8('a') &&
         getbyte(buf, pos + 2) == UInt8('l') &&
         getbyte(buf, pos + 3) == UInt8('s') &&
         getbyte(buf, pos + 4) == UInt8('e')
-        return LazyValue(buf, pos, JSONTypes.FALSE, opts, isroot)
+        return LazyValue(buf, pos, JSONTypes.FALSE, opts, isroot, depth)
     elseif b == UInt8('-') || (UInt8('0') <= b <= UInt8('9')) || (opts.allownan && (b == UInt8('+') || firstbyteeq(opts.nan, b) || firstbyteeq(opts.ninf, b) || firstbyteeq(opts.inf, b)))
-        return LazyValue(buf, pos, JSONTypes.NUMBER, opts, isroot)
+        return LazyValue(buf, pos, JSONTypes.NUMBER, opts, isroot, depth)
     else
         error = InvalidJSON
         @goto invalid
@@ -273,6 +280,8 @@ function applyobject(keyvalfunc, x::LazyValues)
     buf = getbuf(x)
     len = getlength(buf)
     opts = getopts(x)
+    depth = getdepth(x) + Int32(1)
+    depth > opts.maxdepth && toodeep(pos, opts.maxdepth)
     seen = opts.duplicate_keys === :error ? Set{String}() : nothing
     b = getbyte(buf, pos)
     if b != UInt8('{')
@@ -286,7 +295,7 @@ function applyobject(keyvalfunc, x::LazyValues)
         # parsestring returns key as a PtrString
         keypos = pos
         GC.@preserve buf begin
-            key, pos = @inline parsestring(LazyValue(buf, pos, JSONTypes.STRING, opts, false))
+            key, pos = @inline parsestring(LazyValue(buf, pos, JSONTypes.STRING, opts, false, depth))
             if seen !== nothing
                 decoded = String(key)
                 decoded in seen && throw(DuplicateKeyError(decoded, keypos))
@@ -300,7 +309,7 @@ function applyobject(keyvalfunc, x::LazyValues)
             pos += 1
             @nextbyte
             # we're now positioned at the start of the value
-            val = _lazy(buf, pos, len, b, opts)
+            val = _lazy(buf, pos, len, b, opts, false, depth)
             ret = keyvalfunc(key, val)
         end
         # if ret is an EarlyReturn, then we're short-circuiting
@@ -382,6 +391,8 @@ function applyarray(keyvalfunc, x::LazyValues)
     buf = getbuf(x)
     len = getlength(buf)
     opts = getopts(x)
+    depth = getdepth(x) + Int32(1)
+    depth > opts.maxdepth && toodeep(pos, opts.maxdepth)
     jsonlines = opts.jsonlines
     b = getbyte(buf, pos)
     if !jsonlines
@@ -396,12 +407,12 @@ function applyarray(keyvalfunc, x::LazyValues)
         # for jsonlines, we need to make sure that recursive
         # lazy values *don't* consider individual lines *also*
         # to be jsonlines
-        opts = LazyOptions(; allownan=opts.allownan, ninf=opts.ninf, inf=opts.inf, nan=opts.nan, jsonlines=false, duplicate_keys=opts.duplicate_keys)
+        opts = LazyOptions(; allownan=opts.allownan, ninf=opts.ninf, inf=opts.inf, nan=opts.nan, jsonlines=false, duplicate_keys=opts.duplicate_keys, maxdepth=opts.maxdepth)
     end
     i = 1
     while true
         # we're now positioned at the start of the value
-        val = _lazy(buf, pos, len, b, opts)
+        val = _lazy(buf, pos, len, b, opts, false, depth)
         ret = keyvalfunc(i, val)
         ret isa StructUtils.EarlyReturn && return ret
         # if keyvalfunc didn't materialize `val` and return an
