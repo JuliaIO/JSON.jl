@@ -115,6 +115,11 @@ JSON.applyany(::ClosedStyle, f, k, v) = throw(ArgumentError("closed"))
     @test JSON.json([1 => "one", 2 => "two"]) == "{\"1\":\"one\",\"2\":\"two\"}"
     # test Vector{Pair} in nested structures
     @test JSON.json(Dict("data" => [:x => 1, :y => 2])) == "{\"data\":{\"x\":1,\"y\":2}}"
+    # empty Vector{Union{}} is an array, not an object (Union{} <: Pair), see #499
+    @test JSON.json(Union{}[]) == "[]"
+    @test JSON.json([Union{}[]]) == "[[]]"
+    @test JSON.json(Dict("a" => Union{}[])) == "{\"a\":[]}"
+    @test JSON.json(Union{}[]; pretty=true) == "[]"
     # test the JSON output of nested array/objects
     @test JSON.json([1, [2, 3], [4, [5, 6]]]) == "[1,[2,3],[4,[5,6]]]"
     @test JSON.json(Dict{Int, Any}(1 => Dict{Int, Any}(2 => Dict{Int, Any}(3 => 4)))) == "{\"1\":{\"2\":{\"3\":4}}}"
