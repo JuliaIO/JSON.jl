@@ -122,6 +122,16 @@ JSON.applyany(::ClosedStyle, f, k, v) = throw(ArgumentError("closed"))
     @test JSON.json(Union{}[]; pretty=true) == "[]"
     # non-Vector AbstractVector{Union{}} too (JSON3.Array{Union{}} is one of these)
     @test JSON.json(view(Union{}[], 1:0)) == "[]"
+    # StructUtils.Selectors.List (what selector syntax returns) is always written as an array
+    @test JSON.json(StructUtils.Selectors.List(Int[1, 2])) == "[1,2]"
+    @test JSON.json(StructUtils.Selectors.List(Any[1, "a", nothing])) == "[1,\"a\",null]"
+    @test JSON.json(StructUtils.Selectors.List(Any[])) == "[]"
+    @test JSON.json(StructUtils.Selectors.List(Union{}[])) == "[]"
+    @test JSON.json(StructUtils.Selectors.List(Union{Int, Missing}[1, missing])) == "[1,null]"
+    @test JSON.json(StructUtils.Selectors.List([:a => 1])) == "[{\"a\":1}]"
+    @test JSON.json(StructUtils.Selectors.List(Pair{Symbol, Any}[:a => 1])) == "[{\"a\":1}]"
+    @test JSON.json([StructUtils.Selectors.List(Int[1])]) == "[[1]]"
+    @test JSON.json(JSON.lazy("""{"a":[{"b":1},{"b":"x"}]}""")[~, :b]) == "[1,\"x\"]"
     # test the JSON output of nested array/objects
     @test JSON.json([1, [2, 3], [4, [5, 6]]]) == "[1,[2,3],[4,[5,6]]]"
     @test JSON.json(Dict{Int, Any}(1 => Dict{Int, Any}(2 => Dict{Int, Any}(3 => 4)))) == "{\"1\":{\"2\":{\"3\":4}}}"
