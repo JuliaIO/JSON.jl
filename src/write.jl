@@ -138,6 +138,10 @@ StructUtils.lower(::JSONStyle, x::AbstractArray{<:Any,0}) = x[1]
 StructUtils.lower(::JSONStyle, x::AbstractArray{<:Any, N}) where {N} = (view(x, ntuple(_ -> :, N - 1)..., j) for j in axes(x, N))
 StructUtils.lower(::JSONStyle, x::AbstractVector) = x
 StructUtils.arraylike(::JSONStyle, x::AbstractVector{<:Pair}) = false
+# `Selectors.List <: AbstractVector`, so without this the method above is ambiguous with
+# StructUtils' own `arraylike(::StructStyle, ::List)` for `List{<:Pair}`. A `List` is what the
+# selector syntax returns (a list of selected values); it is always written as an array.
+StructUtils.arraylike(::JSONStyle, ::StructUtils.Selectors.List) = true
 StructUtils.structlike(::JSONStyle, ::Type{<:NamedTuple}) = true
 
 """
@@ -183,6 +187,17 @@ function StructUtils.applyeach(st::JSONStyle, f, x::AbstractVector{Any})
         ret isa StructUtils.EarlyReturn && return ret
     end
     return StructUtils.defaultstate(st)
+end
+
+# `Selectors.List <: AbstractVector`, so the two methods above are ambiguous with StructUtils'
+# own `applyeach(::StructStyle, f, ::List)` for `List{Any}` / `List{Pair{K,Any}}`. That method
+# also hands values to `f` without `lower`, so e.g. `missing` is written as `"missing"`. Write
+# the items as a plain array instead: `List{<:Pair}` is `arraylike` (see above), unlike
+# `Vector{<:Pair}`, so the `AbstractVector{<:Pair}` object methods must not be used here.
+function StructUtils.applyeach(st::JSONStyle, f, x::StructUtils.Selectors.List)
+    items = getfield(x, :items)
+    items isa Vector{Any} && return StructUtils.applyeach(st, f, items)
+    return invoke(StructUtils.applyeach, Tuple{StructUtils.StructStyle, Any, AbstractArray}, st, f, items)
 end
 
 # for pre-1.0 compat, which serialized Tuple object keys by default
