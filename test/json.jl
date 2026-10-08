@@ -120,6 +120,8 @@ JSON.applyany(::ClosedStyle, f, k, v) = throw(ArgumentError("closed"))
     @test JSON.json([Union{}[]]) == "[[]]"
     @test JSON.json(Dict("a" => Union{}[])) == "{\"a\":[]}"
     @test JSON.json(Union{}[]; pretty=true) == "[]"
+    # non-Vector AbstractVector{Union{}} too (JSON3.Array{Union{}} is one of these)
+    @test JSON.json(view(Union{}[], 1:0)) == "[]"
     # test the JSON output of nested array/objects
     @test JSON.json([1, [2, 3], [4, [5, 6]]]) == "[1,[2,3],[4,[5,6]]]"
     @test JSON.json(Dict{Int, Any}(1 => Dict{Int, Any}(2 => Dict{Int, Any}(3 => 4)))) == "{\"1\":{\"2\":{\"3\":4}}}"
