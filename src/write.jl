@@ -649,6 +649,23 @@ checkkey(s) = s isa AbstractString || throw(ArgumentError("Value returned from `
 
 _sort_keys_by_default(x) = x isa Dict
 
+# Function barrier for the closure's recursion into `json!`. The closure's
+# `val` argument is untyped, so without this the recursive write of a
+# container whose elements are themselves containers (a JSON tree type such
+# as `Vector{Node}` <-> `Dict{String,Node}`) becomes an inference cycle
+# through the closure body that whole-program compilation (`juliac --trim`)
+# cannot resolve. `_write_nested!` specializes on `typeof(val)`, so each
+# recursion step is a distinct, concretely typed `json!` call.
+@noinline function _write_nested!(buf, pos, val, f::WriteClosure, io, ind, bufsize)
+    # if jsonlines, we need to recursively set to false
+    if f.opts.jsonlines
+        opts = WriteOptions(; omit_null=f.opts.omit_null, omit_empty=f.opts.omit_empty, allownan=f.opts.allownan, jsonlines=false, pretty=f.opts.pretty, ninf=f.opts.ninf, inf=f.opts.inf, nan=f.opts.nan, inline_limit=f.opts.inline_limit, float_style=f.opts.float_style, float_precision=f.opts.float_precision, sort_keys=f.opts.sort_keys)
+    else
+        opts = f.opts
+    end
+    return json!(buf, pos, val, opts, f.ancestor_stack, io, ind, f.depth, bufsize)
+end
+
 function (f::WriteClosure{JS, arraylike, T, I})(key, val) where {JS, arraylike, T, I}
     track_ref = ismutabletype(typeof(val))
     is_circ_ref = track_ref && any(x -> x === val, f.ancestor_stack)
@@ -691,13 +708,7 @@ function (f::WriteClosure{JS, arraylike, T, I})(key, val) where {JS, arraylike, 
         pos = _null(buf, pos, io, bufsize)
     else
         track_ref && push!(f.ancestor_stack, val)
-        # if jsonlines, we need to recursively set to false
-        if f.opts.jsonlines
-            opts = WriteOptions(; omit_null=f.opts.omit_null, omit_empty=f.opts.omit_empty, allownan=f.opts.allownan, jsonlines=false, pretty=f.opts.pretty, ninf=f.opts.ninf, inf=f.opts.inf, nan=f.opts.nan, inline_limit=f.opts.inline_limit, float_style=f.opts.float_style, float_precision=f.opts.float_precision, sort_keys=f.opts.sort_keys)
-        else
-            opts = f.opts
-        end
-        pos = json!(buf, pos, val, opts, f.ancestor_stack, io, ind, f.depth, bufsize)
+        pos = _write_nested!(buf, pos, val, f, io, ind, bufsize)
         track_ref && pop!(f.ancestor_stack)
     end
     @checkn 1 true
