@@ -520,8 +520,8 @@ JSON.lift(::DateMaterializedObjectStyle, ::Type{Date}, x::JSON.Object) = Date(x[
         @test JSON.parse("0e292") === 0.0
         @test JSON.parse("0e347") == big"0.0"
         @test JSON.parse("0e348") == big"0.0"
-        @test JSON.parse("-0e291") === 0.0
-        @test JSON.parse("-0e292") === 0.0
+        @test JSON.parse("-0e291") === -0.0
+        @test JSON.parse("-0e292") === -0.0
         @test JSON.parse("-0e347") == big"0.0"
         @test JSON.parse("-0e348") == big"0.0"
         @test JSON.parse("2e-324") === 0.0
