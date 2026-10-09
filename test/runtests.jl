@@ -7,6 +7,7 @@ include(joinpath(dirname(pathof(JSON)), "../test/escaped_keys.jl"))
 include(joinpath(dirname(pathof(JSON)), "../test/inbound_tags.jl"))
 include(joinpath(dirname(pathof(JSON)), "../test/json.jl"))
 include(joinpath(dirname(pathof(JSON)), "../test/style_fastpaths.jl"))
+include(joinpath(dirname(pathof(JSON)), "../test/trait_delegation.jl"))
 # Arrow.jl is broken on 32 bit systems for now :(
 if Sys.WORD_SIZE == 64
     include(joinpath(dirname(pathof(JSON)), "../test/arrow.jl"))
