@@ -138,6 +138,9 @@ StructUtils.lower(::JSONStyle, x::AbstractArray{<:Any,0}) = x[1]
 StructUtils.lower(::JSONStyle, x::AbstractArray{<:Any, N}) where {N} = (view(x, ntuple(_ -> :, N - 1)..., j) for j in axes(x, N))
 StructUtils.lower(::JSONStyle, x::AbstractVector) = x
 StructUtils.arraylike(::JSONStyle, x::AbstractVector{<:Pair}) = false
+# `Union{}` is a subtype of `Pair`, so an empty `Vector{Union{}}` (e.g. JSON3.jl's empty
+# arrays) would otherwise match the method above and be written as `{}` instead of `[]`.
+StructUtils.arraylike(::JSONStyle, ::AbstractVector{Union{}}) = true
 StructUtils.structlike(::JSONStyle, ::Type{<:NamedTuple}) = true
 
 """
