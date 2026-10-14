@@ -194,6 +194,11 @@ end
     x = JSON.parse("{\"a\": 1, \"b\": null, \"c\": true, \"d\": false, \"e\": \"\", \"f\": [1,null,true], \"g\": {\"key\": \"value\"}}")
     json = JSON.json(x)
     isvalidjson(json)
+    # hand-built `Dict{String,Any}`s don't share compiled write code with parsed
+    # `JSON.Object`s. Skipped on Julia 1.10: there it leaves two cached code
+    # instances for some `JSON.Object` write methods, 1.10 revalidates only one
+    # per method on load, and the `JSON.Object` writes then recompile on first use.
+    VERSION >= v"1.11" && JSON.json(Dict{String,Any}("a" => 1, "b" => nothing, "c" => true, "d" => 1.5, "e" => "", "f" => Any[1, nothing, true, Dict{String,Any}("key" => "value")]))
     JSON.parse(
         "{\"item\":{\"x\":1,\"y\":2.0},\"items\":[{\"x\":3,\"y\":4.0}],\"tags\":[\"p\"],\"note\":null}",
         _Workload,
