@@ -395,6 +395,10 @@ end
     @test !JSON.isvalidjson("{JSON")
     @test !JSON.isvalidjson("JSON")
     @test !JSON.isvalidjson(collect(codeunits("JSON")))
+    # skipping a number checks its grammar without converting it
+    @test JSON.isvalidjson("[0, -0.5, 1e5, -1.5E-10, 123456789012345678901234567890, 1.5e400]")
+    @test !any(JSON.isvalidjson, ("[01]", "[1.]", "[-]", "[1e]", "[.5]", "[+1]", "[1.5x]"))
+    @test JSON.isvalidjson("[NaN, -Infinity, +1]"; allownan=true)
     x = JSON.parse("{}")
     @test isempty(x) && typeof(x) == JSON.Object{String, Any}
     @test_throws ArgumentError JSON.parse(JSON.LazyValue(".", 1, JSON.JSONTypes.OBJECT, JSON.LazyOptions(), true, Int32(0)))

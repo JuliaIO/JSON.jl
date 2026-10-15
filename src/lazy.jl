@@ -933,6 +933,11 @@ end
     return parsebigint(buf, startpos, nextpos - 1), nextpos
 end
 
+# Skipping a number only needs its end. This full conversion is the fallback for
+# `allownan` input, for Parsers 2 (which finds a float's end while converting), and
+# for invalid tokens, which it reports.
+@noinline skipnumber(x::LazyValues) = parsenumber(x)[2]
+
 # efficiently skip over a JSON value
 # for object/array/string/number, we pass no-op functions
 # and for bool/null, we just skip the appropriate number of bytes
@@ -946,8 +951,10 @@ function skip(x::LazyValues)
         _, pos = parsestring(x)
         return pos
     elseif T == JSONTypes.NUMBER
-        _, pos = parsenumber(x)
-        return pos
+        (SCANFLOATTAIL && !getopts(x).allownan) || return skipnumber(x)
+        buf = getbuf(x)
+        pos, _, _, _ = scannumber(buf, getpos(x), getlength(buf))
+        return pos == getpos(x) ? skipnumber(x) : pos
     elseif T == JSONTypes.TRUE
         return getpos(x) + 4
     elseif T == JSONTypes.FALSE
