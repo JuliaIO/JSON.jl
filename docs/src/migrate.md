@@ -17,6 +17,7 @@ This guide provides an overview of how to migrate your code from either the pre-
     - Can pass filename as first argument to write JSON directly to a file `JSON.json(file, x)` the file name is returned
     - Can pass any `IO` as 1st argument to write JSON to it: `JSON.json(io, x)`
     - Circular reference tracking is fixed/improved (previously peer references were written as null)
+    - Structs are written from their fields; pre-1.0 used `propertynames`/`getproperty`. For a type whose properties differ from its fields, define `JSON.lower`, like `JSON.lower(x::MyType) = (; a=x.a, b=x.b)`. With StructUtils 2.10 or later, a DataFrames `DataFrameRow` is written as an object and a `DataFrame` as an object of columns, as before
     - Explicit keyword arguments to control a number of serialization features, including:
       - `omit_null::Bool` whether `nothing`/`missing` Julia values should be skipped when serializing
       - `omit_empty::Bool` whether empty Julia collection values should be skipped when serializing
