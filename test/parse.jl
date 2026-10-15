@@ -281,7 +281,7 @@ JSON.lift(::DateMaterializedObjectStyle, ::Type{Date}, x::JSON.Object) = Date(x[
         # https://github.com/JuliaIO/JSON.jl/issues/232
         x = JSON.parse("{\"id\":\"5\",\"name\":\"IllegalUnicodehalf-surrogateU+D800\",\"url\":\"http://www.example.com/#\\\\\\ud800\\\\\\u597D\",\"expect_url\":\"http://www.example.com/#\\\\\\uFFFD\\\\\\u597D\"}")
         @test !isvalid(x.url)
-        @test x.url == "http://www.example.com/#\\\ud8000\\好"
+        @test x.url == "http://www.example.com/#\\\ud800\\好"
     end # @testset "errors"
 
     @testset "truncated input reports UnexpectedEOF" begin
@@ -403,6 +403,12 @@ JSON.lift(::DateMaterializedObjectStyle, ::Type{Date}, x::JSON.Object) = Date(x[
     @test x == "\0"
     x = JSON.parse("\"\\uD83D\\uDE00\"")
     @test x == "😀"
+    # a surrogate that isn't a high surrogate followed by a low one is kept as a lone surrogate
+    @test JSON.parse("\"\\ud800\"") == "\ud800"
+    @test JSON.parse("\"\\ud800x\"") == "\ud800x"
+    @test JSON.parse("\"\\ud800\\u0041\"") == "\ud800A"
+    @test JSON.parse("\"\\ud800\\ud800\"") == "\ud800\ud800"
+    @test JSON.parse("\"\\udc00\\ud800\\udc00\"") == "\udc00\U10000"
     x = JSON.parse("\"\\u0061\"")
     @test x == "a"
     x = JSON.parse("\"\\u2028\"")
