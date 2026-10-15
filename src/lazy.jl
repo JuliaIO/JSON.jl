@@ -95,8 +95,9 @@ lazyfile(file; jsonlines::Union{Bool, Nothing}=nothing, kw...) = open(io -> lazy
 "See [`lazy`](@ref)."
 lazyfile
 
-function lazy(buf::Union{AbstractVector{UInt8}, AbstractString}; isroot::Bool=true, kw...)
-    opts = LazyOptions(; kw...)
+function lazy(buf::Union{AbstractVector{UInt8}, AbstractString}; isroot::Bool=true, maxdepth::Integer=512, kw...)
+    # the limit is stored as an Int32; clamp so `maxdepth=typemax(Int)` means "no limit"
+    opts = LazyOptions(; maxdepth=min(maxdepth, typemax(Int32)), kw...)
     opts.duplicate_keys in (:overwrite, :error) || throw(ArgumentError("`duplicate_keys` must be `:overwrite` or `:error`, got `$(repr(opts.duplicate_keys))`"))
     if !applicable(pointer, buf, 1) || (buf isa AbstractVector{UInt8} && !isone(only(strides(buf))))
         if buf isa AbstractString
