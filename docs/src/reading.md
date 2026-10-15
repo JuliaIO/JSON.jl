@@ -25,11 +25,11 @@ The core JSON parsing machinery is hence built around having an `AbstractVector{
 
 Each entrypoint function first calls [`JSON.lazy`](@ref), which will consume the JSON input until the type of the next JSON value can be identified (`{` for objects, `[` for arrays, `"` for strings, `t` for true, `f` for false, `n` for null, and `-` or a digit for numbers). [`JSON.lazy`](@ref) returns a [`JSON.LazyValue`](@ref), which wraps the JSON input buffer (`AbstractVector{UInt8}` or `AbstractString`), and marks the byte position the value starts at, the type of the value, and any keyword arguments that were provided that may affect parsing. Currently supported parsing-specific keyword arguments to [`JSON.lazy`](@ref) (and thus all other entrypoint functions) include:
 
-  - `allownan::Bool = false`: whether "special" float values shoudl be allowed while parsing (`NaN`, `Inf`, `-Inf`); these values are specifically _not allowed_ in the JSON spec, but many JSON libraries allow reading/writing. When `true`, untyped numbers are parsed as `Float64`. A requested fixed-width integer type of up to 128 bits is parsed exactly from the number token
+  - `allownan::Bool = false`: whether "special" float values should be allowed while parsing (`NaN`, `Inf`, `-Inf`); these values are specifically _not allowed_ in the JSON spec, but many JSON libraries allow reading/writing. When `true`, untyped numbers are parsed as `Float64`. A requested fixed-width integer type of up to 128 bits is parsed exactly from the number token
   - `ninf::String = "-Infinity"`: the string that will be used to parse `-Inf` if `allownan=true`
   - `inf::String = "Infinity"`: the string that will be used to parse `Inf` if `allownan=true`
-  - `nan::String = "NaN"`: the string that will be sued to parse `NaN` if `allownan=true`
-  - `jsonlines::Bool = false`: whether the JSON input should be treated as an implicit array, with newlines separating individual JSON elements with no leading `'['` or trailing `']'` characters. Common in logging or streaming workflows. Defaults to `true` when used with [`JSON.parsefile`](@ref) and the filename extension is `.jsonl` or `ndjson`. Note this ensures that parsing will _always_ return an array at the root-level.
+  - `nan::String = "NaN"`: the string that will be used to parse `NaN` if `allownan=true`
+  - `jsonlines::Bool = false`: whether the JSON input should be treated as an implicit array, with newlines separating individual JSON elements with no leading `'['` or trailing `']'` characters. Common in logging or streaming workflows. Defaults to `true` when used with [`JSON.parsefile`](@ref) and the filename extension is `.jsonl` or `.ndjson`. Note this ensures that parsing will _always_ return an array at the root-level.
   - `maxdepth::Integer = 512`: the deepest nesting of objects and arrays that will be parsed; deeper input throws an `ArgumentError` instead of overflowing the stack. `jsonlines` input counts its implicit outer array as one level
   - Materialization-specific keyword arguments (i.e. they affect materialization, but not parsing)
     - `dicttype = JSON.Object{String, Any}`: type to parse JSON objects as by default (recursively)
@@ -221,35 +221,15 @@ err.cause isa MethodError # true
 ```
 
 [`JSON.ParseError`](@ref) keeps the original exception in `cause` and its
-backtrace in `backtrace`. Its `path` is an
-[RFC 6901 JSON Pointer](https://www.rfc-editor.org/rfc/rfc6901): array indices
-start at zero, `~` becomes `~0`, and `/` becomes `~1` within an object key.
-The empty path `""` identifies the input root. Input names are used even when
-field tags rename Julia fields. Duplicate keys can share a pointer; `position`
-distinguishes their occurrences.
+backtrace in `backtrace`. `path` is an
+[RFC 6901 JSON Pointer](https://www.rfc-editor.org/rfc/rfc6901) to the failing
+value, using the JSON key names: array indices start at zero, `~` and `/` in a
+key are written `~0` and `~1`, and `""` is the root. `position` is the one-based
+byte where that value starts. A missing field or a failing constructor points at
+the enclosing object. JSON Lines input uses the line's array index.
 
-The byte position is one-based and identifies the start of the value being
-converted, rather than a cursor inside a syntax error. Missing fields and
-constructor failures identify the containing object. When parsing a selected
-`LazyValue`, the pointer is relative to that selected value, while the position
-still refers to its original buffer. JSON Lines inputs use array indices for
-their lines.
-
-This option also works with `parse!`, `parsefile`, and IO inputs. It does not
-retry parsing or rerun conversion hooks to discover the path. Hooks still see
-their original exceptions and can recover from them; only an error escaping
-the parse call is wrapped. If a hook parses a different input or handles
-multiple errors before rethrowing an older one, the enclosing conversion may
-be the most precise available location. If structural path recovery fails,
-`path` is `nothing` and the original cause remains available.
-
-Diagnostics are off by default. Enabling them adds tracking to successful
-conversions and a structural scan on failure. Omitting `error_context` gives the
-lowest first-use cost; passing `false` disables tracking but may still add compiler work.
-Existing partial updates from
-`parse!` are preserved. Errors from validating options or recognizing the
-initial input value, before materialization starts, keep their existing types;
-interrupts, out-of-memory errors, and stack-overflow errors are never wrapped.
+`error_context` also works with `parse!`, `parsefile`, and IO inputs. It is off
+by default because it adds work to every conversion.
 
 ### Arrays and collections
 
@@ -417,7 +397,7 @@ JSON.lift(::Type{Email}, x::String) = Email(x)
 JSON.lower(x::Email) = x.value
 
 # Now you can use Email in your structs and it will be serialized as a string
-@defaults struct User
+@kwarg struct User
     id::Int = 1
     name::String = "default"
     email::Email
@@ -456,7 +436,7 @@ JSON.lift(::Type{Percent}, x::String) = Percent(parse(Float64, x))
 JSON.lower(x::Percent) = x.value
 
 # Use in a struct
-@defaults struct Product
+@kwarg struct Product
     name::String = "default"
     discount::Percent = Percent(0.0)
 end
@@ -552,13 +532,13 @@ franken = JSON.parse(json, FrankenStruct)
 
 Let's walk through some notable features of the example above:
   * The `name` field isn't present in the JSON input, so the default value of `"Jim"` is used.
-  * The `address` field uses a default `@choosetype` to determine that the JSON value is not `null`, so a `String` should be parsed for the field value.
-  * The `rate` field has a `null` JSON value, so the default `@choosetype` recognizes it should be "lifted" to `Missing`, which then uses a predefined `lift` definition for `Missing`.
+  * The `address` field is a `Union{Nothing, String}` and its JSON value is not `null`, so a `String` is parsed.
+  * The `rate` field is a `Union{Missing, Float64}` and its JSON value is `null`, so it becomes `missing`.
   * The `type` field is a `Symbol`, and has a fieldtag `json=(name="franken_type",)` which means the JSON key `franken_type` will be used to set the field value instead of the default `type` field name. A default `lift` definition for `Symbol` is used to convert the JSON string value to a `Symbol`.
   * The `notsure` field is of type `Any`, so the default object type `JSON.Object{String, Any}` is used to materialize the JSON value.
   * The `monster` field is a polymorphic type, and the JSON value has a `monster_type` key that determines which concrete type to use. The `@choosetype` macro is used to define the logic for choosing the concrete type based on the JSON input. Note that the `x` in `@choosetype` is a `LazyValue`, so we materialize via `x.monster_type[]` in order to compare with the string `"vampire"`.
-  * The `percent` field is a custom type `Percent` and the `JSON.lift` macro defines how to construct a `Percent` from the JSON value, which is a `Float64` in this case.
-  * The `birthdate` field uses a custom date format for parsing, specified in the JSON input.
+  * The `percent` field is a custom type `Percent` and the `JSON.lift` method defines how to construct a `Percent` from the JSON value, which is a `Float64` in this case.
+  * The `birthdate` field is parsed with the date format given by its `dateformat` field tag.
   * The `percentages` field is a dictionary with keys of type `Percent`, which is a custom type. The `liftkey` function is defined to convert the JSON string keys to `Percent` types (parses the Float64 manually)
   * The `json_properties` field has a type of `JSONText`, which means the raw JSON will be preserved as a String of the `JSONText` type.
   * The `matrix` field is a `Matrix{Float64}`, so the JSON input array-of-arrays are materialized as such.
