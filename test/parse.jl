@@ -248,6 +248,31 @@ Base.valtype(::DictlikeViaCustomStyle) = Int
 StructUtils.addkeyval!(a::DictlikeViaCustomStyle, k, v) = StructUtils.addkeyval!(a.vals, k, v)
 StructUtils.dictlike(::CustomJSONStyle, ::Type{DictlikeViaCustomStyle}) = true
 
+# https://github.com/JuliaIO/JSON.jl/issues/464 - trait methods for every style, or every JSONStyle
+struct PlainStructStyle <: StructUtils.StructStyle end
+struct DictlikeForAnyStyle
+    vals::Dict{String,Int}
+end
+StructUtils.initialize(::StructUtils.StructStyle, ::Type{DictlikeForAnyStyle}, source) =
+    DictlikeForAnyStyle(Dict{String,Int}())
+Base.keytype(::DictlikeForAnyStyle) = String
+Base.valtype(::DictlikeForAnyStyle) = Int
+StructUtils.addkeyval!(a::DictlikeForAnyStyle, k, v) = (a.vals[k] = v)
+StructUtils.dictlike(::StructUtils.StructStyle, ::Type{DictlikeForAnyStyle}) = true
+struct DictlikeForJSONStyles
+    vals::Dict{String,Int}
+end
+StructUtils.initialize(::JSON.JSONStyle, ::Type{DictlikeForJSONStyles}, source) =
+    DictlikeForJSONStyles(Dict{String,Int}())
+Base.keytype(::DictlikeForJSONStyles) = String
+Base.valtype(::DictlikeForJSONStyles) = Int
+StructUtils.addkeyval!(a::DictlikeForJSONStyles, k, v) = (a.vals[k] = v)
+StructUtils.dictlike(::JSON.JSONStyle, ::Type{DictlikeForJSONStyles}) = true
+@nonstruct struct NonStructWord
+    word::String
+end
+StructUtils.lift(::Type{NonStructWord}, x::String) = NonStructWord(x)
+
 StructUtils.structlike(::RefValueStyle, ::Type{Base.RefValue{Int}}) = false
 StructUtils.lower(::RefValueStyle, x::Base.RefValue{Int}) = x[]
 StructUtils.lift(::RefValueStyle, ::Type{Base.RefValue{Int}}, x::Integer) = Ref{Int}(x), nothing
@@ -987,6 +1012,12 @@ end
     # https://github.com/JuliaIO/JSON.jl/issues/453 - dictlike dispatch on custom JSONStyle must reach user method
     let res = JSON.parse("""{"a": 1, "b": 2}""", DictlikeViaCustomStyle; style=CustomJSONStyle())
         @test res.vals == Dict("a" => 1, "b" => 2)
+    end
+    # https://github.com/JuliaIO/JSON.jl/issues/464 - with every style, no method ambiguity
+    for style in (StructUtils.DefaultStyle(), CustomJSONStyle(), PlainStructStyle())
+        @test JSON.parse("""{"a": 1}""", DictlikeForAnyStyle; style).vals == Dict("a" => 1)
+        @test JSON.parse("""{"a": 1}""", DictlikeForJSONStyles; style).vals == Dict("a" => 1)
+        @test JSON.parse("\"hi\"", NonStructWord; style) == NonStructWord("hi")
     end
     # https://github.com/JuliaIO/JSON.jl/issues/462 - structlike dispatch on custom JSONStyle must reach user method
     let json = JSON.json(Ref{Int}(1); style=RefValueStyle())
