@@ -1,6 +1,6 @@
 # JSON.jl
 
-JSON Julia package repo.
+Read and write JSON in Julia.
 
 ```@contents
 ```

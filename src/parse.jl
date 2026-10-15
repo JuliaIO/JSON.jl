@@ -44,7 +44,7 @@ of type `T` will be attempted utilizing machinery and interfaces provided by the
   * If a field in `T` has a `name` fieldtag, the `name` value will be used to match JSON keys instead
   * If `T` or any recursive field type of `T` is abstract, an appropriate `JSON.@choosetype T x -> ...` definition should exist for "choosing" a concrete type at runtime; default type choosing exists for `Union{T, Missing}` and `Union{T, Nothing}` where the JSON value is checked if `null`. If the `Any` type is encountered, the default materialization types will be used (`JSON.Object`, `Vector{Any}`, etc.)
   * For any non-JSON-standard non-aggregate (i.e. non-object, non-array) field type of `T`, a `JSON.lift(::Type{T}, x) = ...` definition can be defined for how to "lift" the default JSON value (String, Number, Bool, `nothing`) to the type `T`; a default lift definition exists, for example, for `JSON.lift(::Type{Missing}, x) = missing` where the standard JSON value for `null` is `nothing` and it can be "lifted" to `missing`
-  * For any `T` or recursive field type of `T` that is `AbstractDict`, non-string/symbol/integer keys will need to have a `StructUtils.liftkey(::Type{T}, x))` definition for how to "lift" the JSON string key to the key type of `T`
+  * For any `T` or recursive field type of `T` that is `AbstractDict`, non-string/symbol/integer keys will need to have a `StructUtils.liftkey(::Type{T}, x)` definition for how to "lift" the JSON string key to the key type of `T`
 
 For any `T` or recursive field type of `T` that is `JSON.JSONText`, the next full raw JSON value will be preserved in the `JSONText` wrapper as-is.
 
@@ -125,13 +125,13 @@ JSON.parse(json, FrankenStruct)
 
 Let's walk through some notable features of the example above:
   * The `name` field isn't present in the JSON input, so the default value of `"Jim"` is used.
-  * The `address` field uses a default `@choosetype` to determine that the JSON value is not `null`, so a `String` should be parsed for the field value.
-  * The `rate` field has a `null` JSON value, so the default `@choosetype` recognizes it should be "lifted" to `Missing`, which then uses a predefined `lift` definition for `Missing`.
+  * The `address` field is a `Union{Nothing, String}` and its JSON value is not `null`, so a `String` is parsed.
+  * The `rate` field is a `Union{Missing, Float64}` and its JSON value is `null`, so it becomes `missing`.
   * The `type` field is a `Symbol`, and has a fieldtag `json=(name="franken_type",)` which means the JSON key `franken_type` will be used to set the field value instead of the default `type` field name. A default `lift` definition for `Symbol` is used to convert the JSON string value to a `Symbol`.
   * The `notsure` field is of type `Any`, so the default object type `JSON.Object{String, Any}` is used to materialize the JSON value.
-  * The `monster` field is a polymorphic type, and the JSON value has a `monster_type` key that determines which concrete type to use. The `@choosetype` macro is used to define the logic for choosing the concrete type based on the JSON input. Note that teh `x` in `@choosetype` is a `LazyValue`, so we materialize via `x.monster_type[]` in order to compare with the string `"vampire"`.
-  * The `percent` field is a custom type `Percent` and the `JSON.lift` defines how to construct a `Percent` from the JSON value, which is a `Float64` in this case.
-  * The `birthdate` field uses a custom date format for parsing, specified in the JSON input.
+  * The `monster` field is a polymorphic type, and the JSON value has a `monster_type` key that determines which concrete type to use. The `@choosetype` macro is used to define the logic for choosing the concrete type based on the JSON input. Note that the `x` in `@choosetype` is a `LazyValue`, so we materialize via `x.monster_type[]` in order to compare with the string `"vampire"`.
+  * The `percent` field is a custom type `Percent` and the `JSON.lift` method defines how to construct a `Percent` from the JSON value, which is a `Float64` in this case.
+  * The `birthdate` field is parsed with the date format given by its `dateformat` field tag.
   * The `percentages` field is a dictionary with keys of type `Percent`, which is a custom type. The `liftkey` function is defined to convert the JSON string keys to `Percent` types (parses the Float64 manually)
   * The `json_properties` field has a type of `JSONText`, which means the raw JSON will be preserved as a String of the `JSONText` type.
   * The `matrix` field is a `Matrix{Float64}`, so the JSON input array-of-arrays are materialized as such.
@@ -140,7 +140,7 @@ Let's walk through some notable features of the example above:
 NOTE:
 Why use `JSON.Object{String, Any}` as the default object type? It provides several benefits:
   * Behaves as a drop-in replacement for `Dict{String, Any}`, so no loss of functionality
-  * Performance! It's internal representation means memory savings and faster construction for small objects typical in JSON (vs `Dict`)
+  * Performance! Its internal representation means memory savings and faster construction for small objects typical in JSON (vs `Dict`)
   * Insertion order is preserved, so the order of keys in the JSON input is preserved in `JSON.Object`
   * Convenient `getproperty` (i.e. `obj.key`) syntax is supported, even for `Object{String,Any}` key types (again ideal/specialized for JSON usage)
 

@@ -24,9 +24,9 @@ This guide provides an overview of how to migrate your code from either the pre-
       - `ninf::String` the string to write if `allownan=true` and serializing `-Inf`
       - `inf::String` the string to write if `allownan=true` and serializing `Inf`
       - `nan::String` the string to write if `allownan=true` and serializing `NaN`
-      - `jsonlines::String` when serializing an array, write each element independently on a new line as an implicit array; can be read back when parsing by also passing `jsonlines=true`
+      - `jsonlines::Bool` when serializing an array, write each element independently on a new line as an implicit array; can be read back when parsing by also passing `jsonlines=true`
       - `inline_limit::Int` threshold number of elements in an array under which an array should be printed on a single line (only applicable when pretty printing)
-      - `float_style::Symbol` allowed values are `:shortest`, `:fixed`, and `:exp` corresponding to printf format styles, `%g`, `%f`, and `%e`, respectively
+      - `float_style::Symbol` allowed values are `:shortest` (the shortest representation that round-trips), `:fixed` (like printf `%f`), and `:exp` (like printf `%e`)
       - `float_precision::Int` number of decimal places to use when printing floats
   - Why the changes:
     - Mostly just modernizing the interfaces (use of keyword arguments vs. positional)
@@ -44,7 +44,7 @@ This guide provides an overview of how to migrate your code from either the pre-
   - What changed:
     - `lower` technically now lives in the StructUtils.jl package (though overloading in JSON is fine)
     - Can overload for a specific "style" for non-owned types, like `struct MyStyle <: JSON.JSONStyle end`, then `JSON.lower(::MyStyle, x::Rational) = float(x)`, then have the style used when writing like `JSON.json(1//3; style=MyStyle())`
-    - Probably don't need to `lower` except in rare cases; there are default `lower` defintions for common types and most structs/AbstractDict/AbstractArray will work out of the box; `lower` is mostly useful when wanting to have the JSON output of a struct be a string or a number, for example, so going between aggregate/non-aggregate from Julia to JSON
+    - Probably don't need to `lower` except in rare cases; there are default `lower` definitions for common types and most structs/AbstractDict/AbstractArray will work out of the box; `lower` is mostly useful when wanting to have the JSON output of a struct be a string or a number, for example, so going between aggregate/non-aggregate from Julia to JSON
   - Why the changes:
     - Along with the new corresponding `lift` interface, the `lower` + `lift` combination is a powerful generalization of doing "domain transformations"
 - `JSON.StructuralContext` / `JSON.show_json` / `JSON.Serialization`
@@ -68,13 +68,12 @@ This guide provides an overview of how to migrate your code from either the pre-
     - `JSON.Object{String, Any}` is now the default type used when parsing instead of `Dict{String, Any}`; `JSON.Object` is a drop-in replacement for `Dict`, supporting the `AbstractDict` interface, mutation, dot-access (getproperty) to keys, memory and performance benefits for small objects vs. `Dict`, and preserves the JSON order of keys. For large objects (hundreds or thousands of keys), or to otherwise restore the pre-1.0 behavior, you can do `JSON.parse(json; dicttype=Dict{String, Any})`.
     - The `inttype` keyword argument has been removed
     - The `allownan` keyword argument now defaults to `false` instead of `true` to provide a more accurate JSON specification behavior as the default
-    - The `use_mmap` keyword argument has been removed from `parsefile`; mmapping will now be decided automatically by the package and any mmaps used for parsing will be completely finalized when parsing has finished
+    - The `use_mmap` keyword argument has been removed from `parsefile`; the file is read into memory
     - Numbers in JSON will now be parsed as `Int64`, `BigInt`, `Float64`, or `BigFloat`, instead of only `Int64` or `Float64`. Many JSON libraries support arbitrary precision ints/floats, and now JSON.jl does too.
     - `JSON.parse(json, T)` and `JSON.parse!(json, x)` variants have been added for constructing a Julia value from JSON, or mutating an existing Julia value from JSON; `JSON.parsefile(json, T)` and `JSON.parsefile!(json, x)` are also supported; see [JSON Reading](@ref) for more details
   - Why the changes:
     - The `inttype` keyword argument is rare among other JSON libraries and doesn't serve a strong purpose; memory gains from possibly using smaller ints is minimal and leads to more error-prone code via overflows by trying to force integers into non-standard small types
     - For the `allownan` default value change, there are many benchmarks/JSON-accuracy checking test suites that enforce adherance to the specification; following the specification by default is recommended and common across language JSON libraries
-    - Mmapping is an internal detail that most users shouldn't worry about anyway, and it can be done transparently without any outside affect to the user
 - [`JSONText`](@ref)
   - `JSONText` can now also be used while parsing, as a field type of a struct or directly to return the raw JSON (similar to how writing with `JSONText` works)
 

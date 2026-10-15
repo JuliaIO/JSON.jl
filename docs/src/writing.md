@@ -14,7 +14,7 @@ The main entrypoint for serializing Julia values to JSON in JSON.jl is the [`JSO
 JSON.json(x) -> String
 
 # Serialize to an IO object
-JSON.json(io::IO, x) -> IO
+JSON.json(io::IO, x) -> nothing
 
 # Serialize to a file
 JSON.json(file_name::String, x) -> String
@@ -81,7 +81,7 @@ When pretty printing, you can also control which arrays get printed inline versu
 JSON.json(data; pretty=true, inline_limit=10)
 # {
 #   "name": "Alice",
-#   "scores": [95, 87, 92]
+#   "scores": [95,87,92]
 # }
 ```
 
@@ -247,7 +247,7 @@ data = Dict(
 )
 
 JSON.json(data)
-# {"name":"Alice","config":{"theme":"dark","fontSize":16}}
+# {"config":{"theme":"dark","fontSize":16},"name":"Alice"}
 ```
 
 ### Custom Type Serialization with `lower`
@@ -374,7 +374,7 @@ JSON.json(node; omit_null=false)
 
 ## Custom Dictionary Key Serialization
 
-Keys and array indices pass through `StructUtils.lowerkey`. JSON accepts a string or a real number from this hook. Its default numeric method returns the number unchanged: object keys are converted to strings when written or sorted, while unused array indices need no string allocation.
+Keys pass through `StructUtils.lowerkey`, which must return a string or a real number; numbers are written as JSON strings.
 
 For dictionaries with non-string keys, [`JSON.json`](@ref) writes quoted keys:
 
@@ -385,7 +385,7 @@ JSON.json(Dict(1 => "one", 2 => "two"))
 
 # Symbol keys
 JSON.json(Dict(:name => "Alice", :age => 30))
-# {"name":"Alice","age":30}
+# {"age":30,"name":"Alice"}
 
 # Custom key serialization
 struct CustomKey
@@ -398,7 +398,7 @@ try
 catch e
     println(e)
 end
-# ArgumentError("No key representation for CustomKey. Define StructUtils.lowerkey(::CustomKey)")
+# ArgumentError("No key representation for CustomKey. Define StructUtils.lowerkey(::JSON.JSONStyle, ::CustomKey)")
 
 # Define how the key should be converted to a string
 StructUtils.lowerkey(::JSON.JSONStyle, k::CustomKey) = "key-$(k.id)"
@@ -429,7 +429,7 @@ struct Percent <: Number
 end
 
 JSON.lower(x::Percent) = x.value
-StructUtils.lowerkey(x::Percent) = string(x.value)
+StructUtils.lowerkey(::JSON.JSONStyle, x::Percent) = string(x.value)
 
 @noarg mutable struct FrankenStruct
     id::Int
@@ -453,7 +453,7 @@ franken = FrankenStruct()
 franken.id = 1
 
 json = JSON.json(franken)
-# "{\"id\":1,\"name\":null,\"address\":null,\"rate\":null,\"franken_type\":\"a\",\"notsure\":{\"key\":\"value\"},\"monster\":{\"monster_type\":\"vampire\",\"num_victims\":10},\"percent\":0.5,\"birthdate\":\"2025/01/01\",\"percentages\":{\"1.0\":1,\"0.0\":0},\"json_properties\":{\"key\": \"value\"},\"matrix\":[[1.0,3.0],[2.0,4.0]]}"
+# "{\"id\":1,\"name\":null,\"address\":null,\"rate\":null,\"franken_type\":\"a\",\"notsure\":{\"key\":\"value\"},\"monster\":{\"monster_type\":\"vampire\",\"num_victims\":10},\"percent\":0.5,\"birthdate\":\"2025/01/01\",\"percentages\":{\"0.0\":0,\"1.0\":1},\"json_properties\":{\"key\": \"value\"},\"matrix\":[[1.0,3.0],[2.0,4.0]]}"
 ```
 
 Let's analyze each part of this complex example to understand how JSON.jl's serialization features work:
@@ -468,7 +468,7 @@ Let's analyze each part of this complex example to understand how JSON.jl's seri
    - `Percent` is a custom numeric type that wraps a `Float64`
    - We provide two serialization methods:
      - `JSON.lower(x::Percent) = x.value`: This tells JSON how to serialize a `Percent` value (convert to the underlying Float64)
-     - `StructUtils.lowerkey(x::Percent) = string(x.value)`: This handles when a `Percent` is used as a dictionary key
+     - `StructUtils.lowerkey(::JSON.JSONStyle, x::Percent) = string(x.value)`: This handles when a `Percent` is used as a dictionary key
 
 3. **The `FrankenStruct`**:
    - Created with `@noarg` making it a mutable struct that can be default constructed like `FrankenStruct()`
@@ -547,7 +547,7 @@ When we serialize this struct, we get a JSON string with all the specialized ser
   "monster": {"monster_type": "vampire", "num_victims": 10},
   "percent": 0.5,
   "birthdate": "2025/01/01",
-  "percentages": {"1.0": 1, "0.0": 0},
+  "percentages": {"0.0": 0, "1.0": 1},
   "json_properties": {"key": "value"},
   "matrix": [[1.0, 3.0], [2.0, 4.0]]
 }

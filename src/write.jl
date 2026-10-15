@@ -495,10 +495,10 @@ By default, `x` must be a JSON-serializable object. Supported types include:
     `ncodeunits` and `codeunit(x, i)`.
   * `Bool` => JSON boolean: must be `true` or `false`
   * `Nothing` => JSON null: must be the `nothing` singleton value
-  * `Number` => JSON number: `Integer` subtypes or `Union{Float16, Float32, Float64}` have default implementations
+  * `Number` => JSON number: `Integer` subtypes or `Union{Float16, Float32, Float64}` have default implementations;
     for other `Number` types, [`JSON.tostring`](@ref) is first called to convert
     the value to a `String` before being written directly to JSON output
-  * `AbstractArray`/`Tuple`/`AbstractSet` => JSON array: objects for which `JSON.arraylike` returns `true`
+  * `AbstractArray`/`Tuple`/`AbstractSet` => JSON array: objects for which `StructUtils.arraylike` returns `true`
      are output as JSON arrays. `arraylike` is defined by default for
     `AbstractArray`, `AbstractSet`, `Tuple`, and `Base.Generator`. For other types that define,
     they must also properly implement `StructUtils.applyeach` to iterate over the index => elements pairs.
@@ -510,7 +510,7 @@ By default, `x` must be a JSON-serializable object. Supported types include:
     be output with an alternative name via field tag overload, like `field::Type &(json=(name="alternative_name",),)`
 
 If an object is not JSON-serializable, an override for `JSON.lower` can
-be defined to convert it to a JSON-serializable object. Some default `lower` defintions
+be defined to convert it to a JSON-serializable object. Some default `lower` definitions
 are defined in JSON itself, for example:
   * `StructUtils.lower(::Missing) = nothing`
   * `StructUtils.lower(x::Symbol) = String(x)`
@@ -558,7 +558,7 @@ struct Percent <: Number
 end
 
 JSON.lower(x::Percent) = x.value
-StructUtils.lowerkey(x::Percent) = string(x.value)
+StructUtils.lowerkey(::JSON.JSONStyle, x::Percent) = string(x.value)
 
 @noarg mutable struct FrankenStruct
     id::Int
@@ -580,7 +580,7 @@ franken = FrankenStruct()
 franken.id = 1
 
 json = JSON.json(franken; omit_null=false)
-# "{\"id\":1,\"name\":null,\"address\":null,\"rate\":null,\"franken_type\":\"a\",\"notsure\":{\"key\":\"value\"},\"monster\":{\"monster_type\":\"vampire\",\"num_victims\":10},\"percent\":0.5,\"birthdate\":\"2025/01/01\",\"percentages\":{\"1.0\":1,\"0.0\":0},\"json_properties\":{\"key\": \"value\"},\"matrix\":[[1.0,3.0],[2.0,4.0]]}"
+# "{\"id\":1,\"name\":null,\"address\":null,\"rate\":null,\"franken_type\":\"a\",\"notsure\":{\"key\":\"value\"},\"monster\":{\"monster_type\":\"vampire\",\"num_victims\":10},\"percent\":0.5,\"birthdate\":\"2025/01/01\",\"percentages\":{\"0.0\":0,\"1.0\":1},\"json_properties\":{\"key\": \"value\"},\"matrix\":[[1.0,3.0],[2.0,4.0]]}"
 ```
 
 A few comments on the JSON produced in the example above:

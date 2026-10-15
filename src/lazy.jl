@@ -54,11 +54,11 @@ In this example, we only parsed as much of the `very_large_json_object` as was r
 Then we fully materialized `y` into `z`, which is now a normal Julia object. We can now mutate or access values in `z`.
 
 Currently supported keyword arguments include:
-  - `allownan::Bool = false`: whether "special" float values shoudl be allowed while parsing (`NaN`, `Inf`, `-Inf`); these values are specifically _not allowed_ in the JSON spec, but many JSON libraries allow reading/writing. When `true`, untyped numbers are parsed as `Float64`. A requested fixed-width integer type of up to 128 bits is parsed exactly from the number token
+  - `allownan::Bool = false`: whether "special" float values should be allowed while parsing (`NaN`, `Inf`, `-Inf`); these values are specifically _not allowed_ in the JSON spec, but many JSON libraries allow reading/writing. When `true`, untyped numbers are parsed as `Float64`. A requested fixed-width integer type of up to 128 bits is parsed exactly from the number token
   - `ninf::String = "-Infinity"`: the string that will be used to parse `-Inf` if `allownan=true`
   - `inf::String = "Infinity"`: the string that will be used to parse `Inf` if `allownan=true`
-  - `nan::String = "NaN"`: the string that will be sued to parse `NaN` if `allownan=true`
-  - `jsonlines::Bool = false`: whether the JSON input should be treated as an implicit array, with newlines separating individual JSON elements with no leading `'['` or trailing `']'` characters. Common in logging or streaming workflows. Defaults to `true` when used with `JSON.parsefile` and the filename extension is `.jsonl` or `ndjson`. Note this ensures that parsing will _always_ return an array at the root-level.
+  - `nan::String = "NaN"`: the string that will be used to parse `NaN` if `allownan=true`
+  - `jsonlines::Bool = false`: whether the JSON input should be treated as an implicit array, with newlines separating individual JSON elements with no leading `'['` or trailing `']'` characters. Common in logging or streaming workflows. Defaults to `true` when used with `JSON.parsefile` and the filename extension is `.jsonl` or `.ndjson`. Note this ensures that parsing will _always_ return an array at the root-level.
   - `duplicate_keys::Symbol = :overwrite`: how repeated object keys are handled. `:overwrite` preserves the default last-value-wins behavior. `:error` throws [`JSON.DuplicateKeyError`](@ref).
   - `maxdepth::Integer = 512`: the deepest nesting of objects and arrays that will be parsed; deeper input throws an `ArgumentError` instead of overflowing the stack. `jsonlines` input counts its implicit outer array as one level
   - `isroot::Bool = true`: whether this is the root LazyValue encompassing the entire json buffer. If `false` parses only the first JSON value and ignores trailing characters.
