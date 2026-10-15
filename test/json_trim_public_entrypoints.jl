@@ -122,6 +122,16 @@ function exercise_parse_entrypoints()::Nothing
         err
     end
     checked(unknown isa ArgumentError, "unknown-field diagnostic failed")
+
+    deep = try
+        JSON.parse(repeat("{\"item\":", 600), TrimRoot)
+        nothing
+    catch err
+        err
+    end
+    msg = deep isa ArgumentError ? (deep::ArgumentError).msg : ""
+    checked(msg isa String && occursin("maxdepth", msg::String), "maxdepth diagnostic failed")
+    checked(JSON.parse("[[1]]", Vector{Vector{Int}}; maxdepth=2) == [[1]], "maxdepth keyword parse failed")
     return nothing
 end
 

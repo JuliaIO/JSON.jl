@@ -30,6 +30,7 @@ Each entrypoint function first calls [`JSON.lazy`](@ref), which will consume the
   - `inf::String = "Infinity"`: the string that will be used to parse `Inf` if `allownan=true`
   - `nan::String = "NaN"`: the string that will be sued to parse `NaN` if `allownan=true`
   - `jsonlines::Bool = false`: whether the JSON input should be treated as an implicit array, with newlines separating individual JSON elements with no leading `'['` or trailing `']'` characters. Common in logging or streaming workflows. Defaults to `true` when used with [`JSON.parsefile`](@ref) and the filename extension is `.jsonl` or `ndjson`. Note this ensures that parsing will _always_ return an array at the root-level.
+  - `maxdepth::Integer = 512`: the deepest nesting of objects and arrays that will be parsed; deeper input throws an `ArgumentError` instead of overflowing the stack. `jsonlines` input counts its implicit outer array as one level
   - Materialization-specific keyword arguments (i.e. they affect materialization, but not parsing)
     - `dicttype = JSON.Object{String, Any}`: type to parse JSON objects as by default (recursively)
     - `null = nothing`: value to return for JSON `null` value
