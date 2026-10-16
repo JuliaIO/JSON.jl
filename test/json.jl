@@ -296,6 +296,7 @@ JSON.applyany(::ClosedStyle, f, k, v) = throw(ArgumentError("closed"))
     StructUtils.lowerkey(::JSON.JSONStyle, p::Point) = "$(p.x)_$(p.y)"
     @test JSON.json(Dict(Point(1, 2) => "hi")) == "{\"1_2\":\"hi\"}"
     x = JSONText("[1,2,3]")
+    @test JSONText(x) === x
     @test JSON.json(x) == "[1,2,3]"
     @test JSON.json((a=1, b=nothing)) == "{\"a\":1,\"b\":null}"
     @test JSON.json((a=1, b=nothing); omit_null=true) == "{\"a\":1}"

@@ -141,6 +141,8 @@ struct JSONText
     value::String
 end
 
+JSONText(x::JSONText) = x
+
 include("lazy.jl")
 include("parse.jl")
 include("write.jl")
