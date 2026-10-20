@@ -585,3 +585,63 @@ end
         @test length(names) == length(large)
     end
 end
+
+# Reference for the `Object` writer: an `AbstractDict` that is neither an `Object` nor a `Dict`,
+# so it takes the generic `applyeach(::JSONStyle, f, ::AbstractDict{<:Any,Any})` path and is not
+# key-sorted. Nested objects are wrapped too, so the whole document goes through that path.
+struct _GenericPathDict{K} <: AbstractDict{K,Any}
+    obj::JSON.Object{K,Any}
+end
+_generic_path(x) = x
+_generic_path(x::JSON.Object{K,Any}) where {K} = _GenericPathDict{K}(x)
+_generic_path(x::Vector{Any}) = Any[_generic_path(v) for v in x]
+Base.length(d::_GenericPathDict) = length(d.obj)
+function Base.iterate(d::_GenericPathDict{K}, st...) where {K}
+    r = iterate(d.obj, st...)
+    r === nothing && return nothing
+    p, s = r
+    return Pair{K,Any}(p.first, _generic_path(p.second)), s
+end
+
+@testset "Writing JSON.Object without iterating it" begin
+    # the comparison only means something if the two values take different methods
+    objsig = which(JSON.StructUtils.applyeach, Tuple{JSON.JSONWriteStyle, Function, JSON.Object{String,Any}}).sig
+    gensig = which(JSON.StructUtils.applyeach, Tuple{JSON.JSONWriteStyle, Function, _GenericPathDict{String}}).sig
+    @test objsig <: Tuple{Any, Any, Any, JSON.Object}
+    @test !(gensig <: Tuple{Any, Any, Any, JSON.Object})
+
+    @testset "byte-identical to the generic path on a nested document" begin
+        src = """{"z":1,"a":{"c":[1,{"d":null,"e":"x\\"y\\u00e9"},[],{}],"b":2.5,"empty":{}},
+                  "list":[true,false,-0.0,1e300,"s"],"k":"","nested":{"x":{"y":{"z":[{"w":1}]}}}}"""
+        obj = JSON.parse(src)
+        @test obj isa JSON.Object{String,Any}
+        ref = _generic_path(obj)
+        @test JSON.json(obj) == JSON.json(ref)
+        @test JSON.json(obj; pretty=2) == JSON.json(ref; pretty=2)
+        @test JSON.json(obj; omit_null=true) == JSON.json(ref; omit_null=true)
+        # insertion order is kept, not sorted
+        @test startswith(JSON.json(obj), "{\"z\":1,\"a\":")
+        # an Object holding nothing but the root node
+        @test JSON.json(JSON.Object{String,Any}()) == "{}"
+        # a document whose root is an array of objects
+        arr = JSON.parse("""[{"b":1,"a":2},{"c":{"d":[]}}]""")
+        @test JSON.json(arr) == JSON.json(_generic_path(arr))
+    end
+
+    @testset "keys other than String go through lowerkey" begin
+        sym = JSON.Object{Symbol,Any}(:b => 1, :a => JSON.Object{Symbol,Any}(:c => Any[1, "x"]))
+        @test JSON.json(sym) == JSON.json(_generic_path(sym)) == """{"b":1,"a":{"c":[1,"x"]}}"""
+        int = JSON.Object{Int,Any}(2 => "two", 1 => 1.5, 10 => nothing)
+        @test JSON.json(int) == JSON.json(_generic_path(int)) == """{"2":"two","1":1.5,"10":null}"""
+    end
+
+    @testset "EarlyReturn stops the walk" begin
+        obj = JSON.parse("""{"a":1,"b":2,"c":3}""")
+        seen = String[]
+        f = (k, v) -> (push!(seen, k); k == "b" ? JSON.StructUtils.EarlyReturn(v) : nothing)
+        ret = JSON.StructUtils.applyeach(JSON.JSONWriteStyle(), f, obj)
+        @test ret isa JSON.StructUtils.EarlyReturn
+        @test ret.value == 2
+        @test seen == ["a", "b"]
+    end
+end
