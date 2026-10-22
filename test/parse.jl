@@ -1129,3 +1129,17 @@ end
     # one box per Float64 element of the Vector{Any}
     @test @allocations(JSON.parse(floats)) < 10_100
 end
+
+@testset "Float32, Float16 and BigFloat targets are parsed at their own precision" begin
+    # just above the midpoint after 1.0: through Float64 these read as the midpoint, then round down
+    @test JSON.parse("1.00000005960464477550", Float32) === nextfloat(1.0f0)
+    @test JSON.parse("[1.00048828125000000001]", Vector{Float16}) == [nextfloat(Float16(1))]
+    @test JSON.parse("0.1", BigFloat) == big"0.1"
+    s = "3.14159265358979323846264338327950288419716939937510582097494459"
+    @test JSON.parse(s, BigFloat) == parse(BigFloat, s)
+    @test JSON.parse("{\"x\":[0.1]}", @NamedTuple{x::Vector{BigFloat}}).x == [big"0.1"]
+    @test isequal(JSON.parse("[1e40, -0.0, 1e-50]", Vector{Float32}), [Inf32, -0.0f0, 0.0f0])
+    for T in (Float16, Float32, BigFloat), s in ("1.5e", "1.5e+", "-1.e5")
+        @test_throws ArgumentError JSON.parse(s, T)
+    end
+end
