@@ -1099,8 +1099,10 @@ end
 function anyinvalidnumberchars(x)
     for i = 1:sizeof(x)
         b = codeunit(x, i)
-        if !(b == UInt8('-') || b == UInt8('+') || b == UInt8('.') || b == UInt8('e') || b == UInt8('E') ||
-            UInt8('0') <= b <= UInt8('9'))
+        if !(b == UInt8('-') || b == UInt8('.') || b == UInt8('e') || b == UInt8('E') ||
+            UInt8('0') <= b <= UInt8('9') ||
+            # an exponent's sign
+            (b == UInt8('+') && i > 1 && (codeunit(x, i - 1) | 0x20) == UInt8('e')))
             return true
         end
     end

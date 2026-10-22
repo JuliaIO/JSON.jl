@@ -9,8 +9,10 @@ struct CustomNumber <: Real
     x::Float64
 end
 
-struct ExponentNumber <: Real end
-JSON.tostring(::ExponentNumber) = "1.5e+300"
+struct ExponentNumber <: Real
+    text::String
+end
+JSON.tostring(x::ExponentNumber) = x.text
 
 @omit_null struct OmitNull
     id::Int
@@ -284,8 +286,9 @@ JSON.applyany(::ClosedStyle, f, k, v) = throw(ArgumentError("closed"))
     @test_throws MethodError JSON.json(CustomNumber(3.14))
     JSON.tostring(x::CustomNumber) = string(x.x)
     @test JSON.json(CustomNumber(3.14)) == "3.14"
-    # an exponent sign is valid JSON number text, not a reason to quote it
-    @test JSON.json(ExponentNumber()) == "1.5e+300"
+    # an exponent's sign is valid JSON number text, not a reason to quote it
+    @test JSON.json(ExponentNumber("1.5e+300")) == "1.5e+300"
+    @test JSON.json(ExponentNumber("+1.5")) == "\"+1.5\""
     # https://github.com/JuliaIO/JSON.jl/issues/440
     @test JSON.json(1 + 2im) == "{\"re\":1,\"im\":2}"
     @test JSON.parse(JSON.json(1.0 + 2.0im), ComplexF64) == 1.0 + 2.0im
