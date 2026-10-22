@@ -122,16 +122,38 @@ end
     @test JSON.json(dict) == "{\"self\":null}"
 end
 @testset "duplicate keys across small-object threshold" begin
-    for n in (0, 1, 4, 5, 6, 16, 137), T in (Any, JSON.Object{String,Any}, Dict{String,Any})
+    for n in (0, 1, 4, 5, 6, 16, 137), T in (Any, JSON.Object{String,Any}, Dict{String,Any}, JSON.Object{String,Int}, JSON.Object{Symbol,Int})
         members = ["\"k$i\":$i" for i in 1:n]
         push!(members, "\"k1\":-1")
+        # a key repeated again after the first repeat, and a new key after both
+        n > 1 && push!(members, "\"k$n\":-$n", "\"k1\":-2", "\"new\":0")
         result = JSON.parse("{" * join(members, ",") * "}", T)
-        @test length(result) == max(n, 1)
-        @test result["k1"] == -1
+        @test length(result) == max(n, 1) + (n > 1)
+        @test result["k1"] == (n > 1 ? -2 : -1)
         for i in 2:n
-            @test result["k$i"] == i
+            @test result["k$i"] == (i == n ? -n : i)
+        end
+        if n > 1 && T !== Dict{String,Any}
+            @test string(last(collect(keys(result)))) == "new" # repeats keep their first position
         end
     end
+end
+
+@testset "objects are built in linear time" begin
+    n = 20_000
+    members = join(("\"k$i\":$i" for i in 1:n), ",")
+    repeats = "{" * members * repeat(",\"k$n\":0", n) * "}"
+    for T in (Any, JSON.Object{String,Int}, JSON.Object{Symbol,Any})
+        JSON.parse("{\"k1\":1}", T)
+        # overwriting by a scan from the first key took about 10 seconds here
+        t = @elapsed(result = JSON.parse(repeats, T))
+        @test length(result) == n && result["k$n"] == 0
+        @test t < 2
+    end
+    JSON.parse("{}"; dicttype=JSON.Object{Symbol,Any})
+    t = @elapsed(result = JSON.parse(repeats; dicttype=JSON.Object{Symbol,Any}))
+    @test result isa JSON.Object{Symbol,Any} && length(result) == n
+    @test t < 2
 end
 
 JSON.lift(::CustomStyle, ::Type{Bool}, x::Bool) = !x

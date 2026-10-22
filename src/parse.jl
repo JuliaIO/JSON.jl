@@ -473,53 +473,77 @@ function checkendpos(x::LazyValue, ::Type{T}, pos::Int) where {T}
     return nothing
 end
 
-# specialized closure to optimize Object{String, Any} insertions
-# to avoid doing a linear scan on each insertion, we use a Set
-# to track keys seen so far. In the common case of non-duplicated key,
-# we can insert the new key-val pair directly after the latest leaf node
-mutable struct ObjectClosure{T}
-    root::Object{String,Any}
-    obj::Object{String,Any}
-    keys::Union{Nothing,Set{String}}
+# builds an Object from parsed key-value pairs: a new key is appended after the
+# latest leaf node. Once the object has 5 keys, a set tracks the keys seen so far;
+# the first repeated key after that builds a table of each key's node, so repeated
+# keys are overwritten without scanning the list
+mutable struct ObjectClosure{K,V,T}
+    root::Object{K,V}
+    obj::Object{K,V}
+    keys::Union{Nothing,Set{K}}
+    nodes::Union{Nothing,Dict{K,Object{K,V}}}
     count::Int
     ctx::T # the null value/diagnostic context of an untyped parse, or a typed style
 end
 
-ObjectClosure(obj, ctx) = ObjectClosure(obj, obj, nothing, 0, ctx)
+ObjectClosure(obj::Object{K,V}, ctx::T) where {K,V,T} = ObjectClosure{K,V,T}(obj, obj, nothing, nothing, 0, ctx)
 
-@inline function insert_or_overwrite!(oc::ObjectClosure, key, val)
+@inline function insert_or_overwrite!(oc::ObjectClosure{K,V}, key, val) where {K,V}
     # Scan at most four entries before allocating a hash table for larger objects.
-    # Once the object grows, use the set so distinct-key insertion stays O(n).
     keys = oc.keys
     if keys === nothing
         node = find_node_by_key(oc.root, key)
         if node !== nothing
-            setfield!(node, :value, val)
+            setfield!(node, :value, convert(V, val))
             return
         end
         oc.count += 1
         if oc.count == 5
-            keys = sizehint!(Set{String}(), 16)
+            keys = sizehint!(Set{K}(), 16)
             node = _ch(oc.root)
-            while node isa Object{String,Any}
-                push!(keys, _k(node)::String)
+            while node isa Object{K,V}
+                push!(keys, _k(node)::K)
                 node = _ch(node)
             end
             push!(keys, key)
             oc.keys = keys
         end
     elseif _in!(key, keys)
-        setindex!(oc.root, val, key)
+        setfield!(nodeforkey!(oc, key), :value, convert(V, val))
         return
     end
     # this uses an "unsafe" constructor that returns the new leaf node
     # and sets the child of the previous node to the new node
-    oc.obj = Object{String,Any}(oc.obj, key, val) # fast append path
+    oc.obj = Object{K,V}(oc.obj, key, val) # fast append path
+    nodes = oc.nodes
+    nodes === nothing || (nodes[_k(oc.obj)::K] = oc.obj)
+    return
 end
 
-_objectkey(ctx, k) = String(k)
-_objectkey(st::StructStyle, k) = StructUtils.liftkey(st, String, k)
-(oc::ObjectClosure)(k, v) = applyvalue(val -> insert_or_overwrite!(oc, _objectkey(oc.ctx, k), val), v, oc.ctx)
+# the node of a key already in the object; the table is built on first use
+@noinline function nodeforkey!(oc::ObjectClosure{K,V}, key) where {K,V}
+    nodes = oc.nodes
+    if nodes === nothing
+        nodes = sizehint!(Dict{K,Object{K,V}}(), length(oc.keys::Set{K}))
+        node = _ch(oc.root)
+        while node isa Object{K,V}
+            nodes[_k(node)::K] = node
+            node = _ch(node)
+        end
+        oc.nodes = nodes
+    end
+    return nodes[key]
+end
+
+_objectkey(ctx, ::Type, k) = String(k) # untyped parse: keys are Strings
+_objectkey(st::StructStyle, ::Type{K}, k) where {K} = StructUtils.liftkey(st, K, k)
+
+function (oc::ObjectClosure{K,V})(k, v) where {K,V}
+    V === Any && return applyvalue(val -> insert_or_overwrite!(oc, _objectkey(oc.ctx, K, k), val), v, oc.ctx)
+    val, pos = StructUtils.make(oc.ctx, V, v)
+    insert_or_overwrite!(oc, _objectkey(oc.ctx, K, k), val)
+    return pos
+end
 
 # generic apply `f` to LazyValue, using default types to materialize, depending on type
 function applyvalue(f, x::LazyValues, null)
@@ -666,13 +690,18 @@ end
 
 # `ObjectClosure` with the style as its context appends in O(n) with the untyped path's
 # duplicate handling; the generic `makedict` went through `setindex!`, a linear scan per key.
-function StructUtils.make(st::_DefaultReadStyle, ::Type{Object{String,Any}}, x::LazyValues)
+function _makeobject(st::_DefaultReadStyle, ::Type{O}, x::LazyValues) where {O<:Object}
     gettype(x) == JSONTypes.OBJECT ||
-        return @invoke StructUtils.make(st::StructStyle, Object{String,Any}::Type, x::Any)
-    obj = StructUtils.initialize(st, Object{String,Any}, x)
+        return @invoke StructUtils.make(st::StructStyle, O::Type, x::Any)
+    obj = StructUtils.initialize(st, O, x)
     pos = applyobject(_contextcallback(st, ObjectClosure(obj, st)), x)
     return obj, pos
 end
+
+StructUtils.make(st::_DefaultReadStyle, ::Type{O}, x::LazyValues) where {O<:Object} = _makeobject(st, O, x)
+# `Object{String,Any}` is also an `AbstractDict{String,Any}`, which has its own method below
+StructUtils.make(st::_DefaultReadStyle, ::Type{Object{String,Any}}, x::LazyValues) =
+    _makeobject(st, Object{String,Any}, x)
 
 function StructUtils.make(st::_DefaultReadStyle, ::Type{T}, x::LazyValues) where {T<:AbstractDict{String,Any}}
     gettype(x) == JSONTypes.OBJECT ||
