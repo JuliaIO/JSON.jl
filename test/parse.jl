@@ -424,6 +424,17 @@ end
     @test JSON.isvalidjson("[0, -0.5, 1e5, -1.5E-10, 123456789012345678901234567890, 1.5e400]")
     @test !any(JSON.isvalidjson, ("[01]", "[1.]", "[-]", "[1e]", "[.5]", "[+1]", "[1.5x]"))
     @test JSON.isvalidjson("[NaN, -Infinity, +1]"; allownan=true)
+    # isvalidjson, and values a typed parse skips, refuse what `parse` refuses:
+    # content after the value and invalid escapes (#511)
+    for s in ("[1] x", "[1]]", "{}}", "2@", "\"a\" \"b\"", "[\"\\x\"]", "[\"\\u12\"]", "{\"a\\q\":1}",
+              "[\"\\uD800\\u\"]", "[\"\\\t\"]", "[\"\\U0041\"]", "\"\\u00e")
+        @test !JSON.isvalidjson(s)
+        @test_throws ArgumentError JSON.parse(s)
+        @test_throws ArgumentError JSON.parse(s, JSON.JSONText)
+    end
+    @test JSON.isvalidjson(" [1] \n")
+    @test JSON.isvalidjson("[\"\\\"\\\\\\/\\b\\f\\n\\r\\t\\u00e9\\uD834\\uDD1E\"]")
+    @test_throws ArgumentError JSON.parse("{\"a\":1,\"b\":\"\\x\"}", @NamedTuple{a::Int})
     x = JSON.parse("{}")
     @test isempty(x) && typeof(x) == JSON.Object{String, Any}
     @test_throws ArgumentError JSON.parse(JSON.LazyValue(".", 1, JSON.JSONTypes.OBJECT, JSON.LazyOptions(), true, Int32(0)))

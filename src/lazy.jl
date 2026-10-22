@@ -491,6 +491,27 @@ StructUtils.keyeq(x::PtrString, y::Symbol) = Selectors._symbol(x) == y
 # field cursor without changing StructUtils' behavior for arbitrary key types.
 @inline StructUtils.orderedfieldmatch(x::PtrString, field::String) = x == field
 
+# the position of the last byte of the escape whose `\` is at `pos`: an escape is `\` and
+# one of `"\/bfnrt`, or `\u` and four hex digits
+@noinline function escapeend(buf, pos::Int, len::Int)
+    # the escaped character and the closing quote
+    pos + 2 > len && invalid(UnexpectedEOF, buf, pos, "string")
+    b = getbyte(buf, pos + 1)
+    if b == UInt8('u')
+        for i = (pos + 2):(pos + 5)
+            i > len && invalid(UnexpectedEOF, buf, i, "string")
+            b = getbyte(buf, i)
+            UInt8('0') <= b <= UInt8('9') || UInt8('a') <= (b | 0x20) <= UInt8('f') ||
+                invalid(InvalidEscape, buf, i, "string")
+        end
+        return pos + 5
+    end
+    b == UInt8('"') || b == UInt8('\\') || b == UInt8('/') || b == UInt8('b') ||
+        b == UInt8('f') || b == UInt8('n') || b == UInt8('r') || b == UInt8('t') ||
+        invalid(InvalidEscape, buf, pos + 1, "string")
+    return pos + 1
+end
+
 # core JSON string parsing function
 # returns a PtrString and the next position to parse
 # a PtrString is a semi-lazy, internal-only representation
@@ -513,13 +534,9 @@ function parsestring(x::LazyValue)
         # disallow raw control characters within a JSON string
         b <= UInt8(0x1F) && unescaped_control(b)
         if b == UInt8('\\')
-            # skip next character
             escaped = true
-            if pos + 2 > len
-                error = UnexpectedEOF
-                @goto invalid
-            end
-            pos += 2
+            # checked here, not only when unescaping, so skipped values are validated too
+            pos = escapeend(buf, pos, len) + 1
         else
             pos += 1
         end

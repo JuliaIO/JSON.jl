@@ -45,6 +45,7 @@ function parse_testfile(i, file, data)
         catch
             @test file isa String
         end
+        @test !JSON.isvalidjson(data)
     elseif startswith(file, "i_")
         try
             JSON.parse(data)
@@ -60,6 +61,7 @@ function parse_testfile(i, file, data)
             @test !(file isa String)
             rethrow()
         end
+        @test JSON.isvalidjson(data)
     end
 end
 
