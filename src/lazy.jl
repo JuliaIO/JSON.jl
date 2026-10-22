@@ -642,18 +642,17 @@ const INT = 0x00
 const FLOAT = 0x01
 const BIGINT = 0x02
 const BIGFLOAT = 0x03
-const BIG_ZERO = BigInt(0)
 
 struct NumberResult
     tag::UInt8
     int::Int64
     float::Float64
-    bigint::BigInt
-    bigfloat::BigFloat
-    NumberResult(int::Int64) = new(INT, int)
-    NumberResult(float::Float64) = new(FLOAT, Int64(0), float)
-    NumberResult(bigint::BigInt) = new(BIGINT, Int64(0), 0.0, bigint)
-    NumberResult(bigfloat::BigFloat) = new(BIGFLOAT, Int64(0), 0.0, BIG_ZERO, bigfloat)
+    bigint::Union{Nothing,BigInt}
+    bigfloat::Union{Nothing,BigFloat}
+    NumberResult(int::Int64) = new(INT, int, 0.0, nothing, nothing)
+    NumberResult(float::Float64) = new(FLOAT, Int64(0), float, nothing, nothing)
+    NumberResult(bigint::BigInt) = new(BIGINT, Int64(0), 0.0, bigint, nothing)
+    NumberResult(bigfloat::BigFloat) = new(BIGFLOAT, Int64(0), 0.0, nothing, bigfloat)
 end
 
 isint(x::NumberResult) = x.tag == INT
