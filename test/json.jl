@@ -9,6 +9,11 @@ struct CustomNumber <: Real
     x::Float64
 end
 
+struct ExponentNumber <: Real
+    text::String
+end
+JSON.tostring(x::ExponentNumber) = x.text
+
 @omit_null struct OmitNull
     id::Int
     name::Union{Nothing, String}
@@ -72,6 +77,20 @@ JSON.applyany(::ClosedStyle, f, k, v) = throw(ArgumentError("closed"))
     @test JSON.json(BigInt(1) << 100) == "1267650600228229401496703205376"
     @test JSON.json(BigInt(-1)) == "-1"
     @test JSON.json(BigInt(-1) << 100) == "-1267650600228229401496703205376"
+    # a long BigInt is converted by GMP, not one quadratic-cost digit at a time
+    long = parse(BigInt, "-1" * "7"^99_999)
+    @test JSON.json(long) == string(long)
+    @test @allocated(JSON.json(long)) < 10_000_000
+    # a BigFloat keeps all its digits; `parse` returns one for numbers beyond Float64's range
+    @test JSON.json(big"1.5") == "1.5"
+    @test JSON.json(big(pi)) == string(big(pi))
+    for x in (big"1e-7" / 3, big"123456.5", -big"1.5e400", BigFloat(2; precision=1000) / 3)
+        @test parse(BigFloat, JSON.json(x); precision=precision(x)) == x
+    end
+    beyond = JSON.parse("[1.5e400,-2e999]")
+    @test JSON.parse(JSON.json(beyond)) == beyond
+    @test_throws ArgumentError JSON.json(BigFloat(Inf))
+    @test JSON.json(BigFloat[NaN, Inf, -Inf]; allownan=true) == "[NaN,Infinity,-Infinity]"
     @test JSON.json(typemin(UInt64)) == "0"
     @test JSON.json(typemax(UInt64)) == "18446744073709551615"
     @test_throws ArgumentError JSON.json(NaN)
@@ -267,6 +286,9 @@ JSON.applyany(::ClosedStyle, f, k, v) = throw(ArgumentError("closed"))
     @test_throws MethodError JSON.json(CustomNumber(3.14))
     JSON.tostring(x::CustomNumber) = string(x.x)
     @test JSON.json(CustomNumber(3.14)) == "3.14"
+    # an exponent's sign is valid JSON number text, not a reason to quote it
+    @test JSON.json(ExponentNumber("1.5e+300")) == "1.5e+300"
+    @test JSON.json(ExponentNumber("+1.5")) == "\"+1.5\""
     # https://github.com/JuliaIO/JSON.jl/issues/440
     @test JSON.json(1 + 2im) == "{\"re\":1,\"im\":2}"
     @test JSON.parse(JSON.json(1.0 + 2.0im), ComplexF64) == 1.0 + 2.0im

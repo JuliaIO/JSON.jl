@@ -490,7 +490,7 @@ All methods accept the following keyword arguments:
 
 - `nan::String="NaN"`: Custom string representation for NaN.
 
-- `float_style::Symbol=:shortest`: Controls how floating-point numbers are formatted.
+- `float_style::Symbol=:shortest`: Controls how `Float16`, `Float32`, and `Float64` numbers are formatted.
   Options are:
   - `:shortest`: Use the shortest representation that preserves the value
   - `:fixed`: Use fixed-point notation
@@ -512,8 +512,8 @@ By default, `x` must be a JSON-serializable object. Supported types include:
     `ncodeunits` and `codeunit(x, i)`.
   * `Bool` => JSON boolean: must be `true` or `false`
   * `Nothing` => JSON null: must be the `nothing` singleton value
-  * `Number` => JSON number: `Integer` subtypes or `Union{Float16, Float32, Float64}` have default implementations;
-    for other `Number` types, [`JSON.tostring`](@ref) is first called to convert
+  * `Number` => JSON number: `Integer` subtypes and `Float16`, `Float32`, `Float64`, and `BigFloat` have default
+    implementations (a `BigFloat` is written with all of its digits); for other `Number` types, [`JSON.tostring`](@ref) is first called to convert
     the value to a `String` before being written directly to JSON output
   * `AbstractArray`/`Tuple`/`AbstractSet` => JSON array: objects for which `StructUtils.arraylike` returns `true`
      are output as JSON arrays. `arraylike` is defined by default for
@@ -994,12 +994,15 @@ tostring(x) = string(Float64(x))
 
 split_sign(n::Integer) = unsigned(abs(n)), n < 0
 split_sign(n::Unsigned) = n, false
-split_sign(x::BigInt) = (abs(x), x < 0)
 
-@noinline infcheck(x, allownan) = isfinite(x) || allownan || throw(ArgumentError("$x not allowed to be written in JSON spec; pass `allownan=true` to allow anyway"))
+# `Float64(x)` prints the same NaN or Inf, and keeps BigFloat formatting out of `juliac --trim` builds
+@noinline infcheck(x, allownan) = isfinite(x) || allownan || throw(ArgumentError("$(Float64(x)) not allowed to be written in JSON spec; pass `allownan=true` to allow anyway"))
 
 function _number(buf, pos, x::Number, opts::WriteOptions, io, bufsize)
-    if x isa Integer
+    if x isa BigInt
+        # GMP's conversion is subquadratic; the digit loop below is quadratic for a BigInt
+        return _numbertext(buf, pos, string(x), io, bufsize)
+    elseif x isa Integer
         y, neg = split_sign(x)
         n = i = ndigits(y, base=10, pad=1)
         @checkn (i + neg)
@@ -1013,7 +1016,7 @@ function _number(buf, pos, x::Number, opts::WriteOptions, io, bufsize)
             i -= 1
         end
         return pos + n
-    elseif x isa Union{Float16, Float32, Float64}
+    elseif x isa Union{Float16, Float32, Float64, BigFloat}
         infcheck(x, opts.allownan)
         if isnan(x)
             nan = opts.nan
@@ -1034,6 +1037,8 @@ function _number(buf, pos, x::Number, opts::WriteOptions, io, bufsize)
             end
             return pos + sizeof(inf)
         end
+        # every digit: converting to Float64 would round the value, or overflow it to Inf
+        x isa BigFloat && return _numbertext(buf, pos, _bigfloatstring(x), io, bufsize)
         if opts.float_style == :shortest
             @checkn Base.Ryu.neededdigits(typeof(x))
             return Base.Ryu.writeshortest(buf, pos, x)
@@ -1053,21 +1058,70 @@ function _number(buf, pos, x::Number, opts::WriteOptions, io, bufsize)
             # serialize as string
             return _string(buf, pos, str, io, bufsize)
         end
-        bytes = codeunits(str)
-        sz = sizeof(bytes)
-        @checkn sz
-        for i = 1:sz
-            @inbounds buf[pos + i - 1] = bytes[i]
-        end
-        return pos + sz
+        return _numbertext(buf, pos, str, io, bufsize)
     end
+end
+
+# a finite `x` with every digit MPFR needs to read it back exactly, laid out like
+# `string(x)` (which `juliac --trim` cannot compile) but with a plain integer exponent
+function _bigfloatstring(x::BigFloat)
+    s = codeunits(Base.MPFR.string_mpfr(x, "%Re")) # [-]d[.ddd]e±dd
+    e = findlast(==(UInt8('e')), s)::Int
+    expo = 0
+    for i = (e + 2):length(s)
+        expo = 10 * expo + Int(s[i] - UInt8('0'))
+    end
+    s[e + 1] == UInt8('-') && (expo = -expo)
+    neg = s[1] == UInt8('-')
+    lead = s[1 + neg]
+    # fraction digits without trailing zeros, at least one
+    last = e - 1
+    while last > 2 + neg && s[last] == UInt8('0')
+        last -= 1
+    end
+    frac = last > 2 + neg ? s[(3 + neg):last] : UInt8['0']
+    out = UInt8[]
+    neg && push!(out, UInt8('-'))
+    if 0 <= expo < 6
+        # move the point right by `expo` digits, padding with zeros
+        push!(out, lead)
+        for i = 1:max(expo, length(frac))
+            i == expo + 1 && push!(out, UInt8('.'))
+            push!(out, i <= length(frac) ? frac[i] : UInt8('0'))
+        end
+        expo >= length(frac) && append!(out, codeunits(".0"))
+    elseif -5 < expo < 0
+        append!(out, codeunits("0."))
+        for _ = 1:(-expo - 1)
+            push!(out, UInt8('0'))
+        end
+        push!(out, lead)
+        frac == UInt8['0'] || append!(out, frac)
+    else
+        push!(out, lead, UInt8('.'))
+        append!(out, frac)
+        push!(out, UInt8('e'))
+        append!(out, codeunits(string(expo)))
+    end
+    return String(out)
+end
+
+function _numbertext(buf, pos, str, io, bufsize)
+    sz = ncodeunits(str)
+    @checkn sz
+    for i = 1:sz
+        @inbounds buf[pos + i - 1] = codeunit(str, i)
+    end
+    return pos + sz
 end
 
 function anyinvalidnumberchars(x)
     for i = 1:sizeof(x)
         b = codeunit(x, i)
         if !(b == UInt8('-') || b == UInt8('.') || b == UInt8('e') || b == UInt8('E') ||
-            UInt8('0') <= b <= UInt8('9'))
+            UInt8('0') <= b <= UInt8('9') ||
+            # an exponent's sign
+            (b == UInt8('+') && i > 1 && (codeunit(x, i - 1) | 0x20) == UInt8('e')))
             return true
         end
     end
