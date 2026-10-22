@@ -685,6 +685,11 @@ const LONGINTEGER = 2000
     end
     @inline parsebigint(buf, first, last) = last - first >= LONGINTEGER ?
         parselongint(buf, first, last) : NumberResult(Parsers.xparse2(BigInt, buf, first, last).val)
+    @inline function parsefloatas(::Type{T}, buf, first, nextpos, len) where {T}
+        res = Parsers.xparse2(T, buf, first, len)
+        Parsers.invalid(res.code) && invalid(InvalidNumber, buf, first, "number")
+        return NumberResult(T === BigFloat ? res.val : Float64(res.val)), first + Int(res.tlen)
+    end
     # native `[+-]NaN`, `[+-]Inf`, `[+-]Infinity` spellings (case-insensitive)
     @inline function parsenativespecial(buf, pos, len)
         res = Parsers.xparse2(Float64, buf, pos, len)
@@ -732,6 +737,10 @@ else
     end
     @inline parsebigint(buf, first, last) = last - first >= LONGINTEGER ?
         parselongint(buf, first, last) : NumberResult(Parsers.parsebigint(numberbytes(buf), first, last)[1])
+    @inline parsefloatas(::Type{T}, buf, first, nextpos, len) where {T<:Union{Float16,Float32}} =
+        NumberResult(Float64(Parsers.parsefloat(T, numberbytes(buf), first, nextpos - 1)[1])), nextpos
+    @inline parsefloatas(::Type{BigFloat}, buf, first, nextpos, len) =
+        NumberResult(Parsers.parse(BigFloat, numberbytes(buf), first, nextpos - 1)), nextpos
     # native `[+-]NaN`, `[+-]Inf`, `[+-]Infinity` spellings (case-insensitive)
     @inline function parsenativespecial(buf, pos, len)
         val, nextpos, code = Parsers.parsenext(Float64, numberbytes(buf), pos, len)
@@ -950,6 +959,9 @@ end
     if isfloat && opts.allownan && exactint
         return parseexactinteger(buf, startpos, nextpos, len, T)
     elseif isfloat || (opts.allownan && !(T <: Integer))
+        # in the target's own precision: through Float64, Float32 and Float16 would be
+        # rounded twice and BigFloat would lose digits (a Float32 or Float16 is exact as a Float64)
+        (T === Float32 || T === Float16 || T === BigFloat) && return parsefloatas(T, buf, startpos, nextpos, len)
         return parsefloat64(buf, startpos, nextpos, len, opts.allownan)
     end
     overflow || return NumberResult(val), nextpos
