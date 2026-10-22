@@ -811,6 +811,14 @@ end
     result = String(take!(io))
     parsed_keys = [m.match for m in eachmatch(r"\"([a-z])\"", result)]
     @test parsed_keys == sort(parsed_keys)
+
+    # keys are converted once, and values are not looked up again (a scan per key in an Object)
+    ints = Dict{Int,Float64}(k => k * 1.5 for k in 0:99)
+    @test JSON.json(ints) == "{" * join(("\"$k\":$(k * 1.5)" for k in sort(0:99; by=string)), ",") * "}"
+    @test @allocated(JSON.json(ints)) < 30_000
+    big = JSON.parse("{" * join(("\"k$i\":$i" for i in 40_000:-1:1), ",") * "}")
+    @test JSON.json(big; sort_keys=true) == "{" * join(("\"k$i\":$i" for i in sort(1:40_000; by=i -> "k$i")), ",") * "}"
+    @test @elapsed(JSON.json(big; sort_keys=true)) < 1
 end
 
 @testset "jsonlines keeps the custom style for nested values" begin
