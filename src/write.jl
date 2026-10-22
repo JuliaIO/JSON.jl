@@ -176,6 +176,23 @@ function StructUtils.applyeach(st::JSONStyle, f, x::AbstractDict{<:Any,Any})
     return StructUtils.defaultstate(st)
 end
 
+# `Object` is a linked list: iterating it builds a `Pair{K,V}` per node and carries a
+# `Union{Nothing,Object}` state, which the generic method above boxes on every entry.
+# Walk the nodes directly instead; same order, same lowering, same `EarlyReturn` check.
+function StructUtils.applyeach(st::JSONStyle, f, x::Object{K,Any}) where {K}
+    obj = x
+    while true
+        k = _k(obj)
+        if k !== notset
+            ret = _applyvalue(st, f, StructUtils.lowerkey(st, k::K), _v(obj))
+            ret isa StructUtils.EarlyReturn && return ret
+        end
+        ch = _ch(obj)
+        ch === notset && return StructUtils.defaultstate(st)
+        obj = ch::Object{K,Any}
+    end
+end
+
 function StructUtils.applyeach(st::JSONStyle, f, x::AbstractVector{Pair{K,Any}}) where {K}
     for (k, v) in x
         ret = _applyvalue(st, f, StructUtils.lowerkey(st, k), v)
