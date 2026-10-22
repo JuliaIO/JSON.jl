@@ -695,6 +695,10 @@ end
         JSON.parse(long)
         # converting by limb-sized chunks took about 8 seconds here
         @test @elapsed(JSON.parse(long)) < 3
+        # each long integer once cost time proportional to the whole document (about 5 s here)
+        many = "[" * join(fill("7"^2100, 4000), ",") * "]"
+        @test JSON.parse(many)[end] == parse(BigInt, "7"^2100)
+        @test @elapsed(JSON.parse(many)) < 2
         # BigFloat
         @test JSON.parse("1.7976931348623157e310") == big"1.7976931348623157e310"
 
