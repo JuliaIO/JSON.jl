@@ -61,7 +61,7 @@ function Base.showerror(io::IO, err::ParseError)
     Base.showerror(io, err.cause)
 end
 
-@enum Error InvalidJSON UnexpectedEOF ExpectedOpeningObjectChar ExpectedOpeningQuoteChar ExpectedOpeningArrayChar ExpectedClosingArrayChar ExpectedComma ExpectedColon ExpectedNewline InvalidChar InvalidNumber InvalidUTF16
+@enum Error InvalidJSON UnexpectedEOF ExpectedOpeningObjectChar ExpectedOpeningQuoteChar ExpectedOpeningArrayChar ExpectedClosingArrayChar ExpectedComma ExpectedColon ExpectedNewline InvalidChar InvalidNumber InvalidUTF16 InvalidEscape
 
 @generated _typename(::Type{T}) where {T} = QuoteNode(string(T))
 
@@ -169,7 +169,8 @@ end
 
 function isvalidjson(x::LazyValue)
     try
-        skip(x)
+        pos = skip(x)
+        getisroot(x) && checkendpos(x, Any, pos)
         return true
     catch
         return false
