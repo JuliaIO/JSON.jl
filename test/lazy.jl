@@ -58,6 +58,11 @@ end
     if VERSION >= v"1.7"
         @test sprint(show, x) == "7-element LazyArray{String}:\n JSON.LazyValue(1)\n JSON.LazyValue(nothing)\n JSON.LazyValue(true)\n JSON.LazyValue(false)\n JSON.LazyValue(\"\")\n LazyValue[]\n LazyObject{String}()"
     end
+    # printing a long array finds its elements once, not once per element (20,000: 70 s before)
+    long = JSON.lazy("[" * join(fill("1", 20_000), ",") * "]")
+    t = @elapsed(shown = sprint(show, long))
+    @test count(==('\n'), shown) == 20_000
+    @test t < 5
     i = 0
     foreach(x) do v
         i += 1

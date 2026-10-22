@@ -167,7 +167,14 @@ struct LazyArray{T} <: AbstractVector{LazyValue}
     opts::LazyOptions
     isroot::Bool
     depth::Int32
-    LazyArray(x::LazyValue{T}) where {T} = new{T}(getbuf(x), getpos(x), getopts(x), getisroot(x), getdepth(x))
+    # each element, found in one pass: indexing by scanning from the first element made
+    # displaying an n-element array O(n^2)
+    elements::Vector{LazyValue{T}}
+    function LazyArray(x::LazyValue{T}) where {T}
+        elements = LazyValue{T}[]
+        applyarray((_, v) -> push!(elements, v), x)
+        return new{T}(getbuf(x), getpos(x), getopts(x), getisroot(x), getdepth(x), elements)
+    end
 end
 
 # helper accessors so we can overload getproperty for convenience
@@ -1023,10 +1030,10 @@ gettype(::LazyArray) = JSONTypes.ARRAY
 
 Base.IndexStyle(::Type{<:LazyArray}) = Base.IndexLinear()
 
-Base.size(x::LazyArray) = (StructUtils.applylength(x),)
+Base.size(x::LazyArray) = size(getfield(x, :elements))
 
 Base.isassigned(x::LazyArray, i::Int) = true
-Base.getindex(x::LazyArray, i::Int) = Selectors._getindex(x, i)
+Base.getindex(x::LazyArray, i::Int) = getfield(x, :elements)[i]
 
 # show implementation for LazyValue
 function Base.show(io::IO, x::LazyValue)
