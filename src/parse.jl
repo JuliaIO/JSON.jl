@@ -575,9 +575,9 @@ function applyvalue(f, x::LazyValues, null)
         elseif isfloat(num)
             f(num.float)
         elseif isbigint(num)
-            f(num.bigint)
+            f(num.bigint::BigInt)
         else
-            f(num.bigfloat)
+            f(num.bigfloat::BigFloat)
         end
         return pos
     elseif type == JSONTypes.NULL
@@ -630,9 +630,9 @@ function applyvalue(f, x::LazyValues, st::_DefaultReadStyle)
         elseif isfloat(num)
             f(num.float)
         elseif isbigint(num)
-            f(num.bigint)
+            f(num.bigint::BigInt)
         else
-            f(num.bigfloat)
+            f(num.bigfloat::BigFloat)
         end
         return pos
     elseif type == JSONTypes.NULL
@@ -779,12 +779,12 @@ function StructUtils.lift(style::JSONReadStyle, ::Type{T}, x::LazyValues, tags=(
             float, _ = StructUtils.lift(style, T, num.float, tags)
             return float, pos
         elseif isbigint(num)
-            T === BigInt && return num.bigint, pos
-            bigint, _ = StructUtils.lift(style, T, num.bigint, tags)
+            T === BigInt && return num.bigint::BigInt, pos
+            bigint, _ = StructUtils.lift(style, T, num.bigint::BigInt, tags)
             return bigint, pos
         else
-            T === BigFloat && return num.bigfloat, pos
-            bigfloat, _ = StructUtils.lift(style, T, num.bigfloat, tags)
+            T === BigFloat && return num.bigfloat::BigFloat, pos
+            bigfloat, _ = StructUtils.lift(style, T, num.bigfloat::BigFloat, tags)
             return bigfloat, pos
         end
     elseif type == JSONTypes.NULL

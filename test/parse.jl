@@ -1119,3 +1119,13 @@ end
     @test_throws JSON.DuplicateKeyError JSON.parse("{\"a\":1,\"a\":2}", Dict{String,Any}; duplicate_keys=:error)
     @test JSON.parse("[{\"a\":[{\"b\":null}]}]", Vector{JSON.Object{String,Any}}) == JSON.parse("[{\"a\":[{\"b\":null}]}]")
 end
+
+@testset "numbers parse without a heap allocation each" begin
+    floats = "[" * join((string(i + 0.5) for i in 1:10_000), ",") * "]"
+    ints = "[" * join((string(i) for i in 1:10_000), ",") * "]"
+    JSON.parse(floats, Vector{Float64}); JSON.parse(ints, Vector{Int}); JSON.parse(floats)
+    @test @allocations(JSON.parse(floats, Vector{Float64})) < 100
+    @test @allocations(JSON.parse(ints, Vector{Int})) < 100
+    # one box per Float64 element of the Vector{Any}
+    @test @allocations(JSON.parse(floats)) < 10_100
+end
