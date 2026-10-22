@@ -976,7 +976,8 @@ tostring(x) = string(Float64(x))
 split_sign(n::Integer) = unsigned(abs(n)), n < 0
 split_sign(n::Unsigned) = n, false
 
-@noinline infcheck(x, allownan) = isfinite(x) || allownan || throw(ArgumentError("$x not allowed to be written in JSON spec; pass `allownan=true` to allow anyway"))
+# `Float64(x)` prints the same NaN or Inf, and keeps BigFloat formatting out of `juliac --trim` builds
+@noinline infcheck(x, allownan) = isfinite(x) || allownan || throw(ArgumentError("$(Float64(x)) not allowed to be written in JSON spec; pass `allownan=true` to allow anyway"))
 
 function _number(buf, pos, x::Number, opts::WriteOptions, io, bufsize)
     if x isa BigInt
@@ -1018,7 +1019,7 @@ function _number(buf, pos, x::Number, opts::WriteOptions, io, bufsize)
             return pos + sizeof(inf)
         end
         # every digit: converting to Float64 would round the value, or overflow it to Inf
-        x isa BigFloat && return _numbertext(buf, pos, string(x), io, bufsize)
+        x isa BigFloat && return _numbertext(buf, pos, _bigfloatstring(x), io, bufsize)
         if opts.float_style == :shortest
             @checkn Base.Ryu.neededdigits(typeof(x))
             return Base.Ryu.writeshortest(buf, pos, x)
@@ -1040,6 +1041,50 @@ function _number(buf, pos, x::Number, opts::WriteOptions, io, bufsize)
         end
         return _numbertext(buf, pos, str, io, bufsize)
     end
+end
+
+# a finite `x` with every digit MPFR needs to read it back exactly, laid out like
+# `string(x)` (which `juliac --trim` cannot compile) but with a plain integer exponent
+function _bigfloatstring(x::BigFloat)
+    s = codeunits(Base.MPFR.string_mpfr(x, "%Re")) # [-]d[.ddd]e±dd
+    e = findlast(==(UInt8('e')), s)::Int
+    expo = 0
+    for i = (e + 2):length(s)
+        expo = 10 * expo + Int(s[i] - UInt8('0'))
+    end
+    s[e + 1] == UInt8('-') && (expo = -expo)
+    neg = s[1] == UInt8('-')
+    lead = s[1 + neg]
+    # fraction digits without trailing zeros, at least one
+    last = e - 1
+    while last > 2 + neg && s[last] == UInt8('0')
+        last -= 1
+    end
+    frac = last > 2 + neg ? s[(3 + neg):last] : UInt8['0']
+    out = UInt8[]
+    neg && push!(out, UInt8('-'))
+    if 0 <= expo < 6
+        # move the point right by `expo` digits, padding with zeros
+        push!(out, lead)
+        for i = 1:max(expo, length(frac))
+            i == expo + 1 && push!(out, UInt8('.'))
+            push!(out, i <= length(frac) ? frac[i] : UInt8('0'))
+        end
+        expo >= length(frac) && append!(out, codeunits(".0"))
+    elseif -5 < expo < 0
+        append!(out, codeunits("0."))
+        for _ = 1:(-expo - 1)
+            push!(out, UInt8('0'))
+        end
+        push!(out, lead)
+        frac == UInt8['0'] || append!(out, frac)
+    else
+        push!(out, lead, UInt8('.'))
+        append!(out, frac)
+        push!(out, UInt8('e'))
+        append!(out, codeunits(string(expo)))
+    end
+    return String(out)
 end
 
 function _numbertext(buf, pos, str, io, bufsize)

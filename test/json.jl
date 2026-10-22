@@ -82,6 +82,9 @@ JSON.applyany(::ClosedStyle, f, k, v) = throw(ArgumentError("closed"))
     # a BigFloat keeps all its digits; `parse` returns one for numbers beyond Float64's range
     @test JSON.json(big"1.5") == "1.5"
     @test JSON.json(big(pi)) == string(big(pi))
+    for x in (big"1e-7" / 3, big"123456.5", -big"1.5e400", BigFloat(2; precision=1000) / 3)
+        @test parse(BigFloat, JSON.json(x); precision=precision(x)) == x
+    end
     beyond = JSON.parse("[1.5e400,-2e999]")
     @test JSON.parse(JSON.json(beyond)) == beyond
     @test_throws ArgumentError JSON.json(BigFloat(Inf))
