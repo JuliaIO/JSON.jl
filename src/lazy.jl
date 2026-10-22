@@ -674,8 +674,10 @@ isbigfloat(x::NumberResult) = x.tag == BIGFLOAT
 # Parsers converts BigInt digits in time quadratic in their number (3 million digits take
 # seconds); GMP's conversion is subquadratic and faster past this many digits
 const LONGINTEGER = 2000
+# copy the digits with getindex: `String(view(...))` of a String's code units hashes
+# the whole String in its aliasing check, which costs O(document) per integer
 @noinline parselongint(buf, first, last) =
-    NumberResult(Base.parse(BigInt, String(view(numberbytes(buf), first:last))))
+    NumberResult(Base.parse(BigInt, String(numberbytes(buf)[first:last])))
 
 @static if isdefined(Parsers, :xparse2)
     # Parsers 2: `xparse2` parses the longest number prefix of buf[first:len]
