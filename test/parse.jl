@@ -1139,4 +1139,7 @@ end
     @test JSON.parse(s, BigFloat) == parse(BigFloat, s)
     @test JSON.parse("{\"x\":[0.1]}", @NamedTuple{x::Vector{BigFloat}}).x == [big"0.1"]
     @test isequal(JSON.parse("[1e40, -0.0, 1e-50]", Vector{Float32}), [Inf32, -0.0f0, 0.0f0])
+    for T in (Float16, Float32, BigFloat), s in ("1.5e", "1.5e+", "-1.e5")
+        @test_throws ArgumentError JSON.parse(s, T)
+    end
 end
