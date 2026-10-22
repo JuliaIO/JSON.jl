@@ -11,6 +11,11 @@ jobs:
   test:
     name: Julia ${{ matrix.version }} - ${{ matrix.os }} - ${{ matrix.arch }} - ${{ github.event_name }} - Parsers ${{ matrix.parsers }}
     runs-on: ${{ matrix.os }}
+    continue-on-error: ${{ matrix.version == 'pre' }}
+    # Per job, not per workflow, so a newer push cancels superseded tests but never a docs deploy.
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.ref }}-test-${{ strategy.job-index }}
+      cancel-in-progress: true
     strategy:
       fail-fast: false
       matrix:
