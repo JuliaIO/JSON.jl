@@ -889,14 +889,16 @@ function json!(buf, pos, x, opts::WriteOptions, ancestor_stack::Union{Nothing, V
             c = WriteClosure{typeof(opts), al, typeof(x), typeof(io)}(buf, Base.unsafe_convert(Ptr{Int}, ref), Base.unsafe_convert(Ptr{Bool}, wroteanyref), local_ind, depth + 1, opts, ancestor_stack, io, bufsize)
             _sort_keys = opts.sort_keys === true || (opts.sort_keys === nothing && !al && _sort_keys_by_default(x))
             if _sort_keys && !al && x isa AbstractDict
+                # each key's text is made once, not per comparison, and kept with its value, so
+                # writing does no lookups (each one a scan in a `JSON.Object`).
                 # assert: `x` can be inferred as `Any`, and `sort!` kwcall on an untyped arg is
                 # invalidated by every package adding a `sort!` kwmethod (e.g. OrderedCollections)
-                sorted_keys = sort!(collect(keys(x))::Vector, by=k -> checkkey(StructUtils.lowerkey(opts.style, k)))
-                for k in sorted_keys
+                entries = sort!([Pair{String,valtype(x)}(checkkey(StructUtils.lowerkey(opts.style, k)), v) for (k, v) in x]::Vector, by=first)
+                for (k, v) in entries
                     if valtype(x) === Any && opts.style isa JSONStyle
-                        _applyvalue(opts.style, c, StructUtils.lowerkey(opts.style, k), x[k])
+                        _applyvalue(opts.style, c, k, v)
                     else
-                        c(StructUtils.lowerkey(opts.style, k), StructUtils.lower(opts.style, x[k]))
+                        c(k, StructUtils.lower(opts.style, v))
                     end
                 end
             else
