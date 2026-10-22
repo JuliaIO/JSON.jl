@@ -648,6 +648,12 @@ isbigfloat(x::NumberResult) = x.tag == BIGFLOAT
 @inline numberbytes(buf::AbstractString) = codeunits(buf)
 @inline numberbytes(buf) = buf
 
+# Parsers converts BigInt digits in time quadratic in their number (3 million digits take
+# seconds); GMP's conversion is subquadratic and faster past this many digits
+const LONGINTEGER = 2000
+@noinline parselongint(buf, first, last) =
+    NumberResult(Base.parse(BigInt, String(view(numberbytes(buf), first:last))))
+
 @static if isdefined(Parsers, :xparse2)
     # Parsers 2: `xparse2` parses the longest number prefix of buf[first:len]
     @inline function parsefloat64(buf, first, nextpos, len, allownan)
@@ -661,7 +667,8 @@ isbigfloat(x::NumberResult) = x.tag == BIGFLOAT
         Parsers.invalid(res.code) && invalid(InvalidNumber, buf, first, "number")
         return NumberResult(res.val), nextpos
     end
-    @inline parsebigint(buf, first, last) = NumberResult(Parsers.xparse2(BigInt, buf, first, last).val)
+    @inline parsebigint(buf, first, last) = last - first >= LONGINTEGER ?
+        parselongint(buf, first, last) : NumberResult(Parsers.xparse2(BigInt, buf, first, last).val)
     # native `[+-]NaN`, `[+-]Inf`, `[+-]Infinity` spellings (case-insensitive)
     @inline function parsenativespecial(buf, pos, len)
         res = Parsers.xparse2(Float64, buf, pos, len)
@@ -707,7 +714,8 @@ else
         end
         return NumberResult(val), nextpos
     end
-    @inline parsebigint(buf, first, last) = NumberResult(Parsers.parsebigint(numberbytes(buf), first, last)[1])
+    @inline parsebigint(buf, first, last) = last - first >= LONGINTEGER ?
+        parselongint(buf, first, last) : NumberResult(Parsers.parsebigint(numberbytes(buf), first, last)[1])
     # native `[+-]NaN`, `[+-]Inf`, `[+-]Infinity` spellings (case-insensitive)
     @inline function parsenativespecial(buf, pos, len)
         val, nextpos, code = Parsers.parsenext(Float64, numberbytes(buf), pos, len)

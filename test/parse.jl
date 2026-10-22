@@ -675,6 +675,15 @@ end
         x = JSON.parse("170141183460469231731687303715884105728")
         @test x isa BigInt && x == 170141183460469231731687303715884105728
         @test JSON.parse("170141183460469231731687303715884105728") !== x
+        # long integers convert through GMP, whose conversion is subquadratic
+        for n in (1999, 2000, 2001, 2002, 5000), sign in ("", "-")
+            s = sign * "1" * "7"^(n - 1)
+            @test JSON.parse(s) == JSON.parse(Vector{UInt8}(s)) == only(JSON.parse("[$s]")) == parse(BigInt, s)
+        end
+        long = "9"^3_000_000
+        JSON.parse(long)
+        # converting by limb-sized chunks took about 8 seconds here
+        @test @elapsed(JSON.parse(long)) < 3
         # BigFloat
         @test JSON.parse("1.7976931348623157e310") == big"1.7976931348623157e310"
 
