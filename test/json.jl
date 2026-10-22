@@ -867,6 +867,20 @@ end
     @test JSON.json(strs) == "[" * join(("\"" * x * "\"" for x in strs), ",") * "]"
 end
 
+@testset "nested Any-valued containers are written without an allocation each" begin
+    s = "[" * join(("{\"a\":[$i,{\"b\":[null,\"x\"]}],\"c\":{\"d\":1.5}}" for i in 1:1000), ",") * "]"
+    for dicttype in (JSON.Object{String,Any}, Dict{String,Any})
+        x = JSON.parse(s; dicttype)
+        @test JSON.parse(JSON.json(x; sort_keys=false); dicttype) == x
+        # a recursive write that isn't compiled statically boxes the closure for each container
+        @test @allocations(JSON.json(x; sort_keys=false)) < 100
+    end
+    # the closure's call has one method, so writing a value of unknown type infers as `nothing`
+    # and no element's result is checked for an `EarlyReturn` at run time
+    WC = JSON.WriteClosure{JSON.WriteOptions{JSON.JSONWriteStyle}, true, Nothing}
+    @test Base.return_types(JSON.applyany, (JSON.JSONWriteStyle, WC, Int, Any)) == [Nothing]
+end
+
 @testset "LazyValue is written as its materialized value" begin
     for s in ("{\"a\":1}", "[1,{\"b\":2}]", "\"s\"", "1", "1.5", "true", "null", "[]", "{}",
               "{\"a\":{\"b\":[true,null,\"x\",{\"c\":[]}]}}")

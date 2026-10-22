@@ -168,9 +168,44 @@ JSON.applyany(::ClosedJSONStyle, f, key, @nospecialize(value)) =
 """
 applyany(st::JSONStyle, f, key, @nospecialize(value)) = f(key, StructUtils.lower(st, value))
 
+# Writes one value of an `Any`-valued container with a concrete type for each type the untyped
+# parse produces, preserving custom lowering; anything else goes to `applyany`. A macro, so the
+# switch is part of each container's loop: a function would set up and clear GC root slots for
+# every closure call in it on each call, once per element.
+macro _applyvalue(st, f, key, v)
+    return quote
+        local st, f, key, v = $(esc(st)), $(esc(f)), $(esc(key)), $(esc(v))
+        if v isa String
+            f(key, StructUtils.lower(st, v))
+        elseif v isa Int64
+            f(key, StructUtils.lower(st, v))
+        elseif v isa Float64
+            f(key, StructUtils.lower(st, v))
+        elseif v === nothing
+            f(key, StructUtils.lower(st, v))
+        elseif v isa Bool
+            f(key, StructUtils.lower(st, v))
+        elseif v isa Vector{Any}
+            _writenested(f, key, StructUtils.lower(st, v))
+        elseif v isa Object{String,Any}
+            _writenested(f, key, StructUtils.lower(st, v))
+        elseif v isa Dict{String,Any}
+            _writenested(f, key, StructUtils.lower(st, v))
+        elseif v === missing
+            f(key, StructUtils.lower(st, v))
+        elseif v isa BigInt
+            f(key, StructUtils.lower(st, v))
+        elseif v isa BigFloat
+            f(key, StructUtils.lower(st, v))
+        else
+            applyany(st, f, key, v)
+        end
+    end
+end
+
 function StructUtils.applyeach(st::JSONStyle, f, x::AbstractDict{<:Any,Any})
     for (k, v) in x
-        ret = _applyvalue(st, f, StructUtils.lowerkey(st, k), v)
+        ret = @_applyvalue(st, f, StructUtils.lowerkey(st, k), v)
         ret isa StructUtils.EarlyReturn && return ret
     end
     return StructUtils.defaultstate(st)
@@ -184,7 +219,7 @@ function StructUtils.applyeach(st::JSONStyle, f, x::Object{K,Any}) where {K}
     while true
         k = _k(obj)
         if k !== notset
-            ret = _applyvalue(st, f, StructUtils.lowerkey(st, k::K), _v(obj))
+            ret = @_applyvalue(st, f, StructUtils.lowerkey(st, k::K), _v(obj))
             ret isa StructUtils.EarlyReturn && return ret
         end
         ch = _ch(obj)
@@ -195,7 +230,7 @@ end
 
 function StructUtils.applyeach(st::JSONStyle, f, x::AbstractVector{Pair{K,Any}}) where {K}
     for (k, v) in x
-        ret = _applyvalue(st, f, StructUtils.lowerkey(st, k), v)
+        ret = @_applyvalue(st, f, StructUtils.lowerkey(st, k), v)
         ret isa StructUtils.EarlyReturn && return ret
     end
     return StructUtils.defaultstate(st)
@@ -204,7 +239,7 @@ end
 function StructUtils.applyeach(st::JSONStyle, f, x::AbstractVector{Any})
     for i in eachindex(x)
         key = StructUtils.lowerkey(st, i)
-        ret = @inbounds(isassigned(x, i)) ? _applyvalue(st, f, key, @inbounds(x[i])) : f(key, StructUtils.lower(st, nothing))
+        ret = @inbounds(isassigned(x, i)) ? @_applyvalue(st, f, key, @inbounds(x[i])) : f(key, StructUtils.lower(st, nothing))
         ret isa StructUtils.EarlyReturn && return ret
     end
     return StructUtils.defaultstate(st)
@@ -724,7 +759,9 @@ macro checkn(n, force_resize=false)
     end)
 end
 
-struct WriteClosure{JS, arraylike, T, I} # T is the type of the parent object/array being written
+# The parent's type is not a parameter, so all objects (and all arrays) written with the same
+# options and IO share one closure type and its compiled methods.
+struct WriteClosure{JS, arraylike, I}
     buf::Vector{UInt8}
     pos::Ptr{Int}
     wroteany::Ptr{Bool} # to track if we wrote any data to the buffer
@@ -734,27 +771,9 @@ struct WriteClosure{JS, arraylike, T, I} # T is the type of the parent object/ar
     ancestor_stack::Vector{Any} # to track circular references
     io::I
     bufsize::Int
-end
-
-# Keep each parsed value concrete at the write closure, while preserving custom
-# lowering. Dict parents need a separate method: otherwise inference widens the
-# recursive Object -> array -> Dict -> array cycle and safe trimming cannot
-# resolve the Vector{Any} write. Generate both bodies here so they stay identical.
-for F in (Any, WriteClosure{JS,A,Dict{String,Any},I} where {JS,A,I})
-    @eval @noinline function _applyvalue(st::JSONStyle, f::$F, key, @nospecialize(v))
-        v isa String && return f(key, StructUtils.lower(st, v))
-        v isa Int64 && return f(key, StructUtils.lower(st, v))
-        v isa Float64 && return f(key, StructUtils.lower(st, v))
-        v === nothing && return f(key, StructUtils.lower(st, v))
-        v isa Bool && return f(key, StructUtils.lower(st, v))
-        v isa Vector{Any} && return f(key, StructUtils.lower(st, v))
-        v isa Object{String,Any} && return f(key, StructUtils.lower(st, v))
-        v isa Dict{String,Any} && return f(key, StructUtils.lower(st, v))
-        v === missing && return f(key, StructUtils.lower(st, v))
-        v isa BigInt && return f(key, StructUtils.lower(st, v))
-        v isa BigFloat && return f(key, StructUtils.lower(st, v))
-        return applyany(st, f, key, v)
-    end
+    # whether the parent object omits null or empty members
+    omitnull::Bool
+    omitempty::Bool
 end
 
 function indent(buf, pos, ind, depth, io, bufsize)
@@ -776,64 +795,75 @@ checkkey(s) = throw(ArgumentError("Value returned from `StructUtils.lowerkey` mu
 
 _sort_keys_by_default(x) = x isa Dict
 
-function (f::WriteClosure{JS, arraylike, T, I})(key, val) where {JS, arraylike, T, I}
-    # materialize a nested LazyValue (see `json!`) before the omit checks below,
-    # so they see the parsed value
-    val isa LazyValue && return f(key, StructUtils.lower(f.opts.style, val[]))
-    track_ref = ismutabletype(typeof(val))
-    is_circ_ref = track_ref && any(x -> x === val, f.ancestor_stack)
-    val isa Omit && return
-    if !arraylike
-        # for objects, check omit_null/omit_empty
-        # and skip if the value is null or empty
-        if f.opts.omit_null === true || (f.opts.omit_null === nothing && omit_null(f.opts.style, T))
-            (is_circ_ref || val === nothing) && return
+# Writing an untyped container recurses: `@_applyvalue` narrows each element from `Any` and
+# calls the closure, which writes a nested container through `json!` and `applyeach` again.
+# Inference limits a recursive call whose argument types differ from the same call (same caller
+# and callee methods) further up the stack. A limited call boxes the closure (an allocation per
+# nested container), and `juliac --trim` cannot resolve it. So each container type gets its own
+# `_writenested` method, a copy of the closure's call. The call keeps a single method, so a call
+# with a value of unknown type (`applyany`) still infers as returning `nothing`.
+for sig in (:((f::WriteClosure{JS, arraylike, I})(key, val) where {JS, arraylike, I}),
+            :(_writenested(f::WriteClosure{JS, arraylike, I}, key, val::Vector{Any}) where {JS, arraylike, I}),
+            :(_writenested(f::WriteClosure{JS, arraylike, I}, key, val::Object{String,Any}) where {JS, arraylike, I}),
+            :(_writenested(f::WriteClosure{JS, arraylike, I}, key, val::Dict{String,Any}) where {JS, arraylike, I}))
+    @eval $sig = begin
+        # materialize a nested LazyValue (see `json!`) before the omit checks below,
+        # so they see the parsed value
+        val isa LazyValue && return f(key, StructUtils.lower(f.opts.style, val[]))
+        track_ref = ismutabletype(typeof(val))
+        is_circ_ref = track_ref && any(x -> x === val, f.ancestor_stack)
+        val isa Omit && return
+        if !arraylike
+            # for objects, check omit_null/omit_empty
+            # and skip if the value is null or empty
+            f.omitnull && (is_circ_ref || val === nothing) && return
+            f.omitempty && (is_circ_ref || is_empty(val)) && return
         end
-        if f.opts.omit_empty === true || (f.opts.omit_empty === nothing && omit_empty(f.opts.style, T))
-            (is_circ_ref || is_empty(val)) && return
-        end
-    end
-    pos = unsafe_load(f.pos)
-    unsafe_store!(f.wroteany, true) # at this point, we know something will be written
-    buf = f.buf
-    ind = f.indent
-    io = f.io
-    bufsize = f.bufsize
-    pos = indent(buf, pos, ind, f.depth, io, bufsize)
-    # if not an array, we need to write the key + ':'
-    if !arraylike
-        pos = _string(buf, pos, checkkey(key), io, bufsize)
-        @checkn 1
-        buf[pos] = UInt8(':')
-        pos += 1
-        if ind > 0
+        pos = unsafe_load(f.pos)
+        unsafe_store!(f.wroteany, true) # at this point, we know something will be written
+        buf = f.buf
+        ind = f.indent
+        io = f.io
+        bufsize = f.bufsize
+        pos = indent(buf, pos, ind, f.depth, io, bufsize)
+        # if not an array, we need to write the key + ':'
+        if !arraylike
+            pos = _string(buf, pos, checkkey(key), io, bufsize)
             @checkn 1
-            buf[pos] = UInt8(' ')
+            buf[pos] = UInt8(':')
             pos += 1
+            if ind > 0
+                @checkn 1
+                buf[pos] = UInt8(' ')
+                pos += 1
+            end
         end
-    end
-    # check if the lowered value is in our ancestor stack
-    if is_circ_ref
-        # if so, it's a circular reference! so we just write `null`
-        pos = _null(buf, pos, io, bufsize)
-    else
-        track_ref && push!(f.ancestor_stack, val)
-        # if jsonlines, we need to recursively set to false
-        if f.opts.jsonlines
-            opts = WriteOptions(; omit_null=f.opts.omit_null, omit_empty=f.opts.omit_empty, allownan=f.opts.allownan, jsonlines=false, pretty=f.opts.pretty, ninf=f.opts.ninf, inf=f.opts.inf, nan=f.opts.nan, inline_limit=f.opts.inline_limit, float_style=f.opts.float_style, float_precision=f.opts.float_precision, sort_keys=f.opts.sort_keys, bufsize=f.opts.bufsize, style=f.opts.style)
+        # check if the lowered value is in our ancestor stack
+        if is_circ_ref
+            # if so, it's a circular reference! so we just write `null`
+            pos = _null(buf, pos, io, bufsize)
         else
-            opts = f.opts
+            track_ref && push!(f.ancestor_stack, val)
+            # if jsonlines, we need to recursively set to false
+            if f.opts.jsonlines
+                opts = WriteOptions(; omit_null=f.opts.omit_null, omit_empty=f.opts.omit_empty, allownan=f.opts.allownan, jsonlines=false, pretty=f.opts.pretty, ninf=f.opts.ninf, inf=f.opts.inf, nan=f.opts.nan, inline_limit=f.opts.inline_limit, float_style=f.opts.float_style, float_precision=f.opts.float_precision, sort_keys=f.opts.sort_keys, bufsize=f.opts.bufsize, style=f.opts.style)
+            else
+                opts = f.opts
+            end
+            pos = json!(buf, pos, val, opts, f.ancestor_stack, io, ind, f.depth, bufsize)
+            track_ref && pop!(f.ancestor_stack)
         end
-        pos = json!(buf, pos, val, opts, f.ancestor_stack, io, ind, f.depth, bufsize)
-        track_ref && pop!(f.ancestor_stack)
+        @checkn 1 true
+        @inbounds buf[pos] = f.opts.jsonlines ? UInt8('\n') : UInt8(',')
+        pos += 1
+        # store our updated pos
+        unsafe_store!(f.pos, pos)
+        return
     end
-    @checkn 1 true
-    @inbounds buf[pos] = f.opts.jsonlines ? UInt8('\n') : UInt8(',')
-    pos += 1
-    # store our updated pos
-    unsafe_store!(f.pos, pos)
-    return
 end
+
+# for other closures, and for values a custom `lower` turned into another type
+_writenested(f, key, val) = f(key, val)
 
 @noinline throwjsonlines() = throw(ArgumentError("jsonlines only supported for arraylike"))
 
@@ -903,7 +933,10 @@ function json!(buf, pos, x, opts::WriteOptions, ancestor_stack::Union{Nothing, V
         wroteany = false
         wroteanyref = Ref(false)
         GC.@preserve ref wroteanyref begin
-            c = WriteClosure{typeof(opts), al, typeof(x), typeof(io)}(buf, Base.unsafe_convert(Ptr{Int}, ref), Base.unsafe_convert(Ptr{Bool}, wroteanyref), local_ind, depth + 1, opts, ancestor_stack, io, bufsize)
+            T = typeof(x)
+            omitnull = !al && (opts.omit_null === true || (opts.omit_null === nothing && omit_null(opts.style, T)))
+            omitempty = !al && (opts.omit_empty === true || (opts.omit_empty === nothing && omit_empty(opts.style, T)))
+            c = WriteClosure{typeof(opts), al, typeof(io)}(buf, Base.unsafe_convert(Ptr{Int}, ref), Base.unsafe_convert(Ptr{Bool}, wroteanyref), local_ind, depth + 1, opts, ancestor_stack, io, bufsize, omitnull, omitempty)
             _sort_keys = opts.sort_keys === true || (opts.sort_keys === nothing && !al && _sort_keys_by_default(x))
             if _sort_keys && !al && x isa AbstractDict
                 # each key's text is made once, not per comparison, and kept with its value, so
@@ -913,7 +946,7 @@ function json!(buf, pos, x, opts::WriteOptions, ancestor_stack::Union{Nothing, V
                 entries = sort!([Pair{String,valtype(x)}(checkkey(StructUtils.lowerkey(opts.style, k)), v) for (k, v) in x]::Vector, by=first)
                 for (k, v) in entries
                     if valtype(x) === Any && opts.style isa JSONStyle
-                        _applyvalue(opts.style, c, k, v)
+                        @_applyvalue(opts.style, c, k, v)
                     else
                         c(k, StructUtils.lower(opts.style, v))
                     end
