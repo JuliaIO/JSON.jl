@@ -1147,3 +1147,36 @@ end
         @test_throws ArgumentError JSON.parse(s, T)
     end
 end
+
+struct AnyField
+    a::Any
+end
+StructUtils.@tags struct Lifted
+    a::Int64 &(json=(lift=x -> 10x,),)
+    b::Float64 &(json=(lift=x -> 2x,),)
+end
+struct DoubleInts <: JSON.JSONStyle end
+StructUtils.lift(::DoubleInts, ::Type{T}, x::Integer) where {T<:Integer} = (T(2x), nothing)
+struct UnknownKeys <: JSON.JSONStyle
+    keys::Vector{Any}
+end
+StructUtils.unknownfield(st::UnknownKeys, ::Type{T}, key, value) where {T} = (push!(st.keys, key); nothing)
+struct OnlyA
+    a::Int
+end
+
+@testset "typed parse options reach Any fields, lift tags and style hooks" begin
+    # `Any` fields materialize with the parse's `null`, `dicttype` and style
+    @test JSON.parse("{\"a\":{\"b\":null}}", AnyField; null=missing).a["b"] === missing
+    @test JSON.parse("{\"a\":{\"b\":1}}", AnyField; dicttype=Dict{String,Any}).a isa Dict{String,Any}
+    @test JSON.parse("{\"a\":[null]}", @NamedTuple{a::Any}; null=missing).a[1] === missing
+    @test JSON.parse("{\"a\":{\"b\":1}}", AnyField).a isa JSON.Object{String,Any}
+    # `lift` tags and a style's `lift` apply to Int64/Float64 too
+    @test JSON.parse("{\"a\":1,\"b\":1.5}", Lifted) == Lifted(10, 3.0)
+    @test JSON.parse("1", Int64; style=DoubleInts()) == 2
+    @test JSON.parse("[1,2]", Vector{Int64}; style=DoubleInts()) == [2, 4]
+    # a custom style's `unknownfield` gets `String` keys, not pointers into the input
+    st = UnknownKeys(Any[])
+    JSON.parse("{\"a\":1,\"zz\":2}", OnlyA; style=st)
+    @test st.keys == ["zz"] && st.keys[1] isa String
+end
