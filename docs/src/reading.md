@@ -19,7 +19,7 @@ These functions are all built to accept the same kinds of JSON inputs:
 |:-------------------------------------------|:--------------------------------------------------|
 | `AbstractString`                           | UTF‑8; UTF‑8‑BOM handled automatically            |
 | `AbstractVector{UInt8}`                    | zero‑copy if already bytes                        |
-| `IO`, `IOStream`, `Base.AbstractCmd`       | stream fully read into a `String`                 |
+| `IO`, `IOStream`, `Base.AbstractCmd`       | stream fully read into a byte vector              |
 
 The core JSON parsing machinery is hence built around having an `AbstractVector{UInt8}` or `AbstractString` JSON input where individual bytes can be parsed to identify JSON structure, validate syntax, and ultimately produce Julia-level values.
 

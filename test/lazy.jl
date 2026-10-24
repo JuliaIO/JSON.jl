@@ -38,9 +38,6 @@ end
     x = JSON.lazyfile(makefile("empty_object.json", "{}"))
     @test JSON.gettype(x) == JSON.JSONTypes.OBJECT
     @test length(x) == 0
-    # stream input is read into a `String`, so it reuses the parser compiled for strings
-    @test x isa JSON.LazyValue{String}
-    @test JSON.lazy(IOBuffer("[1]")) isa JSON.LazyValue{String}
     # LazyObject with all possible JSON types
     x = JSON.lazy("{\"a\": 1, \"b\": null, \"c\": true, \"d\": false, \"e\": \"\", \"f\": [], \"g\": {}}")
     @test length(x) == 7

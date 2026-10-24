@@ -377,10 +377,10 @@ parsefile(file; jsonlines::Union{Bool,Nothing}=nothing, kw...) = open(io -> pars
 parsefile(file, ::Type{T}; jsonlines::Union{Bool,Nothing}=nothing, kw...) where {T} = open(io -> parse(io, T; jsonlines=(jsonlines === nothing ? isjsonl(file) : jsonlines), kw...), file)
 parsefile!(file, x::T; jsonlines::Union{Bool,Nothing}=nothing, kw...) where {T} = open(io -> parse!(io, x; jsonlines=(jsonlines === nothing ? isjsonl(file) : jsonlines), kw...), file)
 
-parse(io::Union{IO,Base.AbstractCmd}, ::Type{T}=Any; kw...) where {T} = parse(Base.read(io, String), T; kw...)
+parse(io::Union{IO,Base.AbstractCmd}, ::Type{T}=Any; kw...) where {T} = parse(Base.read(io), T; kw...)
 
 # Keep literal options visible through the mutating entrypoints in native builds.
-@inline parse!(io::Union{IO,Base.AbstractCmd}, x::T; kw...) where {T} = parse!(Base.read(io, String), x; kw...)
+@inline parse!(io::Union{IO,Base.AbstractCmd}, x::T; kw...) where {T} = parse!(Base.read(io), x; kw...)
 
 # Absence is known from the keyword tuple's type, so default calls do not infer
 # the diagnostics path. Remove only this option before forwarding lazy options.
