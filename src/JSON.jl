@@ -84,7 +84,8 @@ end
     ri = min(n, pos + 20)
     snippet_bytes = cus[li:ri]
     snippet_pos = pos - li + 1
-    snippet = String(copy(snippet_bytes))
+    # control characters print as one space, so replace them before measuring widths
+    snippet = replace(String(copy(snippet_bytes)), r"[\b\f\n\r\t]" => " ")
     # find error position; if snippet has multi-codepoint chars,
     # translate pos to char index, accounting for textwidth of char
     erri = 1
@@ -95,9 +96,8 @@ end
         erri += textwidth(c)
         st = iterate(snippet, i)
     end
-    snippet = replace(snippet, r"[\b\f\n\r\t]" => " ")
     # we call @invoke here to avoid --trim verify errors
-    caret = @invoke(repeat(" "::String, (erri + 2)::Integer)) * "^"
+    caret = @invoke(repeat(" "::String, (erri - 1)::Integer)) * "^"
     msg = """
     invalid JSON at byte position $(pos) (line $line_no) parsing type $(typename): $error
     $snippet$(error == UnexpectedEOF ? " <EOF>" : "...")
@@ -159,10 +159,14 @@ function isvalidjson end
 
 isvalidjson(io::Union{IO, Base.AbstractCmd}; kw...) = isvalidjson(Base.read(io); kw...)
 
+# invalid input throws one of these; anything else (a bad keyword, an interrupt) is rethrown
+isinvalidjson(e) = e isa Union{ArgumentError, DuplicateKeyError}
+
 function isvalidjson(buf::Union{AbstractVector{UInt8}, AbstractString}; kw...)
     try
         return isvalidjson(lazy(buf; kw...))
-    catch
+    catch e
+        isinvalidjson(e) || rethrow()
         return false
     end
 end
@@ -172,7 +176,8 @@ function isvalidjson(x::LazyValue)
         pos = skip(x)
         getisroot(x) && checkendpos(x, Any, pos)
         return true
-    catch
+    catch e
+        isinvalidjson(e) || rethrow()
         return false
     end
 end

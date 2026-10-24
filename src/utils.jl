@@ -134,7 +134,6 @@ function reverseescapechar(b)
 end
 
 @noinline invalid_escape(src, n) = throw(ArgumentError("encountered invalid escape character in json string: \"$(unsafe_string(src, n))\""))
-@noinline unescaped_control(b) = throw(ArgumentError("encountered unescaped control character in json: '$(escape_string(Base.string(Char(b))))'"))
 
 # the UTF-16 code unit spelled by the 4 hex digits at src[i:i+3]
 @inline function unsafe_hex4(src::Ptr{UInt8}, i::Int, n::Int)

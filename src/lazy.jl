@@ -271,12 +271,13 @@ function _lazy(buf, pos::Int, len, b, opts, isroot, depth)
     if !opts.allownan
         # quick check if the value here is inf/nan/+1 and we can provide
         # a more helpful error message about how to parse
-        if b in (UInt8('N'), UInt8('n'), UInt8('I'), UInt8('i'), UInt8('+'))
-            throw(ArgumentError("JSON parsing error: possible `NaN`, `Inf`, or `-Inf` which are not valid JSON values. Use the `allownan=true` option and `ninf`, `inf`, and/or `nan` keyword arguments to parse."))
-        end
+        b in (UInt8('N'), UInt8('I'), UInt8('+')) && nanhint(pos)
     end
     invalid(error, buf, pos, Any)
 end
+
+@noinline nanhint(pos) = throw(ArgumentError(string("JSON parsing error at byte position ", pos,
+    ": possible `NaN`, `Inf`, or `-Inf` which are not valid JSON values. Use the `allownan=true` option and `ninf`, `inf`, and/or `nan` keyword arguments to parse.")))
 
 # core JSON object parsing function
 # takes a `keyvalfunc` that is applied to each key/value pair
@@ -540,7 +541,7 @@ const SIMPLEESCAPES = mapreduce(c -> UInt128(1) << UInt8(c), |, "\"\\/bfnrt")
         pos > len && invalid(UnexpectedEOF, buf, pos, "string")
         b = getbyte(buf, pos)
         b == UInt8('"') && return pos
-        b <= UInt8(0x1F) && unescaped_control(b)
+        b <= UInt8(0x1F) && invalid(InvalidChar, buf, pos, "string")
         if b == UInt8('\\')
             # the escaped character and the closing quote
             pos + 2 > len && invalid(UnexpectedEOF, buf, pos, "string")
@@ -587,7 +588,7 @@ function parsestring(x::LazyValue)
     @nextbyte(false)
     while b != UInt8('"')
         # disallow raw control characters within a JSON string
-        b <= UInt8(0x1F) && unescaped_control(b)
+        b <= UInt8(0x1F) && invalid(InvalidChar, buf, pos, "string")
         if b == UInt8('\\')
             # escapes are validated here, not only when unescaping, so skipped values are too
             pos = escapedend(buf, pos, len)
