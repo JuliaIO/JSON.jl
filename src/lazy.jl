@@ -167,13 +167,16 @@ struct LazyArray{T} <: AbstractVector{LazyValue}
     opts::LazyOptions
     isroot::Bool
     depth::Int32
-    # each element, found in one pass: indexing by scanning from the first element made
-    # displaying an n-element array O(n^2)
-    elements::Vector{LazyValue{T}}
+    # each element's start position and type, found in one pass: indexing by scanning from
+    # the first element made displaying an n-element array O(n^2). `getindex` rebuilds the
+    # element's much larger LazyValue from them.
+    positions::Vector{Int}
+    types::Vector{JSONTypes.T}
     function LazyArray(x::LazyValue{T}) where {T}
-        elements = LazyValue{T}[]
-        applyarray((_, v) -> push!(elements, v), x)
-        return new{T}(getbuf(x), getpos(x), getopts(x), getisroot(x), getdepth(x), elements)
+        positions = Int[]
+        types = JSONTypes.T[]
+        applyarray((_, v) -> (push!(positions, getpos(v)); push!(types, gettype(v))), x)
+        return new{T}(getbuf(x), getpos(x), getopts(x), getisroot(x), getdepth(x), positions, types)
     end
 end
 
@@ -388,6 +391,10 @@ macro jsonlines_checks()
     end)
 end
 
+# options for the lines of a jsonlines array: each line is an ordinary JSON value, not
+# another jsonlines array
+lineopts(opts::LazyOptions) = LazyOptions(; allownan=opts.allownan, ninf=opts.ninf, inf=opts.inf, nan=opts.nan, jsonlines=false, duplicate_keys=opts.duplicate_keys, maxdepth=opts.maxdepth)
+
 # core JSON array parsing function
 # takes a `keyvalfunc` that is applied to each index => value element
 # `keyvalfunc` is provided a Int => LazyValue pair
@@ -413,10 +420,7 @@ function applyarray(keyvalfunc, x::LazyValues)
         @nextbyte
         b == UInt8(']') && return pos + 1
     else
-        # for jsonlines, we need to make sure that recursive
-        # lazy values *don't* consider individual lines *also*
-        # to be jsonlines
-        opts = LazyOptions(; allownan=opts.allownan, ninf=opts.ninf, inf=opts.inf, nan=opts.nan, jsonlines=false, duplicate_keys=opts.duplicate_keys, maxdepth=opts.maxdepth)
+        opts = lineopts(opts)
     end
     i = 1
     while true
@@ -481,7 +485,9 @@ Selectors._symbol(x::PtrString) = x.escaped ?
     Symbol(String(x)) :
     ccall(:jl_symbol_n, Ref{Symbol}, (Ptr{UInt8}, Int), x.ptr, x.len)
 
-Base.:(==)(x::PtrString, y::AbstractString) = x.escaped ?
+# only String and SubString{String} are compared byte for byte: other strings may have no
+# `pointer` or may not store UTF-8
+Base.:(==)(x::PtrString, y::AbstractString) = x.escaped || !(y isa Union{String, SubString{String}}) ?
     String(x) == y :
     x.len == sizeof(y) && ccall(:memcmp, Cint, (Ptr{UInt8}, Ptr{UInt8}, Csize_t), x.ptr, pointer(y), x.len) == 0
 Base.:(==)(x::AbstractString, y::PtrString) = y == x
@@ -1066,10 +1072,15 @@ gettype(::LazyArray) = JSONTypes.ARRAY
 
 Base.IndexStyle(::Type{<:LazyArray}) = Base.IndexLinear()
 
-Base.size(x::LazyArray) = size(getfield(x, :elements))
+Base.size(x::LazyArray) = size(getfield(x, :positions))
 
 Base.isassigned(x::LazyArray, i::Int) = true
-Base.getindex(x::LazyArray, i::Int) = getfield(x, :elements)[i]
+
+function Base.getindex(x::LazyArray, i::Int)
+    opts = getopts(x)
+    opts.jsonlines && (opts = lineopts(opts))
+    return LazyValue(getbuf(x), getfield(x, :positions)[i], getfield(x, :types)[i], opts, false, getdepth(x) + Int32(1))
+end
 
 # show implementation for LazyValue
 function Base.show(io::IO, x::LazyValue)
