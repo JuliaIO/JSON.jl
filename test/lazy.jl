@@ -63,6 +63,13 @@ end
     t = @elapsed(shown = sprint(show, long))
     @test count(==('\n'), shown) == 20_000
     @test t < 5
+    # displaying it records a position per element, not a LazyValue (~80 bytes) per element
+    long = JSON.lazy("[" * join(fill("1", 100_000), ",") * "]")
+    io = IOContext(IOBuffer(), :limit => true, :displaysize => (24, 80))
+    show(io, MIME"text/plain"(), long)
+    @test @allocated(show(io, MIME"text/plain"(), long)) < 48 * 100_000
+    # the lines of a jsonlines array display as ordinary values
+    @test sprint(show, JSON.lazy("[1]\n{}"; jsonlines=true)) == "2-element LazyArray{String}:\n LazyValue[JSON.LazyValue(1)]\n LazyObject{String}()"
     i = 0
     foreach(x) do v
         i += 1
