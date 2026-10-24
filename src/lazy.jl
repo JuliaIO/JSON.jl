@@ -5,7 +5,7 @@
 Detect the initial JSON value in `json`, returning a `JSON.LazyValue` instance. `json` input can be:
   * `AbstractString`
   * `AbstractVector{UInt8}`
-  * `IO`, `IOStream`, `Cmd` (bytes are fully read into a `Vector{UInt8}` for parsing, i.e. `read(json)` is called)
+  * `IO`, `IOStream`, `Cmd` (bytes are fully read into a `String` for parsing, i.e. `read(json, String)` is called)
 
 `lazyfile` is a convenience method that takes a filename and opens the file before calling `lazy`.
 
@@ -88,7 +88,7 @@ function lazy end
     duplicate_keys::Symbol = :overwrite
 end
 
-lazy(io::Union{IO, Base.AbstractCmd}; kw...) = lazy(Base.read(io); kw...)
+lazy(io::Union{IO, Base.AbstractCmd}; kw...) = lazy(Base.read(io, String); kw...)
 
 lazyfile(file; jsonlines::Union{Bool, Nothing}=nothing, kw...) = open(io -> lazy(io; jsonlines=(jsonlines === nothing ? isjsonl(file) : jsonlines), kw...), file)
 

@@ -157,7 +157,7 @@ as supported for `JSON.lazy` and `JSON.parse`.
 """
 function isvalidjson end
 
-isvalidjson(io::Union{IO, Base.AbstractCmd}; kw...) = isvalidjson(Base.read(io); kw...)
+isvalidjson(io::Union{IO, Base.AbstractCmd}; kw...) = isvalidjson(Base.read(io, String); kw...)
 
 function isvalidjson(buf::Union{AbstractVector{UInt8}, AbstractString}; kw...)
     try
@@ -208,10 +208,13 @@ end
     # instances for some `JSON.Object` write methods, 1.10 revalidates only one
     # per method on load, and the `JSON.Object` writes then recompile on first use.
     VERSION >= v"1.11" && JSON.json(Dict{String,Any}("a" => 1, "b" => nothing, "c" => true, "d" => 1.5, "e" => "", "f" => Any[1, nothing, true, Dict{String,Any}("key" => "value")]))
-    JSON.parse(
-        "{\"item\":{\"x\":1,\"y\":2.0},\"items\":[{\"x\":3,\"y\":4.0}],\"tags\":[\"p\"],\"note\":null}",
-        _Workload,
-    )
+    typed = "{\"item\":{\"x\":1,\"y\":2.0},\"items\":[{\"x\":3,\"y\":4.0}],\"tags\":[\"p\"],\"note\":null}"
+    JSON.parse(typed, _Workload)
+    # byte-vector input (`read(file)`, HTTP bodies) compiles the parser separately from `String`
+    bytes = Vector{UInt8}(json)
+    JSON.parse(bytes)
+    isvalidjson(bytes)
+    JSON.parse(Vector{UInt8}(typed), _Workload)
 end
 
 
