@@ -129,6 +129,18 @@ end
 Base.isempty(obj::Object) = _k(obj) === notset && _ch(obj) === notset
 Base.empty(::Object{K,V}) where {K,V} = Object{K,V}() # empty object
 
+# copies the entries in a loop: Base's generic method recurses once per entry
+function Base.deepcopy_internal(x::Object{K,V}, stackdict::IdDict) where {K,V}
+    haskey(stackdict, x) && return stackdict[x]::Object{K,V}
+    root = obj = Object{K,V}()
+    stackdict[x] = root
+    for (k, v) in x
+        obj = Object{K,V}(obj, deepcopyfield(k, stackdict), deepcopyfield(v, stackdict))
+    end
+    return root
+end
+deepcopyfield(x, stackdict) = isbits(x) ? x : Base.deepcopy_internal(x, stackdict)
+
 # linear node lookup
 @inline function find_node_by_key(obj::Object{K,V}, key) where {K,V}
     while true
