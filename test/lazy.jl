@@ -229,3 +229,28 @@ Base.getindex(b::PlainBytes, i::Int) = b.data[i]
     @test JSON.parse(view(reshape(Vector{UInt8}("[1][2]"), 3, 2), :, 2)) == [2]
     @test JSON.parse(codeunits("[3]")) == [3]
 end
+
+@testset "lazy callbacks and keys" begin
+    # foreach ignores what `f` returns (an Int used to be read as the next parse position)
+    seen = Int[]
+    foreach(v -> (push!(seen, v[]); v[]), JSON.lazy("[5,6,7,8,9]"))
+    @test seen == [5, 6, 7, 8, 9]
+    total = 0
+    foreach(v -> (total += v[]), JSON.lazy("[1,2,3,4,5,6,7,8,9,10]"))
+    @test total == 55
+    ks = String[]
+    foreach(((k, v),) -> (push!(ks, k); 12), JSON.lazy("{\"a\":1,\"b\":2,\"c\":3}"))
+    @test ks == ["a", "b", "c"]
+    # selector predicates get `String` keys
+    x = JSON.lazy("{\"alpha\": 1, \"beta\": {\"apple\": 2}}")
+    @test [v[] for v in x[~, (k, v) -> startswith(k, "a")]] == [1, 2]
+    @test [v[] for v in x[:, (k, v) -> occursin("lph", k)]] == [1]
+    keytypes = Set{Type}()
+    x[~, (k, v) -> (push!(keytypes, typeof(k)); false)]
+    @test keytypes == Set{Type}([String])
+    # a key holding an escaped NUL doesn't break property access to other keys
+    y = JSON.lazy("{\"a\\u0000b\": 1, \"x\": 2, \"c\\u00e9\": 3}")
+    @test y.x[] == 2
+    @test getproperty(y, Symbol("cé"))[] == 3
+    @test_throws KeyError y.ab
+end

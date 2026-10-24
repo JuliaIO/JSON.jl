@@ -217,9 +217,10 @@ end
 @inline function Base.foreach(f, x::LazyValues)
     type = gettype(x)
     if type == JSONTypes.OBJECT
-        applyobject((k, v) -> f(String(k) => v), x)
+        # return `nothing`: an `Int` returned from the callback would be read as the next parse position
+        applyobject((k, v) -> (f(String(k) => v); nothing), x)
     elseif type == JSONTypes.ARRAY
-        applyarray((i, v) -> f(v), x)
+        applyarray((i, v) -> (f(v); nothing), x)
     else
         throw(ArgumentError("foreach not applicable for `$(typeof(x))` with JSON type = `$type`"))
     end
@@ -492,7 +493,29 @@ Base.hash(x::PtrString, h::UInt) = x.escaped ?
     hash(unsafe_string(x.ptr, x.len), h)
 StructUtils.keyeq(x::PtrString, y::AbstractString) = x == y
 StructUtils.keyeq(x::PtrString, y::String) = x == y
-StructUtils.keyeq(x::PtrString, y::Symbol) = Selectors._symbol(x) == y
+# compare with the Symbol's name instead of making a Symbol from the key: a key
+# with an escaped NUL is not a valid Symbol name, and can never equal one
+function StructUtils.keyeq(x::PtrString, y::Symbol)
+    x.escaped && return String(x) == String(y)
+    name = Base.unsafe_convert(Ptr{UInt8}, y)
+    return x.len == ccall(:strlen, Csize_t, (Ptr{UInt8},), name) &&
+        ccall(:memcmp, Cint, (Ptr{UInt8}, Ptr{UInt8}, Csize_t), x.ptr, name, x.len) == 0
+end
+
+# Selector predicates (`x[~, (k, v) -> ...]`, `x[:, (k, v) -> ...]`) are user code, so they get
+# `String` keys: a PtrString points into the input and is only valid during the callback.
+struct StringKeys{F} <: Function
+    f::F
+end
+(g::StringKeys)(k, v) = g.f(k isa PtrString ? String(k) : k, v)
+stringkeys(f) = StringKeys(f)
+stringkeys(f::StringKeys) = f # nested values are searched with the same wrapper
+
+Selectors._getindex(x::LazyValues, S::Union{typeof(~), Colon}, f::Base.Callable, values=Selectors.List()) =
+    @invoke Selectors._getindex(x::Any, S::Union{typeof(~), Colon}, stringkeys(f)::Base.Callable, values::Any)
+# `:` is also a `Function`; `x[~, :]` keeps meaning "every nested value"
+Selectors._getindex(x::LazyValues, S::typeof(~), key::Colon) =
+    invoke(Selectors._getindex, Tuple{Any, typeof(~), Union{Selectors.KeyInd, Colon}}, x, S, key)
 
 # JSON owns PtrString and its comparison semantics, so it can use the ordered
 # field cursor without changing StructUtils' behavior for arbitrary key types.
