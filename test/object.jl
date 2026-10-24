@@ -195,11 +195,12 @@ using JSON, Test
         @test obj3[:c] == 3
         @test length(obj3) == 3
         
-        # Test that mixed types require explicit Any type specification
+        # mixed value types widen the value type, as for `Dict(itr)`
         mixed = [:a => 1, :b => "hello", :c => 3.14]
-        @test_throws MethodError JSON.Object(mixed)
-        
-        # But works with explicit Any type
+        @test JSON.Object(mixed) isa JSON.Object{Symbol,Any}
+        @test collect(JSON.Object(mixed)) == mixed
+
+        # or give it explicitly
         obj3_any = JSON.Object{Symbol,Any}(mixed)
         @test obj3_any[:a] == 1
         @test obj3_any[:b] == "hello"
@@ -761,4 +762,32 @@ using Serialization
         @test first(c) == ("k1" => 1)
         @test c == big
     end
+end
+
+@testset "JSON.Object dot access and iterators for other key types" begin
+    o = JSON.Object("a" => 1, "b" => "x")
+    @test o isa JSON.Object{Any,Any}
+    @test o.a == 1
+    @test o.b == "x"
+    @test_throws KeyError o.c
+    @test_throws KeyError o.key # not the internal field
+    p = JSON.Object()
+    p.a = 1
+    @test p.a == 1
+    p["a"] = 2 # a String key is found only when the Symbol key is absent
+    @test p.a == 1
+    @test_throws KeyError JSON.Object(1 => 2).a
+    @test JSON.Object{Symbol,Any}(:a => 1).a == 1
+    @test JSON.Object{String,Any}("a" => 1).a == 1
+
+    # key and value types widen as for `Dict(itr)`; order and repeated keys are kept
+    for itr in (Any["a" => 1, "b" => "x"], ("a" => 1, "b" => "x"), ((k, v) for (k, v) in [("a", 1), ("b", "x")]),
+                ("a" => 1, "b" => nothing, "a" => 2), Any[:a => 1, "b" => 2, :a => 3.5])
+        obj = JSON.Object(itr)
+        d = Dict(itr)
+        @test obj isa JSON.Object{keytype(d),valtype(d)}
+        @test collect(obj) == [k => v for (k, v) in itr]
+    end
+    @test JSON.Object(["a" => 1, "b" => 2]) isa JSON.Object{String,Int}
+    @test JSON.Object(Pair{String,Any}["a" => 1, "b" => 2]) isa JSON.Object{String,Int} # types of the pairs, not the eltype
 end
