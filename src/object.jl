@@ -17,6 +17,8 @@ For Objects with many entries (hundreds or thousands), this is not as efficient.
 Typed constructors convert keys and values to `K` and `V`. Pair and iterator constructors
 preserve input order and may contain repeated keys. `setindex!(obj, value, key)` returns
 `obj`, while `delete!(obj, key)` removes all matching entries and returns `obj`.
+`obj.name` looks up the key `"name"` in an `Object{String}`, `:name` in an `Object{Symbol}`,
+and `:name`, then `"name"`, for other key types.
 
 `pop!(obj, key)` removes the first matching entry and returns its value, or throws `KeyError` when the key is absent.
 `pop!(obj, key, default)` returns `default` for an absent key. Without a key, `pop!(obj)`
@@ -71,26 +73,36 @@ function Object{K,V}(pairs::Pair...) where {K,V}
     return root
 end
 
-# generic iterator constructors
+# generic iterator constructors: the key and value types are those of the first pair,
+# widened with `promote_typejoin` when a later pair does not fit, as for `Dict(itr)`
 function Object(itr)
-    root = obj = nothing
     st = iterate(itr)
-    while st !== nothing
-        kv, state = st
-        if kv isa Pair || kv isa Tuple{Any,Any}
-            k, v = kv
-            if root === nothing
-                root = Object{typeof(k), typeof(v)}()
-                obj = root
-            end
-            obj = Object{typeof(k), typeof(v)}(obj, k, v)
-        else
-            throw(ArgumentError("Iterator must yield Pair or 2-tuple, got $(typeof(kv))"))
-        end
-        st = iterate(itr, state)
-    end
-    return root === nothing ? Object{Any,Any}() : root
+    st === nothing && return Object{Any,Any}()
+    k, v = objectpair(st[1])
+    root = Object{typeof(k), typeof(v)}()
+    return growobject!(root, Object{typeof(k), typeof(v)}(root, k, v), itr, st[2])
 end
+
+function growobject!(root::Object{K,V}, obj::Object{K,V}, itr, state) where {K,V}
+    st = iterate(itr, state)
+    while st !== nothing
+        k, v = objectpair(st[1])
+        if !(k isa K && v isa V)
+            K2, V2 = Base.promote_typejoin(K, typeof(k)), Base.promote_typejoin(V, typeof(v))
+            wider = leaf = Object{K2,V2}()
+            for (k1, v1) in root
+                leaf = Object{K2,V2}(leaf, k1, v1)
+            end
+            return growobject!(wider, Object{K2,V2}(leaf, k, v), itr, st[2])
+        end
+        obj = Object{K,V}(obj, k, v)
+        st = iterate(itr, st[2])
+    end
+    return root
+end
+
+objectpair(kv::Union{Pair,Tuple{Any,Any}}) = kv
+objectpair(kv) = throw(ArgumentError("Iterator must yield Pair or 2-tuple, got $(typeof(kv))"))
 
 function Object{K,V}(itr) where {K,V}
     root = obj = Object{K,V}()
@@ -129,6 +141,18 @@ end
 Base.isempty(obj::Object) = _k(obj) === notset && _ch(obj) === notset
 Base.empty(::Object{K,V}) where {K,V} = Object{K,V}() # empty object
 
+# copies the entries in a loop: Base's generic method recurses once per entry
+function Base.deepcopy_internal(x::Object{K,V}, stackdict::IdDict) where {K,V}
+    haskey(stackdict, x) && return stackdict[x]::Object{K,V}
+    root = obj = Object{K,V}()
+    stackdict[x] = root
+    for (k, v) in x
+        obj = Object{K,V}(obj, deepcopyfield(k, stackdict), deepcopyfield(v, stackdict))
+    end
+    return root
+end
+deepcopyfield(x, stackdict) = isbits(x) ? x : Base.deepcopy_internal(x, stackdict)
+
 # linear node lookup
 @inline function find_node_by_key(obj::Object{K,V}, key) where {K,V}
     while true
@@ -164,6 +188,13 @@ Base.get(obj::Object{Symbol}, key::String, default) = get(obj, Symbol(key), defa
 # support getproperty for dot access
 Base.getproperty(obj::Object{Symbol}, sym::Symbol) = getindex(obj, sym)
 Base.getproperty(obj::Object{String}, sym::Symbol) = getindex(obj, String(sym))
+# other key types (`JSON.Object()` is an `Object{Any,Any}`): the key `sym`, else `String(sym)`
+function Base.getproperty(obj::Object, sym::Symbol)
+    node = find_node_by_key(obj, sym)
+    node === nothing && (node = find_node_by_key(obj, String(sym)))
+    node === nothing && throw(KeyError(sym))
+    return _v(node)
+end
 Base.propertynames(obj::Object) = Tuple(Symbol(key) for key in keys(obj))
 
 # haskey
@@ -265,3 +296,131 @@ Base.setproperty!(obj::Object, sym::Symbol, val) = setindex!(obj, val, sym)
 Base.setproperty!(obj::Object{String}, sym::Symbol, val) = setindex!(obj, val, String(sym))
 
 Base.merge(a::NamedTuple, b::Object{String,Any}) = merge(a, (Symbol(k) => v for (k, v) in b))
+
+# Whole-object operations on more than `SCAN_LIMIT` entries look keys up in a table of
+# each key's first node instead of scanning the list once per key. A repeated key updates
+# its first entry, as `setindex!` does.
+const SCAN_LIMIT = 16
+
+# the key `merge!` stores: `setindex!`'s String/Symbol conversions, else `convert(K, key)` as for a `Dict`
+storedkey(::Object{K}, key) where {K} = convert(K, key)
+storedkey(::Object{String}, key::Union{AbstractString,Symbol}) = String(key)
+storedkey(::Object{Symbol}, key::String) = Symbol(key)
+
+# each key's first node in an object, and the object's last node
+mutable struct NodeIndex{K,V}
+    nodes::Dict{K,Object{K,V}}
+    leaf::Object{K,V}
+end
+
+# the index of `d`, with its table sized for `n` keys
+function NodeIndex(d::Object{K,V}, n::Int) where {K,V}
+    leaf = d
+    while _ch(leaf) !== notset
+        leaf = _ch(leaf)::Object{K,V}
+    end
+    return NodeIndex(nodetable(d, n), leaf)
+end
+
+# where `mergepair!` adds to `d`: `d` itself for `n` entries or fewer, else its index
+mergedest(d::Object, n::Int) = n <= SCAN_LIMIT ? d : NodeIndex(d, n)
+
+# adds `key => v` as `setindex!` (`combine === nothing`) or `mergewith!` does; inlined, as
+# a call that passes an `Any` value and calls `combine` is otherwise dispatched at run time
+@inline function mergepair!(combine, d::Object{K,V}, key::K, v) where {K,V}
+    node = d # one scan, as in `_setindex!`
+    while true
+        if _k(node) !== notset && isequal(_k(node)::K, key)
+            setfield!(node, :value, convert(V, combine === nothing ? v : combine(_v(node)::V, v)))
+            return
+        end
+        _ch(node) === notset && break
+        node = _ch(node)::Object{K,V}
+    end
+    Object{K,V}(node, key, v)
+    return
+end
+
+@inline function mergepair!(combine, ix::NodeIndex{K,V}, key, v) where {K,V}
+    node = get(ix.nodes, key, nothing)
+    if node === nothing
+        ix.nodes[key] = ix.leaf = Object{K,V}(ix.leaf, key, v)
+    else
+        setfield!(node, :value, convert(V, combine === nothing ? v : combine(_v(node)::V, v)))
+    end
+    return
+end
+
+# `F` makes Julia specialize on `combine`, which is passed on rather than called here
+function mergeinto!(combine::F, d::Object, dest, other) where {F}
+    for (k, v) in other
+        mergepair!(combine, dest, storedkey(d, k), v)
+    end
+end
+
+# also used by Base's `copy` and `copy!`; `N` makes Julia specialize on the number of dicts
+function Base.merge!(d::Object, others::Vararg{AbstractDict,N}) where {N}
+    dest = mergedest(d, length(d) + sum(length, others; init=0))
+    for other in others
+        mergeinto!(nothing, d, dest, other)
+    end
+    return d
+end
+
+Base.mergewith!(combine::F, d::Object, other::AbstractDict) where {F} =
+    (mergeinto!(combine, d, mergedest(d, length(d) + length(other)), other); d)
+
+# `merge` and `mergewith` return an `Object` in insertion order, with key and value
+# types promoted as for a `Dict`
+function mergetarget(d::Object, others::Vararg{AbstractDict,N}) where {N}
+    K = promote_type(keytype(d), map(keytype, others)...)
+    V = promote_type(valtype(d), map(valtype, others)...)
+    return Object{K,V}()
+end
+Base.merge(d::Object, others::Vararg{AbstractDict,N}) where {N} = merge!(mergetarget(d, others...), d, others...)
+function Base.mergewith(combine::F, d::Object, others::Vararg{AbstractDict,N}) where {F,N}
+    target = mergetarget(d, others...)
+    dest = mergedest(target, length(d) + sum(length, others; init=0))
+    mergeinto!(nothing, target, dest, d)
+    for other in others
+        mergeinto!(combine, target, dest, other)
+    end
+    return target
+end
+Base.merge(combine::F, d::Object, others::Vararg{AbstractDict,N}) where {F<:Base.Callable,N} =
+    mergewith(combine, d, others...)
+
+function Base.filter(f, d::Object)
+    df = empty(d)
+    dest = df
+    n = 0
+    for p in d
+        f(p) || continue
+        (n += 1) == SCAN_LIMIT + 1 && (dest = NodeIndex(df, length(d)))
+        mergepair!(nothing, dest, p.first, p.second)
+    end
+    return df
+end
+
+# Base's `AbstractDict` `==`/`isequal`: each pair of `l` is looked up in `r` (its first
+# entry for a repeated key), in a table instead of a scan of `r` for larger objects.
+Base.:(==)(l::Object{K}, r::Object{K}) where {K} = objectequal(==, l, r)
+Base.isequal(l::Object{K}, r::Object{K}) where {K} = l === r || objectequal(isequal, l, r)
+
+function objectequal(valcmp, l::Object{K}, r::Object{K,V}) where {K,V}
+    n = length(l)
+    n == length(r) || return false
+    nodes = n <= SCAN_LIMIT ? nothing : nodetable(r, n)
+    anymissing = false
+    for (k, v) in l
+        node = nodes === nothing ? find_node_by_key(r, k) : get(nodes, k, nothing)
+        node === nothing && return false
+        eq = valcmp(_v(node)::V, v)
+        if ismissing(eq)
+            anymissing = true
+        elseif !eq
+            return false
+        end
+    end
+    return anymissing ? missing : true
+end

@@ -195,11 +195,12 @@ using JSON, Test
         @test obj3[:c] == 3
         @test length(obj3) == 3
         
-        # Test that mixed types require explicit Any type specification
+        # mixed value types widen the value type, as for `Dict(itr)`
         mixed = [:a => 1, :b => "hello", :c => 3.14]
-        @test_throws MethodError JSON.Object(mixed)
-        
-        # But works with explicit Any type
+        @test JSON.Object(mixed) isa JSON.Object{Symbol,Any}
+        @test collect(JSON.Object(mixed)) == mixed
+
+        # or give it explicitly
         obj3_any = JSON.Object{Symbol,Any}(mixed)
         @test obj3_any[:a] == 1
         @test obj3_any[:b] == "hello"
@@ -644,4 +645,184 @@ end
         @test ret.value == 2
         @test seen == ["a", "b"]
     end
+end
+
+# a key that counts its `isequal` calls, to check that whole-object operations do not
+# compare every key with every other key
+struct CountedKey
+    k::Int
+end
+const KEY_COMPARISONS = Ref(0)
+Base.isequal(a::CountedKey, b::CountedKey) = (KEY_COMPARISONS[] += 1; a.k == b.k)
+Base.hash(a::CountedKey, h::UInt) = hash(a.k, h)
+JSON.StructUtils.liftkey(::JSON.JSONReadStyle, ::Type{CountedKey}, x::String) = CountedKey(parse(Int, x))
+function comparisons(f)
+    KEY_COMPARISONS[] = 0
+    f()
+    return KEY_COMPARISONS[]
+end
+
+@testset "JSON.Object whole-object operations" begin
+    # the results Base's generic `AbstractDict` methods give, which insert with `setindex!`
+    setindex_all!(obj, kvs) = (for (k, v) in kvs; obj[k] = v; end; obj)
+    same(a, b) = typeof(a) == typeof(b) && isequal(collect(a), collect(b))
+    generic_eq(l, r) = invoke(==, Tuple{AbstractDict,AbstractDict}, l, r)
+    generic_isequal(l, r) = invoke(isequal, Tuple{AbstractDict,AbstractDict}, l, r)
+
+    # few distinct keys, so objects repeat keys; sizes cross the 5-key set and 16-key table thresholds
+    pool = [string(c) for c in 'a':'x']
+    vals = Any[1, 2, missing, NaN]
+    for seed in 1:300
+        n = mod(seed, 41)
+        kvs = Pair{String,Any}[pool[mod(seed * 7 + 3i, 24) + 1] => vals[mod(seed + i * i, 4) + 1] for i in 1:n]
+        o = JSON.Object{String,Any}(kvs)
+        @test same(copy(o), setindex_all!(JSON.Object{String,Any}(), o))
+        @test same(copy!(JSON.Object{String,Any}("zz" => 0), o), setindex_all!(JSON.Object{String,Any}(), o))
+        @test same(merge!(copy(o), o, Dict("b" => 7, "zz" => 8)), setindex_all!(setindex_all!(copy(o), o), Dict("b" => 7, "zz" => 8)))
+        other = JSON.Object{String,Any}(reverse(kvs[1:2:end]))
+        generic_mergewith!(t) = invoke(mergewith!, Tuple{Any,AbstractDict,AbstractDict}, tuple, t, other)
+        @test same(mergewith!(tuple, JSON.Object{String,Any}(kvs), other), generic_mergewith!(JSON.Object{String,Any}(kvs)))
+        keep = p -> isodd(length(p.first) + hash(p.first) % 3)
+        @test same(filter(keep, o), setindex_all!(JSON.Object{String,Any}(), Iterators.filter(keep, o)))
+        for r in (o, copy(o), JSON.Object{String,Any}(reverse(kvs)), JSON.Object{String,Any}(kvs[1:end-1]), JSON.Object{String,Any}(push!(kvs[2:end], "a" => 1)))
+            @test isequal(o == r, generic_eq(o, r))
+            @test isequal(r == o, generic_eq(r, o))
+            @test isequal(o, r) === generic_isequal(o, r)
+        end
+        # parse! into an object that may already repeat keys updates as `setindex!` does
+        new = Pair{String,Any}[pool[mod(seed * 5 + 2i, 24) + 1] => Any[1, 2.5, nothing][mod(seed + i, 3) + 1] for i in 1:mod(seed, 13)]
+        json = "{" * join(("\"$k\":$(JSON.json(v))" for (k, v) in new), ",") * "}"
+        target = JSON.Object{String,Any}(kvs)
+        JSON.parse!(json, target)
+        @test same(target, setindex_all!(JSON.Object{String,Any}(kvs), new))
+    end
+    sym = JSON.Object{String,Any}("a" => 1, "b" => 2)
+    @test same(merge!(sym, Dict(:a => 5, :c => 6)), JSON.Object{String,Any}("a" => 5, "b" => 2, "c" => 6))
+    @test_throws MethodError merge!(JSON.Object{String,Any}(), Dict(1 => 2))
+    @test JSON.Object{Symbol,Any}(:a => 1) == JSON.Object{String,Any}("a" => 1)
+    @test_throws MethodError JSON.parse!("[1]", JSON.Object{String,Any}()) # not an object: the generic path
+
+    n = 2_000
+    o = JSON.Object{CountedKey,Int}(CountedKey(i) => i for i in 1:n)
+    @test comparisons(() -> @test(length(copy(o)) == n)) < 5n
+    @test comparisons(() -> @test(length(filter(p -> iseven(p.second), o)) == n ÷ 2)) < 5n
+    @test comparisons(() -> merge!(copy(o), o)) < 10n
+    @test comparisons(() -> mergewith!(+, copy(o), o)) < 10n
+    r = JSON.Object{CountedKey,Int}(CountedKey(i) => i for i in n:-1:1)
+    @test comparisons(() -> @test(o == r && isequal(o, r))) < 10n
+    json = JSON.json(JSON.Object{String,Int}(string(i) => i for i in 1:n))
+    target = JSON.Object{CountedKey,Int}()
+    @test comparisons(() -> JSON.parse!(json, target)) < 5n
+    @test target == o
+    @test comparisons(() -> JSON.parse!(json, target)) < 5n
+    @test target == o
+end
+
+using Serialization
+
+@testset "JSON.Object deepcopy and Serialization" begin
+    @test Base.get_extension(JSON, :JSONSerializationExt) !== nothing
+    roundtrip(x) = (io = IOBuffer(); serialize(io, x); seekstart(io); deserialize(io))
+    shared = JSON.Object{String,Any}("s" => [1])
+    objs = (
+        JSON.Object{String,Any}("b" => 1, "a" => shared, "b" => 2, "c" => shared, "d" => JSON.Object{String,Any}()),
+        JSON.Object{Symbol,Int}(:z => 1, :y => 2, :z => 3),
+        JSON.Object(1 => "x", :k => nothing, "k" => 2.5),
+        JSON.Object{String,Int}(),
+    )
+    for o in objs, f in (deepcopy, roundtrip)
+        c = f(o)
+        @test typeof(c) == typeof(o)
+        @test isequal(collect(c), collect(o))
+        @test c !== o
+    end
+    c = deepcopy(objs[1])
+    @test c["a"] === c["c"] !== shared
+    push!(c["a"]["s"], 2)
+    @test shared["s"] == [1]
+    c = roundtrip(objs[1])
+    @test c["a"] === c["c"]
+    cyclic = JSON.Object{String,Any}("x" => 1)
+    cyclic["self"] = cyclic
+    for f in (deepcopy, roundtrip)
+        c = f(cyclic)
+        @test c["self"] === c
+        @test c["x"] == 1
+    end
+
+    # long enough to overflow the stack if each entry is copied by a recursive call
+    n = 200_000
+    big = JSON.parse("{" * join(("\"k$i\":$i" for i in 1:n), ",") * "}")
+    for f in (deepcopy, roundtrip)
+        c = f(big)
+        @test length(c) == n
+        @test first(c) == ("k1" => 1)
+        @test c == big
+    end
+end
+
+@testset "JSON.Object merge and mergewith" begin
+    a = JSON.parse("{\"z\":1,\"m\":2}")
+    b = JSON.parse("{\"a\":3,\"z\":4}")
+    @test merge(a, b) isa JSON.Object{String,Any}
+    @test JSON.json(merge(a, b)) == "{\"z\":4,\"m\":2,\"a\":3}"
+    @test JSON.json(mergewith(+, a, b)) == "{\"z\":5,\"m\":2,\"a\":3}"
+    @test JSON.json(merge(+, a, b)) == "{\"z\":5,\"m\":2,\"a\":3}"
+    @test JSON.json(merge(a)) == JSON.json(a) && merge(a) !== a
+    @test JSON.json(merge(a, b, JSON.Object{String,Any}("q" => 0))) == "{\"z\":4,\"m\":2,\"a\":3,\"q\":0}"
+    @test collect(a) == ["z" => 1, "m" => 2] # inputs unchanged
+
+    # same key and value types and values as Base's `Dict` result; keys in first-seen order
+    generic(f, ds...) = f === nothing ? invoke(merge, Tuple{AbstractDict,Vararg{AbstractDict}}, ds...) :
+        invoke(mergewith, Tuple{Any,AbstractDict,Vararg{AbstractDict}}, f, ds...)
+    firstseen(ds...) = unique(k for d in ds for k in keys(d))
+    cases = (
+        (JSON.Object{String,Any}("a" => 1, "b" => 2, "a" => 3), Dict("b" => 10, "c" => 20)),
+        (JSON.Object{String,Int}("a" => 1), Dict(:a => 2.5)),
+        (JSON.Object{Float64,Int}(1.0 => 1), Dict(2 => 3, 1 => 5)),
+        (JSON.Object{Int,Int}(1 => 1), JSON.Object{Float64,Int}(2.5 => 3, 1.0 => 4)),
+        (JSON.Object{String,Any}("k$i" => i for i in 1:30), JSON.Object{String,Any}("k$i" => -i for i in 20:40)),
+        (JSON.Object{String,Any}(), JSON.Object{Symbol,Int}()),
+    )
+    for (x, y) in cases, f in (nothing, +)
+        m = f === nothing ? merge(x, y) : mergewith(f, x, y)
+        g = generic(f, x, y)
+        @test m isa JSON.Object{keytype(g),valtype(g)}
+        @test Dict(m) == g
+        @test collect(keys(m)) == firstseen(x, y)
+    end
+
+    n = 2_000
+    o = JSON.Object{CountedKey,Int}(CountedKey(i) => i for i in 1:n)
+    r = JSON.Object{CountedKey,Int}(CountedKey(i) => i for i in n:-1:1)
+    @test comparisons(() -> @test(length(merge(o, r)) == n)) < 10n
+    @test comparisons(() -> @test(mergewith(+, o, r)[CountedKey(7)] == 14)) < 10n
+end
+
+@testset "JSON.Object dot access and iterators for other key types" begin
+    o = JSON.Object("a" => 1, "b" => "x")
+    @test o isa JSON.Object{Any,Any}
+    @test o.a == 1
+    @test o.b == "x"
+    @test_throws KeyError o.c
+    @test_throws KeyError o.key # not the internal field
+    p = JSON.Object()
+    p.a = 1
+    @test p.a == 1
+    p["a"] = 2 # a String key is found only when the Symbol key is absent
+    @test p.a == 1
+    @test_throws KeyError JSON.Object(1 => 2).a
+    @test JSON.Object{Symbol,Any}(:a => 1).a == 1
+    @test JSON.Object{String,Any}("a" => 1).a == 1
+
+    # key and value types widen as for `Dict(itr)`; order and repeated keys are kept
+    for itr in (Any["a" => 1, "b" => "x"], ("a" => 1, "b" => "x"), ((k, v) for (k, v) in [("a", 1), ("b", "x")]),
+                ("a" => 1, "b" => nothing, "a" => 2), Any[:a => 1, "b" => 2, :a => 3.5])
+        obj = JSON.Object(itr)
+        d = Dict(itr)
+        @test obj isa JSON.Object{keytype(d),valtype(d)}
+        @test collect(obj) == [k => v for (k, v) in itr]
+    end
+    @test JSON.Object(["a" => 1, "b" => 2]) isa JSON.Object{String,Int}
+    @test JSON.Object(Pair{String,Any}["a" => 1, "b" => 2]) isa JSON.Object{String,Int} # types of the pairs, not the eltype
 end

@@ -526,15 +526,39 @@ end
 @noinline function nodeforkey!(oc::ObjectClosure{K,V}, key) where {K,V}
     nodes = oc.nodes
     if nodes === nothing
-        nodes = sizehint!(Dict{K,Object{K,V}}(), length(oc.keys::Set{K}))
-        node = _ch(oc.root)
-        while node isa Object{K,V}
-            nodes[_k(node)::K] = node
-            node = _ch(node)
-        end
-        oc.nodes = nodes
+        nodes = oc.nodes = nodetable(oc.root, length(oc.keys::Set{K}))
     end
     return nodes[key]
+end
+
+# each key's node; a repeated key maps to its first node, the one `setindex!` updates
+function nodetable(root::Object{K,V}, n::Int) where {K,V}
+    nodes = sizehint!(Dict{K,Object{K,V}}(), n)
+    node = _ch(root)
+    while node isa Object{K,V}
+        get!(nodes, _k(node)::K, node)
+        node = _ch(node)
+    end
+    return nodes
+end
+
+# an `ObjectClosure` that appends to `obj`, which may already hold entries
+function appendclosure(obj::Object{K,V}, ctx) where {K,V}
+    oc = ObjectClosure(obj, ctx)
+    while _ch(oc.obj) !== notset
+        oc.obj = _ch(oc.obj)::Object{K,V}
+        oc.count += 1
+    end
+    if oc.count >= 5
+        keys = sizehint!(Set{K}(), oc.count)
+        node = _ch(obj)
+        while node isa Object{K,V}
+            push!(keys, _k(node)::K)
+            node = _ch(node)
+        end
+        oc.keys = keys
+    end
+    return oc
 end
 
 _objectkey(ctx, ::Type, k) = String(k) # untyped parse: keys are Strings
@@ -701,6 +725,12 @@ function _makeobject(st::_DefaultReadStyle, ::Type{O}, x::LazyValues) where {O<:
 end
 
 StructUtils.make(st::_DefaultReadStyle, ::Type{O}, x::LazyValues) where {O<:Object} = _makeobject(st, O, x)
+# `JSON.parse!` into an existing `Object`: entries are added or updated as with `setindex!`
+function StructUtils.make!(st::_DefaultReadStyle, obj::Object, x::LazyValues)
+    gettype(x) == JSONTypes.OBJECT ||
+        return @invoke StructUtils.make!(st::StructStyle, obj::Any, x::Any)
+    return applyobject(_contextcallback(st, appendclosure(obj, st)), x)
+end
 # `Object{String,Any}` is also an `AbstractDict{String,Any}`, which has its own method below
 StructUtils.make(st::_DefaultReadStyle, ::Type{Object{String,Any}}, x::LazyValues) =
     _makeobject(st, Object{String,Any}, x)
