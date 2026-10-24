@@ -654,7 +654,10 @@ end
 function StructUtils.make(st::StructStyle, ::Type{Any}, x::LazyValues)
     type = gettype(x)
     if type == JSONTypes.OBJECT
-        return StructUtils.make(st, objecttype(st), x)
+        O = objecttype(st)
+        # `_makeobject` appends in O(n); the generic `makedict` scans the object per key
+        st isa JSONReadStyle && O <: Object && return _makeobject(st, O, x)
+        return StructUtils.make(st, O, x)
     elseif type == JSONTypes.ARRAY
         return StructUtils.make(st, Vector{Any}, x)
     elseif type == JSONTypes.STRING
@@ -692,7 +695,7 @@ end
 
 # `ObjectClosure` with the style as its context appends in O(n) with the untyped path's
 # duplicate handling; the generic `makedict` went through `setindex!`, a linear scan per key.
-function _makeobject(st::_DefaultReadStyle, ::Type{O}, x::LazyValues) where {O<:Object}
+function _makeobject(st::JSONReadStyle, ::Type{O}, x::LazyValues) where {O<:Object}
     gettype(x) == JSONTypes.OBJECT ||
         return @invoke StructUtils.make(st::StructStyle, O::Type, x::Any)
     obj = StructUtils.initialize(st, O, x)
@@ -808,7 +811,13 @@ function StructUtils.lift(style::JSONReadStyle, ::Type{T}, x::LazyValues, tags=(
         # an object or array materializes like the untyped parse, with this parse's options
         # (with the default ones, that is the untyped path itself)
         plain = style isa JSONReadStyle{DEFAULT_OBJECT_TYPE,Nothing,StructUtils.DefaultStyle,Nothing}
-        T === Any && !plain && return StructUtils.make(style, Any, x)
+        if T === Any && !plain
+            val1, pos = StructUtils.make(style, Any, x)
+            # a `lift` tag or a custom style's `lift` still applies to the materialized value
+            style isa _DefaultReadStyle && !haskey(tags, :lift) && return val1, pos
+            val, _ = StructUtils.lift(style, T, val1, tags)
+            return val, pos
+        end
         out = ValueClosure()
         pos = plain ? applyvalue(out, x, nothing) : applyvalue(out, x, style)
         val1 = out.value

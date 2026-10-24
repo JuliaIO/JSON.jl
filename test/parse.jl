@@ -1216,3 +1216,38 @@ JSON.lift(::Type{LiftedWhole}, x) = LiftedWhole(x)
     # default options: as before
     @test JSON.parse("{\"c\":{\"a\":null}}", @NamedTuple{c::LiftedWhole}).c.d isa JSON.Object{String,Any}
 end
+
+StructUtils.@tags struct AnyLiftTag
+    a::Any &(json=(lift=x -> length(x),),)
+end
+struct WrapAnyStyle <: StructUtils.StructStyle end
+StructUtils.lift(::WrapAnyStyle, ::Type{Any}, x::AbstractVector) = ("wrapped " * string(length(x)), nothing)
+struct AnyOnly
+    a::Any
+end
+# an AbstractString with no 1-argument `codeunit` method and no `pointer`
+struct MinimalString <: AbstractString
+    s::String
+end
+Base.ncodeunits(s::MinimalString) = ncodeunits(s.s)
+Base.codeunit(s::MinimalString, i::Integer) = codeunit(s.s, i)
+Base.isvalid(s::MinimalString, i::Int) = isvalid(s.s, i)
+Base.iterate(s::MinimalString, i::Int=1) = iterate(s.s, i)
+
+@testset "Any fields keep lift hooks with parse options" begin
+    s = "{\"a\":[1,2,3]}"
+    for kw in ((;), (; null=missing), (; dicttype=Dict{String,Any}), (; error_context=true))
+        @test JSON.parse(s, AnyLiftTag; kw...).a == 3
+    end
+    @test JSON.parse(s, AnyOnly; style=WrapAnyStyle()).a == "wrapped 3"
+    # a custom style's large Any-field object is built in one pass
+    big = "{\"a\":{" * join(("\"k$i\":$i" for i in 1:8000), ",") * "}}"
+    @test length(JSON.parse(big, AnyOnly; style=WrapAnyStyle()).a) == 8000
+end
+
+@testset "unusual inputs report invalid JSON" begin
+    bad = reinterpret(UInt8, UInt16[0x315b, 0x5d2c]) # "[1,]"
+    @test !JSON.isvalidjson(bad)
+    @test_throws ArgumentError JSON.parse(bad)
+    @test JSON.parse(MinimalString("[1,2]")) == [1, 2]
+end
