@@ -1156,7 +1156,23 @@ end
     end
     setprecision(BigFloat, 64) do
         @test precision(JSON.parse("0.1", BigFloat)) == 64
+        @test precision(JSON.parse("1e400")) == 64
     end
+    # just above or below the midpoint after 1, written with a long integer part
+    for (T, mid) in ((Float32, "1000000059604644775390625"), (Float16, "100048828125"))
+        k = 200
+        e = length(mid) - 1 + k + 1
+        @test JSON.parse(mid * "0"^k * "1e-$e", T) === nextfloat(one(T))
+        below = string(parse(BigInt, mid * "0"^(k + 1)) - 1)
+        @test JSON.parse(below * "e-$e", T) === one(T)
+        # rounding doesn't depend on the current BigFloat precision
+        setprecision(BigFloat, 8) do
+            @test JSON.parse(mid * "0"^k * "1e-$e", T) === nextfloat(one(T))
+        end
+    end
+    # isvalidjson and parse agree on a long number past Float64's range
+    long = "1" * "0"^1100 * ".5"
+    @test JSON.isvalidjson(long) && JSON.parse(long) isa BigFloat
 end
 
 struct AnyField

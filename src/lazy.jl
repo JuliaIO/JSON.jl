@@ -723,28 +723,52 @@ const LONGINTEGER = 2000
     NumberResult(Base.parse(BigInt, String(numberbytes(buf)[first:last])))
 
 @static if isdefined(Parsers, :xparse2)
+    # MPFR fallbacks for Parsers 2, which ignores `precision(BigFloat)` and rejects some long
+    # in-range tokens; the token is already validated
+    @noinline parsebigfloat(buf, first, last) = BigFloat(String(numberbytes(buf)[first:last]))
+    @noinline parsebigfloat(buf, first, last, r::RoundingMode) =
+        BigFloat(String(numberbytes(buf)[first:last]), r; precision=256)
+    # `x` as an exact rational; unlike `Rational{BigInt}(::BigFloat)`, `decompose` doesn't
+    # depend on the current BigFloat precision
+    function exactrational(x)
+        n, p, d = Base.decompose(x)
+        r = BigInt(n) // BigInt(d)
+        return p >= 0 ? r * big(2)^p : r // big(2)^(-p)
+    end
+    # the token correctly rounded to `T`. Rounding it down and up to 256 bits brackets its exact
+    # value; if the two ends round to different `T`s, the midpoint between those `T`s is one of
+    # the ends (it is a 256-bit value), and the exact value lies on the other side of it
+    @noinline function parsecorrectlyrounded(::Type{T}, buf, first, last) where {T}
+        lo = parsebigfloat(buf, first, last, RoundDown)
+        hi = parsebigfloat(buf, first, last, RoundUp)
+        a, b = T(lo), T(hi)
+        a == b && return a
+        a, b = T(lo, RoundDown), T(lo, RoundUp)
+        ra = exactrational(a)
+        m = isfinite(b) ? (ra + exactrational(b)) // 2 : ra + (ra - exactrational(prevfloat(a))) // 2
+        return exactrational(lo) == m ? b : a
+    end
+
     # Parsers 2: `xparse2` converts the longest number prefix of buf[first:last]; the
     # validated token must be all of it (Parsers 2 also takes Julia forms like `1.5f3`)
     @inline function parsefloat64(buf, first, nextpos, len, allownan)
         res = Parsers.xparse2(Float64, buf, first, nextpos - 1)
-        if !allownan && Parsers.specialvalue(res.code)
-            # overflowed to Inf; promote to BigFloat
-            bres = Parsers.xparse2(BigFloat, buf, first, nextpos - 1)
-            Parsers.invalid(bres.code) || return NumberResult(bres.val), nextpos
+        if Parsers.invalid(res.code) || first + Int(res.tlen) != nextpos
+            x = parsecorrectlyrounded(Float64, buf, first, nextpos - 1)
+            isfinite(x) || allownan || return NumberResult(parsebigfloat(buf, first, nextpos - 1)), nextpos
+            return NumberResult(x), nextpos
         end
-        (Parsers.invalid(res.code) || first + Int(res.tlen) != nextpos) && invalid(InvalidNumber, buf, first, "number")
+        # overflowed to Inf; promote to BigFloat
+        !allownan && Parsers.specialvalue(res.code) && return NumberResult(parsebigfloat(buf, first, nextpos - 1)), nextpos
         return NumberResult(res.val), nextpos
     end
     @inline parsebigint(buf, first, last) = last - first >= LONGINTEGER ?
         parselongint(buf, first, last) : NumberResult(Parsers.xparse2(BigInt, buf, first, last).val)
-    # Parsers 2 ignores `precision(BigFloat)` and rejects some long in-range tokens for
-    # Float16/Float32; MPFR's conversion rounds correctly at the current precision
-    @noinline parsebigfloat(buf, first, last) = Base.parse(BigFloat, String(numberbytes(buf)[first:last]))
     @inline function parsefloatas(::Type{T}, buf, first, nextpos, len) where {T}
         T === BigFloat && return NumberResult(parsebigfloat(buf, first, nextpos - 1)), nextpos
         res = Parsers.xparse2(T, buf, first, nextpos - 1)
         if Parsers.invalid(res.code) || first + Int(res.tlen) != nextpos
-            return NumberResult(Float64(T(parsebigfloat(buf, first, nextpos - 1)))), nextpos
+            return NumberResult(Float64(parsecorrectlyrounded(T, buf, first, nextpos - 1))), nextpos
         end
         return NumberResult(Float64(res.val)), nextpos
     end
