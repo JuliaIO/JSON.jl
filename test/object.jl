@@ -759,3 +759,41 @@ using Serialization
         @test c == big
     end
 end
+
+@testset "JSON.Object merge and mergewith" begin
+    a = JSON.parse("{\"z\":1,\"m\":2}")
+    b = JSON.parse("{\"a\":3,\"z\":4}")
+    @test merge(a, b) isa JSON.Object{String,Any}
+    @test JSON.json(merge(a, b)) == "{\"z\":4,\"m\":2,\"a\":3}"
+    @test JSON.json(mergewith(+, a, b)) == "{\"z\":5,\"m\":2,\"a\":3}"
+    @test JSON.json(merge(+, a, b)) == "{\"z\":5,\"m\":2,\"a\":3}"
+    @test JSON.json(merge(a)) == JSON.json(a) && merge(a) !== a
+    @test JSON.json(merge(a, b, JSON.Object{String,Any}("q" => 0))) == "{\"z\":4,\"m\":2,\"a\":3,\"q\":0}"
+    @test collect(a) == ["z" => 1, "m" => 2] # inputs unchanged
+
+    # same key and value types and values as Base's `Dict` result; keys in first-seen order
+    generic(f, ds...) = f === nothing ? invoke(merge, Tuple{AbstractDict,Vararg{AbstractDict}}, ds...) :
+        invoke(mergewith, Tuple{Any,AbstractDict,Vararg{AbstractDict}}, f, ds...)
+    firstseen(ds...) = unique(k for d in ds for k in keys(d))
+    cases = (
+        (JSON.Object{String,Any}("a" => 1, "b" => 2, "a" => 3), Dict("b" => 10, "c" => 20)),
+        (JSON.Object{String,Int}("a" => 1), Dict(:a => 2.5)),
+        (JSON.Object{Float64,Int}(1.0 => 1), Dict(2 => 3, 1 => 5)),
+        (JSON.Object{Int,Int}(1 => 1), JSON.Object{Float64,Int}(2.5 => 3, 1.0 => 4)),
+        (JSON.Object{String,Any}("k$i" => i for i in 1:30), JSON.Object{String,Any}("k$i" => -i for i in 20:40)),
+        (JSON.Object{String,Any}(), JSON.Object{Symbol,Int}()),
+    )
+    for (x, y) in cases, f in (nothing, +)
+        m = f === nothing ? merge(x, y) : mergewith(f, x, y)
+        g = generic(f, x, y)
+        @test m isa JSON.Object{keytype(g),valtype(g)}
+        @test Dict(m) == g
+        @test collect(keys(m)) == firstseen(x, y)
+    end
+
+    n = 2_000
+    o = JSON.Object{CountedKey,Int}(CountedKey(i) => i for i in 1:n)
+    r = JSON.Object{CountedKey,Int}(CountedKey(i) => i for i in n:-1:1)
+    @test comparisons(() -> @test(length(merge(o, r)) == n)) < 10n
+    @test comparisons(() -> @test(mergewith(+, o, r)[CountedKey(7)] == 14)) < 10n
+end
