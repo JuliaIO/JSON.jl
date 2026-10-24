@@ -197,3 +197,35 @@ end
     @test x[:].a[] == [[1, 2, 3], [1, 2, 3]]
     @test JSON.isvalidjson(x)
 end
+
+# byte vectors that are not a stride-1, 1-based block of memory
+struct OffsetBytes <: AbstractVector{UInt8}
+    data::Vector{UInt8}
+end
+Base.axes(b::OffsetBytes) = (Base.IdentityUnitRange(6:5 + length(b.data)),)
+Base.size(b::OffsetBytes) = size(b.data)
+Base.getindex(b::OffsetBytes, i::Int) = b.data[i - 5]
+
+struct PlainBytes <: AbstractVector{UInt8}
+    data::Vector{UInt8}
+end
+Base.size(b::PlainBytes) = size(b.data)
+Base.getindex(b::PlainBytes, i::Int) = b.data[i]
+
+@testset "byte vector layouts" begin
+    bytes = Vector{UInt8}("x[1,2]")
+    # offset axes used to be read from position 1: wrong values or reads outside the array
+    @test JSON.parse(OffsetBytes(Vector{UInt8}("[1,2]"))) == [1, 2]
+    @test JSON.isvalidjson(OffsetBytes(Vector{UInt8}("[1,2]")))
+    @test_throws ArgumentError JSON.parse(OffsetBytes(Vector{UInt8}("[1,")))
+    # these used to throw from `strides`
+    @test JSON.parse(view(bytes, [2, 3, 4, 5, 6])) == [1, 2]
+    @test JSON.parse(UInt8('1'):UInt8('3')) == 123
+    @test JSON.parse(PlainBytes(Vector{UInt8}("{\"a\":[1]}"))) == Dict("a" => [1])
+    # stride-1 layouts are still parsed in place
+    @test JSON.parse(view(Vector{UInt8}("[ 1 , 2 ]"), 1:2:9)) == [1, 2]
+    @test JSON.lazy(view(bytes, 2:6)) isa JSON.LazyValue{<:SubArray}
+    @test JSON.lazy(view(bytes, 2:1:6)) isa JSON.LazyValue{<:SubArray}
+    @test JSON.parse(view(reshape(Vector{UInt8}("[1][2]"), 3, 2), :, 2)) == [2]
+    @test JSON.parse(codeunits("[3]")) == [3]
+end

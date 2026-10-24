@@ -99,12 +99,12 @@ function lazy(buf::Union{AbstractVector{UInt8}, AbstractString}; isroot::Bool=tr
     # the limit is stored as an Int32; clamp so `maxdepth=typemax(Int)` means "no limit"
     opts = LazyOptions(; maxdepth=min(maxdepth, typemax(Int32)), kw...)
     opts.duplicate_keys in (:overwrite, :error) || throw(ArgumentError("`duplicate_keys` must be `:overwrite` or `:error`, got `$(repr(opts.duplicate_keys))`"))
-    if !applicable(pointer, buf, 1) || (buf isa AbstractVector{UInt8} && !isone(only(strides(buf))))
-        if buf isa AbstractString
-            buf = String(buf)
-        else
-            buf = Vector{UInt8}(buf)
-        end
+    # the parser reads `buf[pos]` for `pos in 1:len` and takes `pointer(buf, pos)`;
+    # inputs without that layout are copied first
+    if buf isa AbstractString
+        applicable(pointer, buf, 1) || (buf = String(buf))
+    elseif !(buf isa StridedVector{UInt8} && stride(buf, 1) == 1 && !Base.has_offset_axes(buf))
+        buf = copyto!(Vector{UInt8}(undef, length(buf)), buf)
     end
     len = getlength(buf)
     if len == 0
