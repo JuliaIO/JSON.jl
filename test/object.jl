@@ -645,3 +645,74 @@ end
         @test seen == ["a", "b"]
     end
 end
+
+# a key that counts its `isequal` calls, to check that whole-object operations do not
+# compare every key with every other key
+struct CountedKey
+    k::Int
+end
+const KEY_COMPARISONS = Ref(0)
+Base.isequal(a::CountedKey, b::CountedKey) = (KEY_COMPARISONS[] += 1; a.k == b.k)
+Base.hash(a::CountedKey, h::UInt) = hash(a.k, h)
+JSON.StructUtils.liftkey(::JSON.JSONReadStyle, ::Type{CountedKey}, x::String) = CountedKey(parse(Int, x))
+function comparisons(f)
+    KEY_COMPARISONS[] = 0
+    f()
+    return KEY_COMPARISONS[]
+end
+
+@testset "JSON.Object whole-object operations" begin
+    # the results Base's generic `AbstractDict` methods give, which insert with `setindex!`
+    setindex_all!(obj, kvs) = (for (k, v) in kvs; obj[k] = v; end; obj)
+    same(a, b) = typeof(a) == typeof(b) && isequal(collect(a), collect(b))
+    generic_eq(l, r) = invoke(==, Tuple{AbstractDict,AbstractDict}, l, r)
+    generic_isequal(l, r) = invoke(isequal, Tuple{AbstractDict,AbstractDict}, l, r)
+
+    # few distinct keys, so objects repeat keys; sizes cross the 5-key set and 16-key table thresholds
+    pool = [string(c) for c in 'a':'x']
+    vals = Any[1, 2, missing, NaN]
+    for seed in 1:300
+        n = mod(seed, 41)
+        kvs = Pair{String,Any}[pool[mod(seed * 7 + 3i, 24) + 1] => vals[mod(seed + i * i, 4) + 1] for i in 1:n]
+        o = JSON.Object{String,Any}(kvs)
+        @test same(copy(o), setindex_all!(JSON.Object{String,Any}(), o))
+        @test same(copy!(JSON.Object{String,Any}("zz" => 0), o), setindex_all!(JSON.Object{String,Any}(), o))
+        @test same(merge!(copy(o), o, Dict("b" => 7, "zz" => 8)), setindex_all!(setindex_all!(copy(o), o), Dict("b" => 7, "zz" => 8)))
+        other = JSON.Object{String,Any}(reverse(kvs[1:2:end]))
+        generic_mergewith!(t) = invoke(mergewith!, Tuple{Any,AbstractDict,AbstractDict}, tuple, t, other)
+        @test same(mergewith!(tuple, JSON.Object{String,Any}(kvs), other), generic_mergewith!(JSON.Object{String,Any}(kvs)))
+        keep = p -> isodd(length(p.first) + hash(p.first) % 3)
+        @test same(filter(keep, o), setindex_all!(JSON.Object{String,Any}(), Iterators.filter(keep, o)))
+        for r in (o, copy(o), JSON.Object{String,Any}(reverse(kvs)), JSON.Object{String,Any}(kvs[1:end-1]), JSON.Object{String,Any}(push!(kvs[2:end], "a" => 1)))
+            @test isequal(o == r, generic_eq(o, r))
+            @test isequal(r == o, generic_eq(r, o))
+            @test isequal(o, r) === generic_isequal(o, r)
+        end
+        # parse! into an object that may already repeat keys updates as `setindex!` does
+        new = Pair{String,Any}[pool[mod(seed * 5 + 2i, 24) + 1] => Any[1, 2.5, nothing][mod(seed + i, 3) + 1] for i in 1:mod(seed, 13)]
+        json = "{" * join(("\"$k\":$(JSON.json(v))" for (k, v) in new), ",") * "}"
+        target = JSON.Object{String,Any}(kvs)
+        JSON.parse!(json, target)
+        @test same(target, setindex_all!(JSON.Object{String,Any}(kvs), new))
+    end
+    sym = JSON.Object{String,Any}("a" => 1, "b" => 2)
+    @test same(merge!(sym, Dict(:a => 5, :c => 6)), JSON.Object{String,Any}("a" => 5, "b" => 2, "c" => 6))
+    @test_throws MethodError merge!(JSON.Object{String,Any}(), Dict(1 => 2))
+    @test JSON.Object{Symbol,Any}(:a => 1) == JSON.Object{String,Any}("a" => 1)
+    @test_throws MethodError JSON.parse!("[1]", JSON.Object{String,Any}()) # not an object: the generic path
+
+    n = 2_000
+    o = JSON.Object{CountedKey,Int}(CountedKey(i) => i for i in 1:n)
+    @test comparisons(() -> @test(length(copy(o)) == n)) < 5n
+    @test comparisons(() -> @test(length(filter(p -> iseven(p.second), o)) == n ÷ 2)) < 5n
+    @test comparisons(() -> merge!(copy(o), o)) < 10n
+    @test comparisons(() -> mergewith!(+, copy(o), o)) < 10n
+    r = JSON.Object{CountedKey,Int}(CountedKey(i) => i for i in n:-1:1)
+    @test comparisons(() -> @test(o == r && isequal(o, r))) < 10n
+    json = JSON.json(JSON.Object{String,Int}(string(i) => i for i in 1:n))
+    target = JSON.Object{CountedKey,Int}()
+    @test comparisons(() -> JSON.parse!(json, target)) < 5n
+    @test target == o
+    @test comparisons(() -> JSON.parse!(json, target)) < 5n
+    @test target == o
+end
