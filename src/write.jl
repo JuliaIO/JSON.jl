@@ -1094,10 +1094,7 @@ function _number(buf, pos, x::Number, opts::WriteOptions, io, bufsize)
         end
     else
         str = tostring(x)
-        if anyinvalidnumberchars(str)
-            # serialize as string
-            return _string(buf, pos, str, io, bufsize)
-        end
+        isjsonnumber(str) || return _string(buf, pos, str, io, bufsize)
         return _numbertext(buf, pos, str, io, bufsize)
     end
 end
@@ -1155,15 +1152,35 @@ function _numbertext(buf, pos, str, io, bufsize)
     return pos + sz
 end
 
-function anyinvalidnumberchars(x)
-    for i = 1:sizeof(x)
-        b = codeunit(x, i)
-        if !(b == UInt8('-') || b == UInt8('.') || b == UInt8('e') || b == UInt8('E') ||
-            UInt8('0') <= b <= UInt8('9') ||
-            # an exponent's sign
-            (b == UInt8('+') && i > 1 && (codeunit(x, i - 1) | 0x20) == UInt8('e')))
-            return true
-        end
+# the index after the ASCII digits starting at `i`
+function _skipdigits(s, i, n)
+    while i <= n && UInt8('0') <= codeunit(s, i) <= UInt8('9')
+        i += 1
     end
-    return false
+    return i
+end
+
+# whether `s` is a JSON number: -?(0|[1-9][0-9]*)(\.[0-9]+)?([eE][+-]?[0-9]+)?
+function isjsonnumber(s)
+    n = ncodeunits(s)
+    i = 1 + (n > 0 && codeunit(s, 1) == UInt8('-'))
+    i <= n || return false
+    if codeunit(s, i) == UInt8('0')
+        i += 1
+    else
+        j, i = i, _skipdigits(s, i, n)
+        i > j || return false
+    end
+    if i <= n && codeunit(s, i) == UInt8('.')
+        j = i + 1
+        i = _skipdigits(s, j, n)
+        i > j || return false
+    end
+    if i <= n && (codeunit(s, i) == UInt8('e') || codeunit(s, i) == UInt8('E'))
+        i += 1
+        i <= n && (codeunit(s, i) == UInt8('+') || codeunit(s, i) == UInt8('-')) && (i += 1)
+        j, i = i, _skipdigits(s, i, n)
+        i > j || return false
+    end
+    return i > n
 end

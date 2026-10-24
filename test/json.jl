@@ -948,6 +948,13 @@ end
     @test JSON.json(OmitMacroScope.Documented(nothing)) == "{}"
     @test JSON.json(OmitMacroScope.Empties(Int[])) == "{}"
     @test occursin("A documented struct.", string(@doc OmitMacroScope.Documented))
+    # `tostring` text that isn't a JSON number is written as a string
+    for t in ("1.", ".5", "01", "1e", "1e+", "-", "1-2", "", "+1", "0x1", "1.5e+3x")
+        @test JSON.json([ExponentNumber(t)]) == "[\"$t\"]"
+    end
+    for t in ("0", "-0", "10", "-1.25E-3", "0.0e0", "1e+300")
+        @test JSON.json([ExponentNumber(t)]) == "[$t]"
+    end
 end
 
 end # @testset "JSON.json"
