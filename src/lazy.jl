@@ -484,7 +484,9 @@ Selectors._symbol(x::PtrString) = x.escaped ?
     Symbol(String(x)) :
     ccall(:jl_symbol_n, Ref{Symbol}, (Ptr{UInt8}, Int), x.ptr, x.len)
 
-Base.:(==)(x::PtrString, y::AbstractString) = x.escaped ?
+# only String and SubString{String} are compared byte for byte: other strings may have no
+# `pointer` or may not store UTF-8
+Base.:(==)(x::PtrString, y::AbstractString) = x.escaped || !(y isa Union{String, SubString{String}}) ?
     String(x) == y :
     x.len == sizeof(y) && ccall(:memcmp, Cint, (Ptr{UInt8}, Ptr{UInt8}, Csize_t), x.ptr, pointer(y), x.len) == 0
 Base.:(==)(x::AbstractString, y::PtrString) = y == x

@@ -92,6 +92,10 @@ end
     @test hash(key) == hash("alpha")
     @test haskey(Dict{Any,Int}(key => 1), "alpha")
     @test "alpha" in Set{Any}([key])
+    # strings with no `pointer`
+    @test key == Test.GenericString("alpha")
+    @test key != Test.GenericString("alph")
+    @test JSON.lazy("{\"a\":1}")[lazy"a"][] == 1
 
     # lazy indexing selection support
     # examples from https://support.smartbear.com/alertsite/docs/monitors/api/endpoint/jsonpath.html
