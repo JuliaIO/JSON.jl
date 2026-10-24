@@ -17,6 +17,8 @@ For Objects with many entries (hundreds or thousands), this is not as efficient.
 Typed constructors convert keys and values to `K` and `V`. Pair and iterator constructors
 preserve input order and may contain repeated keys. `setindex!(obj, value, key)` returns
 `obj`, while `delete!(obj, key)` removes all matching entries and returns `obj`.
+`obj.name` looks up the key `"name"` in an `Object{String}`, `:name` in an `Object{Symbol}`,
+and `:name`, then `"name"`, for other key types.
 
 `pop!(obj, key)` removes the first matching entry and returns its value, or throws `KeyError` when the key is absent.
 `pop!(obj, key, default)` returns `default` for an absent key. Without a key, `pop!(obj)`
@@ -71,26 +73,36 @@ function Object{K,V}(pairs::Pair...) where {K,V}
     return root
 end
 
-# generic iterator constructors
+# generic iterator constructors: the key and value types are those of the first pair,
+# widened with `promote_typejoin` when a later pair does not fit, as for `Dict(itr)`
 function Object(itr)
-    root = obj = nothing
     st = iterate(itr)
-    while st !== nothing
-        kv, state = st
-        if kv isa Pair || kv isa Tuple{Any,Any}
-            k, v = kv
-            if root === nothing
-                root = Object{typeof(k), typeof(v)}()
-                obj = root
-            end
-            obj = Object{typeof(k), typeof(v)}(obj, k, v)
-        else
-            throw(ArgumentError("Iterator must yield Pair or 2-tuple, got $(typeof(kv))"))
-        end
-        st = iterate(itr, state)
-    end
-    return root === nothing ? Object{Any,Any}() : root
+    st === nothing && return Object{Any,Any}()
+    k, v = objectpair(st[1])
+    root = Object{typeof(k), typeof(v)}()
+    return growobject!(root, Object{typeof(k), typeof(v)}(root, k, v), itr, st[2])
 end
+
+function growobject!(root::Object{K,V}, obj::Object{K,V}, itr, state) where {K,V}
+    st = iterate(itr, state)
+    while st !== nothing
+        k, v = objectpair(st[1])
+        if !(k isa K && v isa V)
+            K2, V2 = Base.promote_typejoin(K, typeof(k)), Base.promote_typejoin(V, typeof(v))
+            wider = leaf = Object{K2,V2}()
+            for (k1, v1) in root
+                leaf = Object{K2,V2}(leaf, k1, v1)
+            end
+            return growobject!(wider, Object{K2,V2}(leaf, k, v), itr, st[2])
+        end
+        obj = Object{K,V}(obj, k, v)
+        st = iterate(itr, st[2])
+    end
+    return root
+end
+
+objectpair(kv::Union{Pair,Tuple{Any,Any}}) = kv
+objectpair(kv) = throw(ArgumentError("Iterator must yield Pair or 2-tuple, got $(typeof(kv))"))
 
 function Object{K,V}(itr) where {K,V}
     root = obj = Object{K,V}()
@@ -176,6 +188,13 @@ Base.get(obj::Object{Symbol}, key::String, default) = get(obj, Symbol(key), defa
 # support getproperty for dot access
 Base.getproperty(obj::Object{Symbol}, sym::Symbol) = getindex(obj, sym)
 Base.getproperty(obj::Object{String}, sym::Symbol) = getindex(obj, String(sym))
+# other key types (`JSON.Object()` is an `Object{Any,Any}`): the key `sym`, else `String(sym)`
+function Base.getproperty(obj::Object, sym::Symbol)
+    node = find_node_by_key(obj, sym)
+    node === nothing && (node = find_node_by_key(obj, String(sym)))
+    node === nothing && throw(KeyError(sym))
+    return _v(node)
+end
 Base.propertynames(obj::Object) = Tuple(Symbol(key) for key in keys(obj))
 
 # haskey
