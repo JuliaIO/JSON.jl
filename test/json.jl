@@ -14,6 +14,22 @@ struct ExponentNumber <: Real
 end
 JSON.tostring(x::ExponentNumber) = x.text
 
+# a string type with UTF-16 code units, like LegacyStrings.UTF16String
+struct UTF16Str <: AbstractString
+    units::Vector{UInt16}
+end
+UTF16Str(s::String) = UTF16Str(transcode(UInt16, s))
+Base.ncodeunits(s::UTF16Str) = length(s.units)
+Base.codeunit(::UTF16Str) = UInt16
+Base.codeunit(s::UTF16Str, i::Integer) = s.units[i]
+Base.isvalid(s::UTF16Str, i::Int) = checkbounds(Bool, s.units, i) && !(0xdc00 <= s.units[i] <= 0xdfff)
+function Base.iterate(s::UTF16Str, i::Int=1)
+    i > length(s.units) && return nothing
+    c = s.units[i]
+    0xd800 <= c <= 0xdbff && return Char(0x10000 + ((UInt32(c) - 0xd800) << 10) + (s.units[i + 1] - 0xdc00)), i + 2
+    return Char(c), i + 1
+end
+
 @omit_null struct OmitNull
     id::Int
     name::Union{Nothing, String}
@@ -896,6 +912,17 @@ end
     @test JSON.json(JSON.lazy("{\"q\\\"k\":\"v\\n\"}")) == "{\"q\\\"k\":\"v\\n\"}"
     # nested lazy values are materialized before the omit checks
     @test JSON.json((a=JSON.lazy("null"), b=1); omit_null=true) == "{\"b\":1}"
+end
+
+@testset "writer edge cases" begin
+    # strings whose code units aren't bytes are written as UTF-8
+    s = "a€\"\n😀é"
+    @test JSON.json(UTF16Str(s)) == JSON.json(s)
+    @test JSON.json(Dict(UTF16Str("é") => [UTF16Str(s), UTF16Str("")])) == "{\"é\":[$(JSON.json(s)),\"\"]}"
+    # a float_precision too large to size the buffer is rejected, not written past its end
+    @test_throws ArgumentError JSON.json(1.5; float_style=:exp, float_precision=typemax(Int))
+    @test_throws ArgumentError JSON.json([1.5]; float_style=:fixed, float_precision=typemax(Int) - 307)
+    @test JSON.json(0.5; float_style=:fixed, float_precision=1_000_000) == "0.5" * "0"^999_999
 end
 
 end # @testset "JSON.json"
