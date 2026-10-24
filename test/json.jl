@@ -30,6 +30,18 @@ function Base.iterate(s::UTF16Str, i::Int=1)
     return Char(c), i + 1
 end
 
+# the omit macros work where the name `JSON` is not bound, and take a docstring
+module OmitMacroScope
+using JSON: @omit_null, @omit_empty
+"A documented struct."
+@omit_null struct Documented
+    a::Union{Nothing, Int}
+end
+@omit_empty struct Empties
+    a::Vector{Int}
+end
+end
+
 @omit_null struct OmitNull
     id::Int
     name::Union{Nothing, String}
@@ -932,6 +944,10 @@ end
     @test JSON.json((x for x in 1:5 if isodd(x)); pretty=2, inline_limit=4) == "[\n  1,\n  3,\n  5\n]"
     # omit_empty drops empty matrices and sets
     @test JSON.json((m=zeros(0, 0), m2=zeros(2, 0), s=Set{Int}(), m3=zeros(0, 2)); omit_empty=true) == "{\"m3\":[[],[]]}"
+    # the omit macros don't need `JSON` in scope
+    @test JSON.json(OmitMacroScope.Documented(nothing)) == "{}"
+    @test JSON.json(OmitMacroScope.Empties(Int[])) == "{}"
+    @test occursin("A documented struct.", string(@doc OmitMacroScope.Documented))
 end
 
 end # @testset "JSON.json"

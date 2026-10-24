@@ -380,7 +380,7 @@ function _omit_macro_impl(expr, omit_func_name, module_context)
         T, is_parametric = _extract_type_name(expr)
         type_sig = _make_omit_type_sig(T, is_parametric)
         return esc(quote
-            JSON.$omit_func_name(::Type{$type_sig}) = true
+            $JSON.$omit_func_name(::Type{$type_sig}) = true
         end)
     end
     # Case 2: Struct definition (possibly from macro expansion)
@@ -389,10 +389,10 @@ function _omit_macro_impl(expr, omit_func_name, module_context)
         T, is_parametric = _extract_type_name(T)
         type_sig = _make_omit_type_sig(T, is_parametric)
         return esc(quote
-            # insert original expr as-is
-            $expr
+            # insert original expr as-is, documentable
+            $Base.@__doc__ $expr
             # omit function overload
-            JSON.$omit_func_name(::Type{$type_sig}) = true
+            $JSON.$omit_func_name(::Type{$type_sig}) = true
         end)
     end
     # Case 3: Block expression (from complex macros like @defaults)
@@ -407,7 +407,7 @@ function _omit_macro_impl(expr, omit_func_name, module_context)
                 # insert original expr as-is
                 $original_expr
                 # omit function overload
-                JSON.$omit_func_name(::Type{$type_sig}) = true
+                $JSON.$omit_func_name(::Type{$type_sig}) = true
             end)
         end
     end
@@ -422,7 +422,7 @@ function _omit_macro_impl(expr, omit_func_name, module_context)
                 # insert original expr as-is
                 $original_expr
                 # omit function overload
-                JSON.$omit_func_name(::Type{$type_sig}) = true
+                $JSON.$omit_func_name(::Type{$type_sig}) = true
             end)
         else
             throw(ArgumentError("Macro $(original_expr.args[1]) did not expand to a struct definition"))
