@@ -265,3 +265,111 @@ Base.setproperty!(obj::Object, sym::Symbol, val) = setindex!(obj, val, sym)
 Base.setproperty!(obj::Object{String}, sym::Symbol, val) = setindex!(obj, val, String(sym))
 
 Base.merge(a::NamedTuple, b::Object{String,Any}) = merge(a, (Symbol(k) => v for (k, v) in b))
+
+# Whole-object operations on more than `SCAN_LIMIT` entries look keys up in a table of
+# each key's first node instead of scanning the list once per key. A repeated key updates
+# its first entry, as `setindex!` does.
+const SCAN_LIMIT = 16
+
+# the key `setindex!(obj, value, key)` stores
+storedkey(::Object{K}, key::K) where {K} = key
+storedkey(::Object{String}, key::Union{AbstractString,Symbol}) = String(key)
+storedkey(::Object{Symbol}, key::String) = Symbol(key)
+
+# each key's first node in an object, and the object's last node
+mutable struct NodeIndex{K,V}
+    nodes::Dict{K,Object{K,V}}
+    leaf::Object{K,V}
+end
+
+# the index of `d`, with its table sized for `n` keys
+function NodeIndex(d::Object{K,V}, n::Int) where {K,V}
+    leaf = d
+    while _ch(leaf) !== notset
+        leaf = _ch(leaf)::Object{K,V}
+    end
+    return NodeIndex(nodetable(d, n), leaf)
+end
+
+# where `mergepair!` adds to `d`: `d` itself for `n` entries or fewer, else its index
+mergedest(d::Object, n::Int) = n <= SCAN_LIMIT ? d : NodeIndex(d, n)
+
+# adds `key => v` as `setindex!` (`combine === nothing`) or `mergewith!` does; inlined, as
+# a call that passes an `Any` value and calls `combine` is otherwise dispatched at run time
+@inline function mergepair!(combine, d::Object{K,V}, key::K, v) where {K,V}
+    node = d # one scan, as in `_setindex!`
+    while true
+        if _k(node) !== notset && isequal(_k(node)::K, key)
+            setfield!(node, :value, convert(V, combine === nothing ? v : combine(_v(node)::V, v)))
+            return
+        end
+        _ch(node) === notset && break
+        node = _ch(node)::Object{K,V}
+    end
+    Object{K,V}(node, key, v)
+    return
+end
+
+@inline function mergepair!(combine, ix::NodeIndex{K,V}, key, v) where {K,V}
+    node = get(ix.nodes, key, nothing)
+    if node === nothing
+        ix.nodes[key] = ix.leaf = Object{K,V}(ix.leaf, key, v)
+    else
+        setfield!(node, :value, convert(V, combine === nothing ? v : combine(_v(node)::V, v)))
+    end
+    return
+end
+
+# `F` makes Julia specialize on `combine`, which is passed on rather than called here
+function mergeinto!(combine::F, d::Object, dest, other) where {F}
+    for (k, v) in other
+        mergepair!(combine, dest, storedkey(d, k), v)
+    end
+end
+
+# also used by Base's `copy` and `copy!`; `N` makes Julia specialize on the number of dicts
+function Base.merge!(d::Object, others::Vararg{AbstractDict,N}) where {N}
+    dest = mergedest(d, length(d) + sum(length, others; init=0))
+    for other in others
+        mergeinto!(nothing, d, dest, other)
+    end
+    return d
+end
+
+Base.mergewith!(combine::F, d::Object, other::AbstractDict) where {F} =
+    (mergeinto!(combine, d, mergedest(d, length(d) + length(other)), other); d)
+
+function Base.filter(f, d::Object)
+    df = empty(d)
+    dest = df
+    n = 0
+    for p in d
+        f(p) || continue
+        (n += 1) == SCAN_LIMIT + 1 && (dest = NodeIndex(df, length(d)))
+        mergepair!(nothing, dest, p.first, p.second)
+    end
+    return df
+end
+
+# Base's `AbstractDict` `==`/`isequal`: each pair of `l` is looked up in `r` (its first
+# entry for a repeated key), in a table instead of a scan of `r` for larger objects.
+Base.:(==)(l::Object{K}, r::Object{K}) where {K} = objectequal(==, l, r)
+Base.isequal(l::Object{K}, r::Object{K}) where {K} = l === r || objectequal(isequal, l, r)
+
+function objectequal(valcmp, l::Object{K}, r::Object{K,V}) where {K,V}
+    n = length(l)
+    n == length(r) || return false
+    nodes = n <= SCAN_LIMIT ? nothing : nodetable(r, n)
+    anymissing = false
+    for (k, v) in l
+        node = nodes === nothing ? find_node_by_key(r, k) : get(nodes, k, nothing)
+        node === nothing && return false
+        eq = valcmp(_v(node)::V, v)
+        if ismissing(eq)
+            anymissing = true
+        elseif !eq
+            return false
+        end
+    end
+    return anymissing ? missing : true
+end
