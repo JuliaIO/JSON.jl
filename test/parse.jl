@@ -423,6 +423,10 @@ end
     # skipping a number checks its grammar without converting it
     @test JSON.isvalidjson("[0, -0.5, 1e5, -1.5E-10, 123456789012345678901234567890, 1.5e400]")
     @test !any(JSON.isvalidjson, ("[01]", "[1.]", "[-]", "[1e]", "[.5]", "[+1]", "[1.5x]"))
+    # Julia's `f` exponent marker is not JSON
+    @test !any(JSON.isvalidjson, ("1.5f3", "[1.5f3]", "{\"a\":2.5F-1}", "[-0.5F-2]"))
+    @test_throws ArgumentError JSON.parse("1.5f3")
+    @test_throws ArgumentError JSON.parse("[1.5f3]", Vector{Float64})
     @test JSON.isvalidjson("[NaN, -Infinity, +1]"; allownan=true)
     # isvalidjson, and values a typed parse skips, refuse what `parse` refuses:
     # content after the value and invalid escapes (#511)
@@ -1145,6 +1149,13 @@ end
     @test isequal(JSON.parse("[1e40, -0.0, 1e-50]", Vector{Float32}), [Inf32, -0.0f0, 0.0f0])
     for T in (Float16, Float32, BigFloat), s in ("1.5e", "1.5e+", "-1.e5")
         @test_throws ArgumentError JSON.parse(s, T)
+    end
+    # long in-range tokens, and BigFloat at the current precision
+    for T in (Float16, Float32)
+        @test JSON.parse("1" * "0"^300 * "e-300", T) === T(1)
+    end
+    setprecision(BigFloat, 64) do
+        @test precision(JSON.parse("0.1", BigFloat)) == 64
     end
 end
 
