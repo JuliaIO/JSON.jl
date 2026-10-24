@@ -527,25 +527,45 @@ Selectors._getindex(x::LazyValues, S::typeof(~), key::Colon) =
 # field cursor without changing StructUtils' behavior for arbitrary key types.
 @inline StructUtils.orderedfieldmatch(x::PtrString, field::String) = x == field
 
-# the position of the last byte of the escape whose `\` is at `pos`: an escape is `\` and
-# one of `"\/bfnrt`, or `\u` and four hex digits
-@noinline function escapeend(buf, pos::Int, len::Int)
-    # the escaped character and the closing quote
-    pos + 2 > len && invalid(UnexpectedEOF, buf, pos, "string")
-    b = getbyte(buf, pos + 1)
-    if b == UInt8('u')
-        for i = (pos + 2):(pos + 5)
-            i > len && invalid(UnexpectedEOF, buf, i, "string")
-            b = getbyte(buf, i)
-            UInt8('0') <= b <= UInt8('9') || UInt8('a') <= (b | 0x20) <= UInt8('f') ||
-                invalid(InvalidEscape, buf, i, "string")
+# bit `c` is set for each byte `c` that may follow `\` other than `u`
+const SIMPLEESCAPES = mapreduce(c -> UInt128(1) << UInt8(c), |, "\"\\/bfnrt")
+@inline ishexbyte(b) = UInt8('0') <= b <= UInt8('9') || UInt8('a') <= (b | 0x20) <= UInt8('f')
+
+# the position of the closing quote of a string whose first `\` is at `pos`. Validates each
+# escape (`\` and one of `"\/bfnrt`, or `\u` and four hex digits) and rejects raw control
+# characters. Kept out of `parsestring` so its loop stays small for strings without escapes;
+# one call scans the whole escaped remainder.
+@noinline function escapedend(buf, pos::Int, len::Int)
+    while true
+        pos > len && invalid(UnexpectedEOF, buf, pos, "string")
+        b = getbyte(buf, pos)
+        b == UInt8('"') && return pos
+        b <= UInt8(0x1F) && unescaped_control(b)
+        if b == UInt8('\\')
+            # the escaped character and the closing quote
+            pos + 2 > len && invalid(UnexpectedEOF, buf, pos, "string")
+            b = getbyte(buf, pos + 1)
+            if b == UInt8('u')
+                if pos + 6 > len
+                    # no room for four hex digits and the closing quote: report the first bad byte
+                    for i = (pos + 2):(pos + 5)
+                        i > len && invalid(UnexpectedEOF, buf, i, "string")
+                        ishexbyte(getbyte(buf, i)) || invalid(InvalidEscape, buf, i, "string")
+                    end
+                    invalid(UnexpectedEOF, buf, len + 1, "string")
+                end
+                for i = (pos + 2):(pos + 5)
+                    ishexbyte(getbyte(buf, i)) || invalid(InvalidEscape, buf, i, "string")
+                end
+                pos += 6
+            else
+                (b < 0x80 && isodd(SIMPLEESCAPES >> b)) || invalid(InvalidEscape, buf, pos + 1, "string")
+                pos += 2
+            end
+        else
+            pos += 1
         end
-        return pos + 5
     end
-    b == UInt8('"') || b == UInt8('\\') || b == UInt8('/') || b == UInt8('b') ||
-        b == UInt8('f') || b == UInt8('n') || b == UInt8('r') || b == UInt8('t') ||
-        invalid(InvalidEscape, buf, pos + 1, "string")
-    return pos + 1
 end
 
 # core JSON string parsing function
@@ -564,21 +584,19 @@ function parsestring(x::LazyValue)
     end
     pos += 1
     spos = pos
-    escaped = false
     @nextbyte(false)
     while b != UInt8('"')
         # disallow raw control characters within a JSON string
         b <= UInt8(0x1F) && unescaped_control(b)
         if b == UInt8('\\')
-            escaped = true
-            # checked here, not only when unescaping, so skipped values are validated too
-            pos = escapeend(buf, pos, len) + 1
-        else
-            pos += 1
+            # escapes are validated here, not only when unescaping, so skipped values are too
+            pos = escapedend(buf, pos, len)
+            return PtrString(pointer(buf, spos), pos - spos, true), pos + 1
         end
+        pos += 1
         @nextbyte(false)
     end
-    str = PtrString(pointer(buf, spos), pos - spos, escaped)
+    str = PtrString(pointer(buf, spos), pos - spos, false)
     return str, pos + 1
 
 @label invalid
