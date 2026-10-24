@@ -1180,3 +1180,25 @@ end
     JSON.parse("{\"a\":1,\"zz\":2}", OnlyA; style=st)
     @test st.keys == ["zz"] && st.keys[1] isa String
 end
+
+@testset "error messages point at the offending byte" begin
+    errmsg(s; kw...) = try JSON.parse(s; kw...); "" catch e; e.msg end
+    # the caret sits under the byte, also after tabs and newlines in the snippet
+    for (s, col) in (("[,]", 2), ("[1,2,x]", 6), ("[1,\n2,\n x]", 9), ("[1,\t\tx]", 6))
+        lines = split(errmsg(s), '\n')
+        @test findfirst('^', lines[3]) == col
+    end
+    # misspelled literals get the positioned message, not the NaN/Inf hint
+    for s in ("[nul]", "{\"a\": nil}", "[1, none]", "[inf]")
+        @test occursin("byte position", errmsg(s)) && !occursin("NaN", errmsg(s))
+    end
+    @test occursin("byte position 2", errmsg("[NaN]")) && occursin("allownan", errmsg("[NaN]"))
+    # a raw control character in a string reports where it is
+    @test occursin("byte position 13 (line 2)", errmsg("{\"a\": \"line1\nline2\"}"))
+    @test occursin("byte position 7 (line 1)", errmsg("[\"a\\nb\x01\"]"))
+    # isvalidjson returns false for invalid JSON, and rethrows other errors
+    @test !JSON.isvalidjson("[1,]")
+    @test !JSON.isvalidjson("{\"a\":1,\"a\":2}"; duplicate_keys=:error)
+    @test_throws MethodError JSON.isvalidjson("[1]"; error_context=true)
+    @test_throws MethodError JSON.isvalidjson("[1]"; dicttype=Dict{String,Any})
+end
