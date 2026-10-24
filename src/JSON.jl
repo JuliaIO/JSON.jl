@@ -77,7 +77,7 @@ end
     # position we wanted to read, so every input ending mid-token lands here
     # with pos == sizeof(cus) + 1. Clamp before slicing, or building the error
     # message throws BoundsError instead of the ArgumentError we mean to raise.
-    n = sizeof(cus)
+    n = getlength(buf)
     line_no = count(b -> b == UInt8('\n'), view(cus, 1:min(pos, n))) + 1
 
     li = pos > 20 ? min(pos - 9, n) : 1
