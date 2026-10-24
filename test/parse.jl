@@ -1202,3 +1202,17 @@ end
     @test_throws MethodError JSON.isvalidjson("[1]"; error_context=true)
     @test_throws MethodError JSON.isvalidjson("[1]"; dicttype=Dict{String,Any})
 end
+
+JSON.@nonstruct struct LiftedWhole
+    d::Any
+end
+JSON.lift(::Type{LiftedWhole}, x) = LiftedWhole(x)
+
+@testset "lift targets get the parse's null and dicttype" begin
+    x = JSON.parse("{\"c\":{\"a\":null,\"b\":[null]}}", @NamedTuple{c::LiftedWhole}; null=missing)
+    @test x.c.d["a"] === missing && x.c.d["b"][1] === missing
+    y = JSON.parse("{\"c\":{\"a\":{\"b\":1}}}", @NamedTuple{c::LiftedWhole}; dicttype=Dict{String,Any})
+    @test y.c.d isa Dict{String,Any} && y.c.d["a"] isa Dict{String,Any}
+    # default options: as before
+    @test JSON.parse("{\"c\":{\"a\":null}}", @NamedTuple{c::LiftedWhole}).c.d isa JSON.Object{String,Any}
+end

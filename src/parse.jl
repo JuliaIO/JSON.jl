@@ -805,15 +805,15 @@ function StructUtils.lift(style::JSONReadStyle, ::Type{T}, x::LazyValues, tags=(
         sglt, _ = StructUtils.lift(style, T, T(), tags)
         return sglt, skip(x)
     else
-        # an `Any` slot materializes like the untyped parse, with this parse's options
-        # (with the default ones, that is the untyped path below)
-        T === Any && !(style isa JSONReadStyle{DEFAULT_OBJECT_TYPE,Nothing,StructUtils.DefaultStyle,Nothing}) &&
-            return StructUtils.make(style, Any, x)
+        # an object or array materializes like the untyped parse, with this parse's options
+        # (with the default ones, that is the untyped path itself)
+        plain = style isa JSONReadStyle{DEFAULT_OBJECT_TYPE,Nothing,StructUtils.DefaultStyle,Nothing}
+        T === Any && !plain && return StructUtils.make(style, Any, x)
         out = ValueClosure()
-        pos = applyvalue(out, x, nothing)
+        pos = plain ? applyvalue(out, x, nothing) : applyvalue(out, x, style)
         val1 = out.value
         # big switch here for --trim verify-ability
-        if val1 isa Object{String,Any}
+        if val1 isa objecttype(style)
             val, _ = StructUtils.lift(style, T, val1, tags)
             return val, pos
         elseif val1 isa Vector{Any}
