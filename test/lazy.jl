@@ -265,3 +265,27 @@ end
     @test getproperty(y, Symbol("cé"))[] == 3
     @test_throws KeyError y.ab
 end
+
+# a string type with UTF-16 code units that has a `pointer`, like LegacyStrings.UTF16String
+struct PointerUTF16 <: AbstractString
+    units::Vector{UInt16}
+end
+PointerUTF16(s::String) = PointerUTF16(transcode(UInt16, s))
+Base.ncodeunits(s::PointerUTF16) = length(s.units)
+Base.codeunit(::PointerUTF16) = UInt16
+Base.codeunit(s::PointerUTF16, i::Integer) = s.units[i]
+Base.pointer(s::PointerUTF16, i::Integer=1) = pointer(s.units, i)
+Base.isvalid(s::PointerUTF16, i::Int) = checkbounds(Bool, s.units, i) && !(0xdc00 <= s.units[i] <= 0xdfff)
+function Base.iterate(s::PointerUTF16, i::Int=1)
+    i > length(s.units) && return nothing
+    c = s.units[i]
+    0xd800 <= c <= 0xdbff && return Char(0x10000 + ((UInt32(c) - 0xd800) << 10) + (s.units[i + 1] - 0xdc00)), i + 2
+    return Char(c), i + 1
+end
+
+@testset "strings with wider code units" begin
+    s = PointerUTF16("{\"a\":[1,\"é€😀\"]}")
+    @test JSON.parse(s) == Dict("a" => [1, "é€😀"])
+    @test JSON.isvalidjson(s)
+    @test JSON.lazy(s) isa JSON.LazyValue{String}
+end

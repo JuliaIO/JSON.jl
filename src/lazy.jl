@@ -102,7 +102,8 @@ function lazy(buf::Union{AbstractVector{UInt8}, AbstractString}; isroot::Bool=tr
     # the parser reads `buf[pos]` for `pos in 1:len` and takes `pointer(buf, pos)`;
     # inputs without that layout are copied first
     if buf isa AbstractString
-        applicable(pointer, buf, 1) || (buf = String(buf))
+        # positions count UTF-8 bytes, so strings of wider code units are converted too
+        (codeunit(buf) === UInt8 && applicable(pointer, buf, 1)) || (buf = String(buf))
     elseif !(buf isa StridedVector{UInt8} && stride(buf, 1) == 1 && !Base.has_offset_axes(buf))
         buf = copyto!(Vector{UInt8}(undef, length(buf)), buf)
     end
