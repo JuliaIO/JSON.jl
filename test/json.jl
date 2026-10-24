@@ -955,6 +955,11 @@ end
     for t in ("0", "-0", "10", "-1.25E-3", "0.0e0", "1e+300")
         @test JSON.json([ExponentNumber(t)]) == "[$t]"
     end
+    # strings and numbers skip the cycle check; containers still break cycles
+    str, n = "x", big(1)
+    a = Any[str, n, Any[str, n]]
+    push!(a, a)
+    @test JSON.json(a) == "[\"x\",1,[\"x\",1],null]"
 end
 
 end # @testset "JSON.json"

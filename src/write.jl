@@ -815,7 +815,8 @@ for sig in (:((f::WriteClosure{JS, arraylike, I})(key, val) where {JS, arraylike
         # materialize a nested LazyValue (see `json!`) before the omit checks below,
         # so they see the parsed value
         val isa LazyValue && return f(key, StructUtils.lower(f.opts.style, val[]))
-        track_ref = ismutabletype(typeof(val))
+        # strings and numbers are written directly, so they can't be part of a cycle
+        track_ref = ismutabletype(typeof(val)) && !(val isa Union{AbstractString, Number})
         is_circ_ref = track_ref && any(x -> x === val, f.ancestor_stack)
         val isa Omit && return
         if !arraylike
