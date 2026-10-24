@@ -624,14 +624,10 @@ end
 # integer digits are accumulated as a negative number so typemin(Int64) fits
 const INT64_MIN_DIV10 = div(typemin(Int64), 10)
 const INT64_MIN_LASTDIGIT = -rem(typemin(Int64), 10)
-# Parsers 2's xparse2 finds the end of a float itself, so the scanner stops at
-# the first '.'/'e'; the Parsers 3 kernels need the exact span, so it scans to the end
-const SCANFLOATTAIL = !isdefined(Parsers, :xparse2)
-
 # scan a JSON number token starting at `startpos`; returns the position after
-# the token (or after the integer part if !SCANFLOATTAIL), whether it has a
-# fraction or exponent, the integer value, and whether that value overflowed Int64;
-# nextpos == startpos means the bytes at startpos are not a valid JSON number
+# the token, whether it has a fraction or exponent, the integer value, and whether
+# that value overflowed Int64; nextpos == startpos means the bytes at startpos are
+# not a valid JSON number
 @inline function scannumber(buf, startpos, len)
     pos = startpos
     b = getbyte(buf, pos)
@@ -670,7 +666,6 @@ const SCANFLOATTAIL = !isdefined(Parsers, :xparse2)
         isfloat = true
         pos += 1
         (pos > len || !(UInt8('0') <= getbyte(buf, pos) <= UInt8('9'))) && return startpos, false, val, false
-        SCANFLOATTAIL || return pos, true, val, overflow
         while pos <= len && UInt8('0') <= getbyte(buf, pos) <= UInt8('9')
             pos += 1
         end
@@ -678,7 +673,6 @@ const SCANFLOATTAIL = !isdefined(Parsers, :xparse2)
     # exponent: optional sign, at least one digit
     if pos <= len && (getbyte(buf, pos) == UInt8('e') || getbyte(buf, pos) == UInt8('E'))
         isfloat = true
-        SCANFLOATTAIL || return pos, true, val, overflow
         pos += 1
         if pos <= len && (getbyte(buf, pos) == UInt8('+') || getbyte(buf, pos) == UInt8('-'))
             pos += 1
@@ -729,58 +723,36 @@ const LONGINTEGER = 2000
     NumberResult(Base.parse(BigInt, String(numberbytes(buf)[first:last])))
 
 @static if isdefined(Parsers, :xparse2)
-    # Parsers 2: `xparse2` parses the longest number prefix of buf[first:len]
+    # Parsers 2: `xparse2` converts the longest number prefix of buf[first:last]; the
+    # validated token must be all of it (Parsers 2 also takes Julia forms like `1.5f3`)
     @inline function parsefloat64(buf, first, nextpos, len, allownan)
-        res = Parsers.xparse2(Float64, buf, first, len)
-        nextpos = first + Int(res.tlen)
+        res = Parsers.xparse2(Float64, buf, first, nextpos - 1)
         if !allownan && Parsers.specialvalue(res.code)
             # overflowed to Inf; promote to BigFloat
-            bres = Parsers.xparse2(BigFloat, buf, first, len)
+            bres = Parsers.xparse2(BigFloat, buf, first, nextpos - 1)
             Parsers.invalid(bres.code) || return NumberResult(bres.val), nextpos
         end
-        Parsers.invalid(res.code) && invalid(InvalidNumber, buf, first, "number")
+        (Parsers.invalid(res.code) || first + Int(res.tlen) != nextpos) && invalid(InvalidNumber, buf, first, "number")
         return NumberResult(res.val), nextpos
     end
     @inline parsebigint(buf, first, last) = last - first >= LONGINTEGER ?
         parselongint(buf, first, last) : NumberResult(Parsers.xparse2(BigInt, buf, first, last).val)
+    # Parsers 2 ignores `precision(BigFloat)` and rejects some long in-range tokens for
+    # Float16/Float32; MPFR's conversion rounds correctly at the current precision
+    @noinline parsebigfloat(buf, first, last) = Base.parse(BigFloat, String(numberbytes(buf)[first:last]))
     @inline function parsefloatas(::Type{T}, buf, first, nextpos, len) where {T}
-        res = Parsers.xparse2(T, buf, first, len)
-        Parsers.invalid(res.code) && invalid(InvalidNumber, buf, first, "number")
-        return NumberResult(T === BigFloat ? res.val : Float64(res.val)), first + Int(res.tlen)
+        T === BigFloat && return NumberResult(parsebigfloat(buf, first, nextpos - 1)), nextpos
+        res = Parsers.xparse2(T, buf, first, nextpos - 1)
+        if Parsers.invalid(res.code) || first + Int(res.tlen) != nextpos
+            return NumberResult(Float64(T(parsebigfloat(buf, first, nextpos - 1)))), nextpos
+        end
+        return NumberResult(Float64(res.val)), nextpos
     end
     # native `[+-]NaN`, `[+-]Inf`, `[+-]Infinity` spellings (case-insensitive)
     @inline function parsenativespecial(buf, pos, len)
         res = Parsers.xparse2(Float64, buf, pos, len)
         (Parsers.invalid(res.code) || isfinite(res.val)) && return nothing
         return NumberResult(res.val), pos + Int(res.tlen)
-    end
-    @inline function exactintegerend(buf, first, nextpos, len)
-        pos = first
-        b = getbyte(buf, pos)
-        (b == UInt8('-') || b == UInt8('+')) && (pos += 1)
-        while pos <= len && UInt8('0') <= getbyte(buf, pos) <= UInt8('9')
-            pos += 1
-        end
-        if pos <= len && getbyte(buf, pos) == UInt8('.')
-            pos += 1
-            (pos > len || !(UInt8('0') <= getbyte(buf, pos) <= UInt8('9'))) &&
-                invalid(InvalidNumber, buf, pos, "number")
-            while pos <= len && UInt8('0') <= getbyte(buf, pos) <= UInt8('9')
-                pos += 1
-            end
-        end
-        if pos <= len && (getbyte(buf, pos) == UInt8('e') || getbyte(buf, pos) == UInt8('E'))
-            pos += 1
-            if pos <= len && (getbyte(buf, pos) == UInt8('+') || getbyte(buf, pos) == UInt8('-'))
-                pos += 1
-            end
-            (pos > len || !(UInt8('0') <= getbyte(buf, pos) <= UInt8('9'))) &&
-                invalid(InvalidNumber, buf, pos, "number")
-            while pos <= len && UInt8('0') <= getbyte(buf, pos) <= UInt8('9')
-                pos += 1
-            end
-        end
-        return pos
     end
 else
     # Parsers 3: the kernels convert exactly buf[first:nextpos-1]
@@ -805,7 +777,6 @@ else
         (code != Parsers.RC_OK || isfinite(val)) && return nothing
         return NumberResult(val), nextpos
     end
-    @inline exactintegerend(buf, first, nextpos, len) = nextpos
 end
 
 @inline function parseboundedexponent(buf, pos, nextpos, limit)
@@ -921,7 +892,6 @@ end
 # UInt128 keeps the common path allocation-free. The fallback for longer
 # coefficients also retains only a bounded UInt128 result.
 function parseexactinteger(buf, first, nextpos, len, ::Type{T}) where {T}
-    nextpos = exactintegerend(buf, first, nextpos, len)
     pos = first
     b = getbyte(buf, pos)
     isneg = b == UInt8('-')
@@ -1028,8 +998,7 @@ end
 end
 
 # Skipping a number only needs its end. This full conversion is the fallback for
-# `allownan` input, for Parsers 2 (which finds a float's end while converting), and
-# for invalid tokens, which it reports.
+# `allownan` input and for invalid tokens, which it reports.
 @noinline skipnumber(x::LazyValues) = parsenumber(x)[2]
 
 # efficiently skip over a JSON value
@@ -1045,7 +1014,7 @@ function skip(x::LazyValues)
         _, pos = parsestring(x)
         return pos
     elseif T == JSONTypes.NUMBER
-        (SCANFLOATTAIL && !getopts(x).allownan) || return skipnumber(x)
+        getopts(x).allownan && return skipnumber(x)
         buf = getbuf(x)
         pos, _, _, _ = scannumber(buf, getpos(x), getlength(buf))
         return pos == getpos(x) ? skipnumber(x) : pos
