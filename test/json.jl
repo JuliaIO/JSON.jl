@@ -14,6 +14,34 @@ struct ExponentNumber <: Real
 end
 JSON.tostring(x::ExponentNumber) = x.text
 
+# a string type with UTF-16 code units, like LegacyStrings.UTF16String
+struct UTF16Str <: AbstractString
+    units::Vector{UInt16}
+end
+UTF16Str(s::String) = UTF16Str(transcode(UInt16, s))
+Base.ncodeunits(s::UTF16Str) = length(s.units)
+Base.codeunit(::UTF16Str) = UInt16
+Base.codeunit(s::UTF16Str, i::Integer) = s.units[i]
+Base.isvalid(s::UTF16Str, i::Int) = checkbounds(Bool, s.units, i) && !(0xdc00 <= s.units[i] <= 0xdfff)
+function Base.iterate(s::UTF16Str, i::Int=1)
+    i > length(s.units) && return nothing
+    c = s.units[i]
+    0xd800 <= c <= 0xdbff && return Char(0x10000 + ((UInt32(c) - 0xd800) << 10) + (s.units[i + 1] - 0xdc00)), i + 2
+    return Char(c), i + 1
+end
+
+# the omit macros work where the name `JSON` is not bound, and take a docstring
+module OmitMacroScope
+using JSON: @omit_null, @omit_empty
+"A documented struct."
+@omit_null struct Documented
+    a::Union{Nothing, Int}
+end
+@omit_empty struct Empties
+    a::Vector{Int}
+end
+end
+
 @omit_null struct OmitNull
     id::Int
     name::Union{Nothing, String}
@@ -896,6 +924,42 @@ end
     @test JSON.json(JSON.lazy("{\"q\\\"k\":\"v\\n\"}")) == "{\"q\\\"k\":\"v\\n\"}"
     # nested lazy values are materialized before the omit checks
     @test JSON.json((a=JSON.lazy("null"), b=1); omit_null=true) == "{\"b\":1}"
+end
+
+@testset "writer edge cases" begin
+    # strings whose code units aren't bytes are written as UTF-8
+    s = "a€\"\n😀é"
+    @test JSON.json(UTF16Str(s)) == JSON.json(s)
+    @test JSON.json(Dict(UTF16Str("é") => [UTF16Str(s), UTF16Str("")])) == "{\"é\":[$(JSON.json(s)),\"\"]}"
+    # a float_precision too large to size the buffer is rejected, not written past its end
+    @test_throws ArgumentError JSON.json(1.5; float_style=:exp, float_precision=typemax(Int))
+    @test_throws ArgumentError JSON.json([1.5]; float_style=:fixed, float_precision=typemax(Int) - 307)
+    @test JSON.json(0.5; float_style=:fixed, float_precision=1_000_000) == "0.5" * "0"^999_999
+    # a 0-dim array is written as its lowered element
+    @test JSON.json(fill(missing)) == "null"
+    @test JSON.json(fill(1//3)) == "{\"num\":1,\"den\":3}"
+    @test JSON.json(fill([1 2; 3 4])) == "[[1,3],[2,4]]"
+    @test JSON.json((a=fill(missing),)) == "{\"a\":null}"
+    # inline_limit leaves unsized iterators pretty-printed
+    @test JSON.json((x for x in 1:5 if isodd(x)); pretty=2, inline_limit=4) == "[\n  1,\n  3,\n  5\n]"
+    # omit_empty drops empty matrices and sets
+    @test JSON.json((m=zeros(0, 0), m2=zeros(2, 0), s=Set{Int}(), m3=zeros(0, 2)); omit_empty=true) == "{\"m3\":[[],[]]}"
+    # the omit macros don't need `JSON` in scope
+    @test JSON.json(OmitMacroScope.Documented(nothing)) == "{}"
+    @test JSON.json(OmitMacroScope.Empties(Int[])) == "{}"
+    @test occursin("A documented struct.", string(@doc OmitMacroScope.Documented))
+    # `tostring` text that isn't a JSON number is written as a string
+    for t in ("1.", ".5", "01", "1e", "1e+", "-", "1-2", "", "+1", "0x1", "1.5e+3x")
+        @test JSON.json([ExponentNumber(t)]) == "[\"$t\"]"
+    end
+    for t in ("0", "-0", "10", "-1.25E-3", "0.0e0", "1e+300")
+        @test JSON.json([ExponentNumber(t)]) == "[$t]"
+    end
+    # strings and numbers skip the cycle check; containers still break cycles
+    str, n = "x", big(1)
+    a = Any[str, n, Any[str, n]]
+    push!(a, a)
+    @test JSON.json(a) == "[\"x\",1,[\"x\",1],null]"
 end
 
 end # @testset "JSON.json"

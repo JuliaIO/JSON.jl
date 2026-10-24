@@ -134,7 +134,7 @@ StructUtils.lower(::JSONStyle, x::Complex) = (re=real(x), im=imag(x))
 # (1//3 reads back as 6004799503160661//18014398509481984), so serialize the pair that
 # reading already expects. `lower` on a custom style restores a float if wanted.
 StructUtils.lower(::JSONStyle, x::Rational) = (num=x.num, den=x.den)
-StructUtils.lower(::JSONStyle, x::AbstractArray{<:Any,0}) = x[1]
+StructUtils.lower(st::JSONStyle, x::AbstractArray{<:Any,0}) = StructUtils.lower(st, x[])
 StructUtils.lower(::JSONStyle, x::AbstractArray{<:Any, N}) where {N} = (view(x, ntuple(_ -> :, N - 1)..., j) for j in axes(x, N))
 StructUtils.lower(::JSONStyle, x::AbstractVector) = x
 StructUtils.arraylike(::JSONStyle, x::AbstractVector{<:Pair}) = false
@@ -326,7 +326,7 @@ end
 Controls whether struct fields that are empty are included in the JSON output.
 Returns `false` by default, meaning empty fields *are* included. To instead exclude empty fields,
 set this to `true`. A field is considered empty if it is `nothing`, an empty collection
-(empty array, dict, string, tuple, or named tuple), or `missing`.
+(empty array, dict, set, string, tuple, or named tuple), or `missing`.
 This can also be controlled via the `omit_empty` keyword argument in [`JSON.json`](@ref).
 
 ```julia
@@ -343,7 +343,8 @@ omit_empty(::JSONStyle, ::Type{T}) where {T} = omit_empty(T)
 
 is_empty(x) = false
 is_empty(::Nothing) = true
-is_empty(x::Union{AbstractDict, AbstractArray, AbstractString, Tuple, NamedTuple}) = Base.isempty(x)
+# a generator over an array is how a multidimensional array is lowered
+is_empty(x::Union{AbstractDict, AbstractArray, AbstractSet, AbstractString, Tuple, NamedTuple, Base.Generator{<:AbstractArray}}) = Base.isempty(x)
 
 """
     @omit_empty struct T ...
@@ -379,7 +380,7 @@ function _omit_macro_impl(expr, omit_func_name, module_context)
         T, is_parametric = _extract_type_name(expr)
         type_sig = _make_omit_type_sig(T, is_parametric)
         return esc(quote
-            JSON.$omit_func_name(::Type{$type_sig}) = true
+            $JSON.$omit_func_name(::Type{$type_sig}) = true
         end)
     end
     # Case 2: Struct definition (possibly from macro expansion)
@@ -388,10 +389,10 @@ function _omit_macro_impl(expr, omit_func_name, module_context)
         T, is_parametric = _extract_type_name(T)
         type_sig = _make_omit_type_sig(T, is_parametric)
         return esc(quote
-            # insert original expr as-is
-            $expr
+            # insert original expr as-is, documentable
+            $Base.@__doc__ $expr
             # omit function overload
-            JSON.$omit_func_name(::Type{$type_sig}) = true
+            $JSON.$omit_func_name(::Type{$type_sig}) = true
         end)
     end
     # Case 3: Block expression (from complex macros like @defaults)
@@ -406,7 +407,7 @@ function _omit_macro_impl(expr, omit_func_name, module_context)
                 # insert original expr as-is
                 $original_expr
                 # omit function overload
-                JSON.$omit_func_name(::Type{$type_sig}) = true
+                $JSON.$omit_func_name(::Type{$type_sig}) = true
             end)
         end
     end
@@ -421,7 +422,7 @@ function _omit_macro_impl(expr, omit_func_name, module_context)
                 # insert original expr as-is
                 $original_expr
                 # omit function overload
-                JSON.$omit_func_name(::Type{$type_sig}) = true
+                $JSON.$omit_func_name(::Type{$type_sig}) = true
             end)
         else
             throw(ArgumentError("Macro $(original_expr.args[1]) did not expand to a struct definition"))
@@ -518,6 +519,7 @@ All methods accept the following keyword arguments:
   by default while other dictionary-like containers preserve their iteration order.
 
 - `inline_limit::Int=0`: For arrays shorter than this limit, pretty printing will be disabled (indentation set to 0).
+  Array-like values with no known length (such as a filtered generator) are always pretty-printed.
 
 - `ninf::String="-Infinity"`: Custom string representation for negative infinity.
 
@@ -531,7 +533,7 @@ All methods accept the following keyword arguments:
   - `:fixed`: Use fixed-point notation
   - `:exp`: Use exponential notation
 
-- `float_precision::Int=1`: Number of decimal places to use when `float_style` is `:fixed` or `:exp`.
+- `float_precision::Int=1`: Number of decimal places (1 to 1000000) to use when `float_style` is `:fixed` or `:exp`.
 
 - `bufsize::Int=2^22`: Buffer size in bytes for IO operations. When writing to IO, the buffer will be flushed 
   to the IO stream once it reaches this size. This helps control memory usage during large write operations.
@@ -544,7 +546,8 @@ All methods accept the following keyword arguments:
 
 By default, `x` must be a JSON-serializable object. Supported types include:
   * `AbstractString` => JSON string: types must support the `AbstractString` interface, specifically with support for
-    `ncodeunits` and `codeunit(x, i)`.
+    `ncodeunits`, `codeunit(x)`, and `codeunit(x, i)`. `UInt8` code units are written as UTF-8 bytes; strings
+    with other code units are converted with `String(x)` first.
   * `Bool` => JSON boolean: must be `true` or `false`
   * `Nothing` => JSON null: must be the `nothing` singleton value
   * `Number` => JSON number: `Integer` subtypes and `Float16`, `Float32`, `Float64`, and `BigFloat` have default
@@ -671,8 +674,10 @@ end
 @noinline float_style_throw(fs) = throw(ArgumentError("Invalid float style: $fs"))
 float_style_check(fs) = fs == :shortest || fs == :fixed || fs == :exp || float_style_throw(fs)
 
-@noinline float_precision_throw(fs, fp) = throw(ArgumentError("float_precision must be positive when float_style is $fs; got $fp"))
-float_precision_check(fs, fp) = (fs == :shortest || fp > 0) || float_precision_throw(fs, fp)
+# the upper bound keeps the buffer size computed for each number from overflowing; for
+# Float16/32/64, every digit past about 1100 is a zero anyway
+@noinline float_precision_throw(fs, fp) = throw(ArgumentError("float_precision must be between 1 and 1000000 when float_style is $fs; got $fp"))
+float_precision_check(fs, fp) = (fs == :shortest || 0 < fp <= 1_000_000) || float_precision_throw(fs, fp)
 
 # if jsonlines and pretty is not 0 or false, throw an ArgumentError
 @noinline _jsonlines_pretty_throw() = throw(ArgumentError("pretty printing is not supported when writing jsonlines"))
@@ -810,7 +815,8 @@ for sig in (:((f::WriteClosure{JS, arraylike, I})(key, val) where {JS, arraylike
         # materialize a nested LazyValue (see `json!`) before the omit checks below,
         # so they see the parsed value
         val isa LazyValue && return f(key, StructUtils.lower(f.opts.style, val[]))
-        track_ref = ismutabletype(typeof(val))
+        # strings and numbers are written directly, so they can't be part of a cycle
+        track_ref = ismutabletype(typeof(val)) && !(val isa Union{AbstractString, Number})
         is_circ_ref = track_ref && any(x -> x === val, f.ancestor_stack)
         val isa Omit && return
         if !arraylike
@@ -917,7 +923,7 @@ function json!(buf, pos, x, opts::WriteOptions, ancestor_stack::Union{Nothing, V
     elseif StructUtils.dictlike(opts.style, x) || StructUtils.arraylike(opts.style, x) || StructUtils.structlike(opts.style, x)
         al = StructUtils.arraylike(opts.style, x)
         # override pretty indent to 0 for arrays shorter than inline_limit
-        if al && opts.pretty > 0 && opts.inline_limit > 0 && length(x) < opts.inline_limit
+        if al && opts.pretty > 0 && opts.inline_limit > 0 && Base.haslength(x) && length(x) < opts.inline_limit
             local_ind = 0
         else
             local_ind = ind
@@ -986,6 +992,8 @@ _string(buf, pos, x, io, bufsize) = _string(buf, pos, string(x), io, bufsize)
 _string(buf, pos, x::LazyValues, io, bufsize) = _string(buf, pos, getindex(x), io, bufsize)
 
 function _string(buf, pos, x::AbstractString, io, bufsize)
+    # the escape tables and the byte buffer take UTF-8 code units
+    codeunit(x) === UInt8 || return _string(buf, pos, String(x), io, bufsize)
     sz = ncodeunits(x)
     el = escapelength(x)
     @checkn (el + 2)
@@ -1087,10 +1095,7 @@ function _number(buf, pos, x::Number, opts::WriteOptions, io, bufsize)
         end
     else
         str = tostring(x)
-        if anyinvalidnumberchars(str)
-            # serialize as string
-            return _string(buf, pos, str, io, bufsize)
-        end
+        isjsonnumber(str) || return _string(buf, pos, str, io, bufsize)
         return _numbertext(buf, pos, str, io, bufsize)
     end
 end
@@ -1148,15 +1153,35 @@ function _numbertext(buf, pos, str, io, bufsize)
     return pos + sz
 end
 
-function anyinvalidnumberchars(x)
-    for i = 1:sizeof(x)
-        b = codeunit(x, i)
-        if !(b == UInt8('-') || b == UInt8('.') || b == UInt8('e') || b == UInt8('E') ||
-            UInt8('0') <= b <= UInt8('9') ||
-            # an exponent's sign
-            (b == UInt8('+') && i > 1 && (codeunit(x, i - 1) | 0x20) == UInt8('e')))
-            return true
-        end
+# the index after the ASCII digits starting at `i`
+function _skipdigits(s, i, n)
+    while i <= n && UInt8('0') <= codeunit(s, i) <= UInt8('9')
+        i += 1
     end
-    return false
+    return i
+end
+
+# whether `s` is a JSON number: -?(0|[1-9][0-9]*)(\.[0-9]+)?([eE][+-]?[0-9]+)?
+function isjsonnumber(s)
+    n = ncodeunits(s)
+    i = 1 + (n > 0 && codeunit(s, 1) == UInt8('-'))
+    i <= n || return false
+    if codeunit(s, i) == UInt8('0')
+        i += 1
+    else
+        j, i = i, _skipdigits(s, i, n)
+        i > j || return false
+    end
+    if i <= n && codeunit(s, i) == UInt8('.')
+        j = i + 1
+        i = _skipdigits(s, j, n)
+        i > j || return false
+    end
+    if i <= n && (codeunit(s, i) == UInt8('e') || codeunit(s, i) == UInt8('E'))
+        i += 1
+        i <= n && (codeunit(s, i) == UInt8('+') || codeunit(s, i) == UInt8('-')) && (i += 1)
+        j, i = i, _skipdigits(s, i, n)
+        i > j || return false
+    end
+    return i > n
 end
