@@ -1311,6 +1311,11 @@ end
     @test JSON.parse("123456789012345678901234567890.0e5", BigInt) == big"12345678901234567890123456789000000"
     @test JSON.parse("0e-99999", BigInt) == 0
     @test_throws InexactError JSON.parse("1.25e1", BigInt)
+    # negative exponents
+    @test JSON.parse("90e-1", BigInt) == 9
+    @test JSON.parse("-1200.00e-2", BigInt) == -12
+    @test_throws InexactError JSON.parse("1e-5", BigInt)
+    @test_throws InexactError JSON.parse("[25e-1]", Vector{BigInt})
     @test_throws InexactError JSON.parse("1.5e-99999999999999999999", BigInt)
     # an exponent adds at most 2,000 digits: `1e1000000000` used to allocate ~400 MiB
     @test ndigits(JSON.parse("1e2000", BigInt)) == 2001

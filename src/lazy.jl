@@ -1041,6 +1041,7 @@ function parseexactbigint(buf, first, nextpos, len)
         end
         pos += 1
     end
+    ndigits = length(digits) # `String(digits)` takes the vector's bytes, leaving it empty
     coefficient = Base.parse(BigInt, String(digits))
     iszero(coefficient) && return NumberResult(coefficient), nextpos
     exponent = 0
@@ -1050,8 +1051,8 @@ function parseexactbigint(buf, first, nextpos, len)
         expneg = b == UInt8('-')
         (expneg || b == UInt8('+')) && (pos += 1)
         if expneg
-            # dividing by 10^length(digits) or more leaves a nonzero remainder
-            exponent = -parseboundedexponent(buf, pos, nextpos, length(digits))
+            # dividing by 10^ndigits or more leaves a nonzero remainder
+            exponent = -parseboundedexponent(buf, pos, nextpos, ndigits)
         else
             limit = fractiondigits + LONGINTEGER + 1
             exponent = parseboundedexponent(buf, pos, nextpos, limit)
