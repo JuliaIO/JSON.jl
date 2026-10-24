@@ -1298,3 +1298,23 @@ end
     @test_throws ArgumentError JSON.parse(bad)
     @test JSON.parse(MinimalString("[1,2]")) == [1, 2]
 end
+
+@testset "fraction and exponent tokens into integer targets are exact" begin
+    # these went through Float64
+    @test JSON.parse("9007199254740993.0", Int64) === 9007199254740993
+    @test JSON.parse("1e23", Int128) === Int128(10)^23
+    @test JSON.parse("[1.0e2, -2.50e1]", Vector{Int}) == [100, -25]
+    @test_throws InexactError JSON.parse("39226599126093804.09", Int64)
+    @test_throws InexactError JSON.parse("1.5", Int)
+    @test JSON.parse("1e30", BigInt) == big(10)^30
+    @test JSON.parse("-12.50e1", BigInt) == -125
+    @test JSON.parse("123456789012345678901234567890.0e5", BigInt) == big"12345678901234567890123456789000000"
+    @test JSON.parse("0e-99999", BigInt) == 0
+    @test_throws InexactError JSON.parse("1.25e1", BigInt)
+    @test_throws InexactError JSON.parse("1.5e-99999999999999999999", BigInt)
+    # an exponent adds at most 2,000 digits: `1e1000000000` used to allocate ~400 MiB
+    @test ndigits(JSON.parse("1e2000", BigInt)) == 2001
+    @test_throws InexactError JSON.parse("1e2001", BigInt)
+    @test_throws InexactError JSON.parse("[1e1000000000]", Vector{BigInt})
+    @test @allocated(try JSON.parse("1e1000000000", BigInt) catch end) < 1_000_000
+end
