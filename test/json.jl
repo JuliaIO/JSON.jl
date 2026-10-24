@@ -923,6 +923,15 @@ end
     @test_throws ArgumentError JSON.json(1.5; float_style=:exp, float_precision=typemax(Int))
     @test_throws ArgumentError JSON.json([1.5]; float_style=:fixed, float_precision=typemax(Int) - 307)
     @test JSON.json(0.5; float_style=:fixed, float_precision=1_000_000) == "0.5" * "0"^999_999
+    # a 0-dim array is written as its lowered element
+    @test JSON.json(fill(missing)) == "null"
+    @test JSON.json(fill(1//3)) == "{\"num\":1,\"den\":3}"
+    @test JSON.json(fill([1 2; 3 4])) == "[[1,3],[2,4]]"
+    @test JSON.json((a=fill(missing),)) == "{\"a\":null}"
+    # inline_limit leaves unsized iterators pretty-printed
+    @test JSON.json((x for x in 1:5 if isodd(x)); pretty=2, inline_limit=4) == "[\n  1,\n  3,\n  5\n]"
+    # omit_empty drops empty matrices and sets
+    @test JSON.json((m=zeros(0, 0), m2=zeros(2, 0), s=Set{Int}(), m3=zeros(0, 2)); omit_empty=true) == "{\"m3\":[[],[]]}"
 end
 
 end # @testset "JSON.json"

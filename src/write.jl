@@ -134,7 +134,7 @@ StructUtils.lower(::JSONStyle, x::Complex) = (re=real(x), im=imag(x))
 # (1//3 reads back as 6004799503160661//18014398509481984), so serialize the pair that
 # reading already expects. `lower` on a custom style restores a float if wanted.
 StructUtils.lower(::JSONStyle, x::Rational) = (num=x.num, den=x.den)
-StructUtils.lower(::JSONStyle, x::AbstractArray{<:Any,0}) = x[1]
+StructUtils.lower(st::JSONStyle, x::AbstractArray{<:Any,0}) = StructUtils.lower(st, x[])
 StructUtils.lower(::JSONStyle, x::AbstractArray{<:Any, N}) where {N} = (view(x, ntuple(_ -> :, N - 1)..., j) for j in axes(x, N))
 StructUtils.lower(::JSONStyle, x::AbstractVector) = x
 StructUtils.arraylike(::JSONStyle, x::AbstractVector{<:Pair}) = false
@@ -326,7 +326,7 @@ end
 Controls whether struct fields that are empty are included in the JSON output.
 Returns `false` by default, meaning empty fields *are* included. To instead exclude empty fields,
 set this to `true`. A field is considered empty if it is `nothing`, an empty collection
-(empty array, dict, string, tuple, or named tuple), or `missing`.
+(empty array, dict, set, string, tuple, or named tuple), or `missing`.
 This can also be controlled via the `omit_empty` keyword argument in [`JSON.json`](@ref).
 
 ```julia
@@ -343,7 +343,8 @@ omit_empty(::JSONStyle, ::Type{T}) where {T} = omit_empty(T)
 
 is_empty(x) = false
 is_empty(::Nothing) = true
-is_empty(x::Union{AbstractDict, AbstractArray, AbstractString, Tuple, NamedTuple}) = Base.isempty(x)
+# a generator over an array is how a multidimensional array is lowered
+is_empty(x::Union{AbstractDict, AbstractArray, AbstractSet, AbstractString, Tuple, NamedTuple, Base.Generator{<:AbstractArray}}) = Base.isempty(x)
 
 """
     @omit_empty struct T ...
@@ -518,6 +519,7 @@ All methods accept the following keyword arguments:
   by default while other dictionary-like containers preserve their iteration order.
 
 - `inline_limit::Int=0`: For arrays shorter than this limit, pretty printing will be disabled (indentation set to 0).
+  Array-like values with no known length (such as a filtered generator) are always pretty-printed.
 
 - `ninf::String="-Infinity"`: Custom string representation for negative infinity.
 
@@ -920,7 +922,7 @@ function json!(buf, pos, x, opts::WriteOptions, ancestor_stack::Union{Nothing, V
     elseif StructUtils.dictlike(opts.style, x) || StructUtils.arraylike(opts.style, x) || StructUtils.structlike(opts.style, x)
         al = StructUtils.arraylike(opts.style, x)
         # override pretty indent to 0 for arrays shorter than inline_limit
-        if al && opts.pretty > 0 && opts.inline_limit > 0 && length(x) < opts.inline_limit
+        if al && opts.pretty > 0 && opts.inline_limit > 0 && Base.haslength(x) && length(x) < opts.inline_limit
             local_ind = 0
         else
             local_ind = ind
