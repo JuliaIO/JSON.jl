@@ -364,7 +364,9 @@ _unknownkey(key) = "<key>"
 
 function StructUtils.unknownfield(st::JSONReadStyle, ::Type{T}, key, value) where {T}
     st.ignore_unknown_fields || throw(unknownfielderror(T, key))
-    return StructUtils.unknownfield(st.style, T, key, value)
+    st isa _DefaultReadStyle && return StructUtils.unknownfield(st.style, T, key, value)
+    # a custom style's hook is user code: a PtrString points into the input, valid only during the parse
+    return StructUtils.unknownfield(st.style, T, key isa PtrString ? String(key) : key, value)
 end
 
 "See [`parse`](@ref)."
@@ -770,20 +772,23 @@ function StructUtils.lift(style::JSONReadStyle, ::Type{T}, x::LazyValues, tags=(
         return str, pos
     elseif type == JSONTypes.NUMBER
         num, pos = parsenumber(x, T)
+        # the returns below skip `lift`, so they're only taken when a `lift` tag or the
+        # caller's style can't change the value
+        direct = style isa _DefaultReadStyle && !haskey(tags, :lift)
         if isint(num)
-            T === Int64 && return num.int, pos
+            direct && T === Int64 && return num.int, pos
             int, _ = StructUtils.lift(style, T, num.int, tags)
             return int, pos
         elseif isfloat(num)
-            T === Float64 && return num.float, pos
+            direct && T === Float64 && return num.float, pos
             float, _ = StructUtils.lift(style, T, num.float, tags)
             return float, pos
         elseif isbigint(num)
-            T === BigInt && return num.bigint::BigInt, pos
+            direct && T === BigInt && return num.bigint::BigInt, pos
             bigint, _ = StructUtils.lift(style, T, num.bigint::BigInt, tags)
             return bigint, pos
         else
-            T === BigFloat && return num.bigfloat::BigFloat, pos
+            direct && T === BigFloat && return num.bigfloat::BigFloat, pos
             bigfloat, _ = StructUtils.lift(style, T, num.bigfloat::BigFloat, tags)
             return bigfloat, pos
         end
@@ -800,6 +805,10 @@ function StructUtils.lift(style::JSONReadStyle, ::Type{T}, x::LazyValues, tags=(
         sglt, _ = StructUtils.lift(style, T, T(), tags)
         return sglt, skip(x)
     else
+        # an `Any` slot materializes like the untyped parse, with this parse's options
+        # (with the default ones, that is the untyped path below)
+        T === Any && !(style isa JSONReadStyle{DEFAULT_OBJECT_TYPE,Nothing,StructUtils.DefaultStyle,Nothing}) &&
+            return StructUtils.make(style, Any, x)
         out = ValueClosure()
         pos = applyvalue(out, x, nothing)
         val1 = out.value
