@@ -937,10 +937,13 @@ function parseexactintegerlong(buf, first, nextpos, ::Type{T}) where {T}
     return exactintegerresult(coefficient, isneg, T, nextpos)
 end
 
+const UINT128_MAXDIV10 = div(typemax(UInt128), 10)
+const UINT128_MAXLAST = rem(typemax(UInt128), 10)
+
 # Convert a validated decimal or exponent token to an exact fixed-width integer.
 # UInt128 keeps the common path allocation-free. The fallback for longer
 # coefficients also retains only a bounded UInt128 result.
-function parseexactinteger(buf, first, nextpos, len, ::Type{T}) where {T}
+function parseexactinteger(buf, first, nextpos, ::Type{T}) where {T}
     pos = first
     b = getbyte(buf, pos)
     isneg = b == UInt8('-')
@@ -950,15 +953,28 @@ function parseexactinteger(buf, first, nextpos, len, ::Type{T}) where {T}
 
     coefficient = UInt128(0)
     fractiondigits = 0
+    # fraction zeros are appended only once a nonzero digit follows them, so trailing
+    # zeros (`12.0`, `1.50e1`) need no division by a power of 10 afterwards
+    zeros = 0
     infraction = false
     while pos < nextpos
         b = getbyte(buf, pos)
         if UInt8('0') <= b <= UInt8('9')
-            digit = UInt128(b - UInt8('0'))
-            coefficient <= div(typemax(UInt128) - digit, 10) ||
-                return parseexactintegerlong(buf, first, nextpos, T)
-            coefficient = coefficient * 10 + digit
-            infraction && (fractiondigits += 1)
+            if infraction && b == UInt8('0')
+                zeros += 1
+            else
+                for _ = 1:zeros
+                    coefficient < UINT128_MAXDIV10 || return parseexactintegerlong(buf, first, nextpos, T)
+                    coefficient *= 10
+                end
+                infraction && (fractiondigits += zeros + 1)
+                zeros = 0
+                digit = UInt128(b - UInt8('0'))
+                # same as `coefficient * 10 + digit <= typemax(UInt128)`, without a 128-bit division
+                (coefficient < UINT128_MAXDIV10 || (coefficient == UINT128_MAXDIV10 && digit <= UINT128_MAXLAST)) ||
+                    return parseexactintegerlong(buf, first, nextpos, T)
+                coefficient = coefficient * 10 + digit
+            end
         elseif b == UInt8('.')
             infraction = true
         else
@@ -1005,10 +1021,54 @@ function parseexactinteger(buf, first, nextpos, len, ::Type{T}) where {T}
     return exactintegerresult(coefficient, isneg, T, nextpos)
 end
 
+# The digits of a fraction or exponent token times 10^scale, as an exact `BigInt`. The
+# exponent may add at most LONGINTEGER digits, so a short token like `1e1000000000`
+# can't build an integer far larger than the input.
+function parseexactbigint(buf, first, nextpos)
+    digits = UInt8[]
+    fractiondigits = 0
+    infraction = false
+    pos = first
+    while pos < nextpos
+        b = getbyte(buf, pos)
+        (b == UInt8('e') || b == UInt8('E')) && break
+        if b == UInt8('.')
+            infraction = true
+        else
+            push!(digits, b)
+            infraction && (fractiondigits += 1)
+        end
+        pos += 1
+    end
+    ndigits = length(digits) # `String(digits)` takes the vector's bytes, leaving it empty
+    coefficient = Base.parse(BigInt, String(digits))
+    iszero(coefficient) && return NumberResult(coefficient), nextpos
+    exponent = 0
+    if pos < nextpos
+        pos += 1 # skip 'e' or 'E'
+        b = getbyte(buf, pos)
+        expneg = b == UInt8('-')
+        (expneg || b == UInt8('+')) && (pos += 1)
+        if expneg
+            # dividing by 10^ndigits or more leaves a nonzero remainder
+            exponent = -parseboundedexponent(buf, pos, nextpos, ndigits)
+        else
+            limit = fractiondigits + LONGINTEGER + 1
+            exponent = parseboundedexponent(buf, pos, nextpos, limit)
+            exponent == limit && throw(InexactError(:parse, BigInt, "out-of-range JSON number"))
+        end
+    end
+    scale = exponent - fractiondigits
+    scale >= 0 && return NumberResult(coefficient * big(10)^scale), nextpos
+    quotient, remainder = divrem(coefficient, big(10)^(-scale))
+    iszero(remainder) || throw(InexactError(:parse, BigInt, "non-integral JSON number"))
+    return NumberResult(quotient), nextpos
+end
+
 # `T` is the type requested for this value (`Number` when materializing untyped);
-# with `allownan=true`, untyped numbers materialize as `Float64`, while a
-# requested fixed-width integer type up to 128 bits is converted exactly from
-# the number token
+# with `allownan=true`, untyped numbers materialize as `Float64`. A fraction or exponent
+# token requested as a fixed-width integer type up to 128 bits, or as a `BigInt`, is
+# converted exactly from the token (`1.0e2` is 100; `1.5` throws `InexactError`)
 @inline function parsenumber(x::LazyValue, ::Type{T}=Any) where {T}
     buf = getbuf(x)
     startpos::Int = getpos(x)
@@ -1033,8 +1093,18 @@ end
     end
     exactint = isbitstype(T) && sizeof(T) <= sizeof(UInt128) &&
         (T === Bool || T <: Signed || T <: Unsigned)
-    if isfloat && opts.allownan && exactint
-        return parseexactinteger(buf, startpos, nextpos, len, T)
+    if isfloat && exactint
+        if !overflow
+            # `12.0`, `-3.00`: a zero fraction and no exponent; `val` is the value
+            p = nextpos - 1
+            while getbyte(buf, p) == UInt8('0')
+                p -= 1
+            end
+            getbyte(buf, p) == UInt8('.') && return NumberResult(val), nextpos
+        end
+        return parseexactinteger(buf, startpos, nextpos, T)
+    elseif isfloat && T === BigInt
+        return parseexactbigint(buf, startpos, nextpos)
     elseif isfloat || (opts.allownan && !(T <: Integer))
         # in the target's own precision: through Float64, Float32 and Float16 would be
         # rounded twice and BigFloat would lose digits (a Float32 or Float16 is exact as a Float64)
