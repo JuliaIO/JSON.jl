@@ -716,3 +716,46 @@ end
     @test comparisons(() -> JSON.parse!(json, target)) < 5n
     @test target == o
 end
+
+using Serialization
+
+@testset "JSON.Object deepcopy and Serialization" begin
+    @test Base.get_extension(JSON, :JSONSerializationExt) !== nothing
+    roundtrip(x) = (io = IOBuffer(); serialize(io, x); seekstart(io); deserialize(io))
+    shared = JSON.Object{String,Any}("s" => [1])
+    objs = (
+        JSON.Object{String,Any}("b" => 1, "a" => shared, "b" => 2, "c" => shared, "d" => JSON.Object{String,Any}()),
+        JSON.Object{Symbol,Int}(:z => 1, :y => 2, :z => 3),
+        JSON.Object(1 => "x", :k => nothing, "k" => 2.5),
+        JSON.Object{String,Int}(),
+    )
+    for o in objs, f in (deepcopy, roundtrip)
+        c = f(o)
+        @test typeof(c) == typeof(o)
+        @test isequal(collect(c), collect(o))
+        @test c !== o
+    end
+    c = deepcopy(objs[1])
+    @test c["a"] === c["c"] !== shared
+    push!(c["a"]["s"], 2)
+    @test shared["s"] == [1]
+    c = roundtrip(objs[1])
+    @test c["a"] === c["c"]
+    cyclic = JSON.Object{String,Any}("x" => 1)
+    cyclic["self"] = cyclic
+    for f in (deepcopy, roundtrip)
+        c = f(cyclic)
+        @test c["self"] === c
+        @test c["x"] == 1
+    end
+
+    # long enough to overflow the stack if each entry is copied by a recursive call
+    n = 200_000
+    big = JSON.parse("{" * join(("\"k$i\":$i" for i in 1:n), ",") * "}")
+    for f in (deepcopy, roundtrip)
+        c = f(big)
+        @test length(c) == n
+        @test first(c) == ("k1" => 1)
+        @test c == big
+    end
+end
