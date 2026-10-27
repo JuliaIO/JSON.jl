@@ -624,14 +624,34 @@ end
 # integer digits are accumulated as a negative number so typemin(Int64) fits
 const INT64_MIN_DIV10 = div(typemin(Int64), 10)
 const INT64_MIN_LASTDIGIT = -rem(typemin(Int64), 10)
-# Parsers 2's xparse2 finds the end of a float itself, so the scanner stops at
-# the first '.'/'e'; the Parsers 3 kernels need the exact span, so it scans to the end
-const SCANFLOATTAIL = !isdefined(Parsers, :xparse2)
+# the number of leading ASCII digits among the 8 bytes of `w`, first byte in the low bits:
+# `x` maps '0'-'9' to 0-9, and adding 0x76 sets a byte's high bit exactly when it is 10 or
+# more (masking the high bit first keeps carries inside each byte)
+@inline function leadingdigits(w::UInt64)
+    x = w ⊻ 0x3030303030303030
+    nondigit = (((x & 0x7f7f7f7f7f7f7f7f) + 0x7676767676767676) | x) & 0x8080808080808080
+    return trailing_zeros(nondigit) >> 3
+end
+
+# the position of the first non-digit byte at or after `pos`, 8 bytes at a time while 8 remain
+@inline function skipdigits(buf, pos, len)
+    if ENDIAN_BOM == 0x04030201
+        GC.@preserve buf while pos + 7 <= len
+            n = leadingdigits(unsafe_load(Ptr{UInt64}(pointer(buf, pos))))
+            pos += n
+            n == 8 || return pos
+        end
+    end
+    while pos <= len && UInt8('0') <= getbyte(buf, pos) <= UInt8('9')
+        pos += 1
+    end
+    return pos
+end
 
 # scan a JSON number token starting at `startpos`; returns the position after
-# the token (or after the integer part if !SCANFLOATTAIL), whether it has a
-# fraction or exponent, the integer value, and whether that value overflowed Int64;
-# nextpos == startpos means the bytes at startpos are not a valid JSON number
+# the token, whether it has a fraction or exponent, the integer value, and whether
+# that value overflowed Int64; nextpos == startpos means the bytes at startpos are
+# not a valid JSON number
 @inline function scannumber(buf, startpos, len)
     pos = startpos
     b = getbyte(buf, pos)
@@ -670,15 +690,11 @@ const SCANFLOATTAIL = !isdefined(Parsers, :xparse2)
         isfloat = true
         pos += 1
         (pos > len || !(UInt8('0') <= getbyte(buf, pos) <= UInt8('9'))) && return startpos, false, val, false
-        SCANFLOATTAIL || return pos, true, val, overflow
-        while pos <= len && UInt8('0') <= getbyte(buf, pos) <= UInt8('9')
-            pos += 1
-        end
+        pos = skipdigits(buf, pos + 1, len)
     end
     # exponent: optional sign, at least one digit
     if pos <= len && (getbyte(buf, pos) == UInt8('e') || getbyte(buf, pos) == UInt8('E'))
         isfloat = true
-        SCANFLOATTAIL || return pos, true, val, overflow
         pos += 1
         if pos <= len && (getbyte(buf, pos) == UInt8('+') || getbyte(buf, pos) == UInt8('-'))
             pos += 1
@@ -729,58 +745,63 @@ const LONGINTEGER = 2000
     NumberResult(Base.parse(BigInt, String(numberbytes(buf)[first:last])))
 
 @static if isdefined(Parsers, :xparse2)
-    # Parsers 2: `xparse2` parses the longest number prefix of buf[first:len]
+    # MPFR fallbacks for Parsers 2, which ignores `precision(BigFloat)` and rejects some long
+    # in-range tokens; the token is already validated
+    @noinline parsebigfloat(buf, first, last) = BigFloat(String(numberbytes(buf)[first:last]))
+    @noinline parsebigfloat(buf, first, last, r::RoundingMode) =
+        BigFloat(String(numberbytes(buf)[first:last]), r; precision=256)
+    # `x` as an exact rational; unlike `Rational{BigInt}(::BigFloat)`, `decompose` doesn't
+    # depend on the current BigFloat precision
+    function exactrational(x)
+        n, p, d = Base.decompose(x)
+        r = BigInt(n) // BigInt(d)
+        return p >= 0 ? r * big(2)^p : r // big(2)^(-p)
+    end
+    # the token correctly rounded to `T`. Rounding it down and up to 256 bits brackets its exact
+    # value; if the two ends round to different `T`s, the midpoint between those `T`s is one of
+    # the ends (it is a 256-bit value), and the exact value lies on the other side of it
+    @noinline function parsecorrectlyrounded(::Type{T}, buf, first, last) where {T}
+        # rounding to nearest is symmetric, so a negative token rounds its magnitude; only
+        # the positive overflow midpoint (above `floatmax(T)`) needs handling below
+        getbyte(buf, first) == UInt8('-') && return -parsecorrectlyrounded(T, buf, first + 1, last)
+        lo = parsebigfloat(buf, first, last, RoundDown)
+        hi = parsebigfloat(buf, first, last, RoundUp)
+        a, b = T(lo), T(hi)
+        a == b && return a
+        a, b = T(lo, RoundDown), T(lo, RoundUp)
+        ra = exactrational(a)
+        m = isfinite(b) ? (ra + exactrational(b)) // 2 : ra + (ra - exactrational(prevfloat(a))) // 2
+        return exactrational(lo) == m ? b : a
+    end
+
+    # Parsers 2: `xparse2` converts the longest number prefix of buf[first:last]; the
+    # validated token must be all of it (Parsers 2 also takes Julia forms like `1.5f3`)
     @inline function parsefloat64(buf, first, nextpos, len, allownan)
-        res = Parsers.xparse2(Float64, buf, first, len)
-        nextpos = first + Int(res.tlen)
-        if !allownan && Parsers.specialvalue(res.code)
-            # overflowed to Inf; promote to BigFloat
-            bres = Parsers.xparse2(BigFloat, buf, first, len)
-            Parsers.invalid(bres.code) || return NumberResult(bres.val), nextpos
+        res = Parsers.xparse2(Float64, buf, first, nextpos - 1)
+        if Parsers.invalid(res.code) || first + Int(res.tlen) != nextpos
+            x = parsecorrectlyrounded(Float64, buf, first, nextpos - 1)
+            isfinite(x) || allownan || return NumberResult(parsebigfloat(buf, first, nextpos - 1)), nextpos
+            return NumberResult(x), nextpos
         end
-        Parsers.invalid(res.code) && invalid(InvalidNumber, buf, first, "number")
+        # overflowed to Inf; promote to BigFloat
+        !allownan && Parsers.specialvalue(res.code) && return NumberResult(parsebigfloat(buf, first, nextpos - 1)), nextpos
         return NumberResult(res.val), nextpos
     end
     @inline parsebigint(buf, first, last) = last - first >= LONGINTEGER ?
         parselongint(buf, first, last) : NumberResult(Parsers.xparse2(BigInt, buf, first, last).val)
     @inline function parsefloatas(::Type{T}, buf, first, nextpos, len) where {T}
-        res = Parsers.xparse2(T, buf, first, len)
-        Parsers.invalid(res.code) && invalid(InvalidNumber, buf, first, "number")
-        return NumberResult(T === BigFloat ? res.val : Float64(res.val)), first + Int(res.tlen)
+        T === BigFloat && return NumberResult(parsebigfloat(buf, first, nextpos - 1)), nextpos
+        res = Parsers.xparse2(T, buf, first, nextpos - 1)
+        if Parsers.invalid(res.code) || first + Int(res.tlen) != nextpos
+            return NumberResult(Float64(parsecorrectlyrounded(T, buf, first, nextpos - 1))), nextpos
+        end
+        return NumberResult(Float64(res.val)), nextpos
     end
     # native `[+-]NaN`, `[+-]Inf`, `[+-]Infinity` spellings (case-insensitive)
     @inline function parsenativespecial(buf, pos, len)
         res = Parsers.xparse2(Float64, buf, pos, len)
         (Parsers.invalid(res.code) || isfinite(res.val)) && return nothing
         return NumberResult(res.val), pos + Int(res.tlen)
-    end
-    @inline function exactintegerend(buf, first, nextpos, len)
-        pos = first
-        b = getbyte(buf, pos)
-        (b == UInt8('-') || b == UInt8('+')) && (pos += 1)
-        while pos <= len && UInt8('0') <= getbyte(buf, pos) <= UInt8('9')
-            pos += 1
-        end
-        if pos <= len && getbyte(buf, pos) == UInt8('.')
-            pos += 1
-            (pos > len || !(UInt8('0') <= getbyte(buf, pos) <= UInt8('9'))) &&
-                invalid(InvalidNumber, buf, pos, "number")
-            while pos <= len && UInt8('0') <= getbyte(buf, pos) <= UInt8('9')
-                pos += 1
-            end
-        end
-        if pos <= len && (getbyte(buf, pos) == UInt8('e') || getbyte(buf, pos) == UInt8('E'))
-            pos += 1
-            if pos <= len && (getbyte(buf, pos) == UInt8('+') || getbyte(buf, pos) == UInt8('-'))
-                pos += 1
-            end
-            (pos > len || !(UInt8('0') <= getbyte(buf, pos) <= UInt8('9'))) &&
-                invalid(InvalidNumber, buf, pos, "number")
-            while pos <= len && UInt8('0') <= getbyte(buf, pos) <= UInt8('9')
-                pos += 1
-            end
-        end
-        return pos
     end
 else
     # Parsers 3: the kernels convert exactly buf[first:nextpos-1]
@@ -805,7 +826,6 @@ else
         (code != Parsers.RC_OK || isfinite(val)) && return nothing
         return NumberResult(val), nextpos
     end
-    @inline exactintegerend(buf, first, nextpos, len) = nextpos
 end
 
 @inline function parseboundedexponent(buf, pos, nextpos, limit)
@@ -921,7 +941,6 @@ end
 # UInt128 keeps the common path allocation-free. The fallback for longer
 # coefficients also retains only a bounded UInt128 result.
 function parseexactinteger(buf, first, nextpos, len, ::Type{T}) where {T}
-    nextpos = exactintegerend(buf, first, nextpos, len)
     pos = first
     b = getbyte(buf, pos)
     isneg = b == UInt8('-')
@@ -1028,8 +1047,7 @@ end
 end
 
 # Skipping a number only needs its end. This full conversion is the fallback for
-# `allownan` input, for Parsers 2 (which finds a float's end while converting), and
-# for invalid tokens, which it reports.
+# `allownan` input and for invalid tokens, which it reports.
 @noinline skipnumber(x::LazyValues) = parsenumber(x)[2]
 
 # efficiently skip over a JSON value
@@ -1045,7 +1063,7 @@ function skip(x::LazyValues)
         _, pos = parsestring(x)
         return pos
     elseif T == JSONTypes.NUMBER
-        (SCANFLOATTAIL && !getopts(x).allownan) || return skipnumber(x)
+        getopts(x).allownan && return skipnumber(x)
         buf = getbuf(x)
         pos, _, _, _ = scannumber(buf, getpos(x), getlength(buf))
         return pos == getpos(x) ? skipnumber(x) : pos

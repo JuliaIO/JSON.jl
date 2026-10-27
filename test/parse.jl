@@ -423,6 +423,20 @@ end
     # skipping a number checks its grammar without converting it
     @test JSON.isvalidjson("[0, -0.5, 1e5, -1.5E-10, 123456789012345678901234567890, 1.5e400]")
     @test !any(JSON.isvalidjson, ("[01]", "[1.]", "[-]", "[1e]", "[.5]", "[+1]", "[1.5x]"))
+    # Julia's `f` exponent marker is not JSON
+    @test !any(JSON.isvalidjson, ("1.5f3", "[1.5f3]", "{\"a\":2.5F-1}", "[-0.5F-2]"))
+    @test_throws ArgumentError JSON.parse("1.5f3")
+    @test_throws ArgumentError JSON.parse("[1.5f3]", Vector{Float64})
+    # fraction digits are scanned 8 bytes at a time while 8 remain: every length up to 20,
+    # at the end of the input and before a delimiter, an exponent or a non-digit byte
+    for n in 1:20
+        s = "0." * first("1234567890123456789012", n)
+        x = Base.parse(Float64, s)
+        @test JSON.parse(s) === x && JSON.parse(Vector{UInt8}(s)) === x
+        @test JSON.parse("[$s,$s]") == [x, x]
+        @test JSON.parse("$(s)e2", Float64) === Base.parse(Float64, "$(s)e2")
+        @test JSON.isvalidjson("[$s]") && !JSON.isvalidjson("[$(s)a]") && !JSON.isvalidjson("[$(s)é]")
+    end
     @test JSON.isvalidjson("[NaN, -Infinity, +1]"; allownan=true)
     # isvalidjson, and values a typed parse skips, refuse what `parse` refuses:
     # content after the value and invalid escapes (#511)
@@ -1146,6 +1160,39 @@ end
     for T in (Float16, Float32, BigFloat), s in ("1.5e", "1.5e+", "-1.e5")
         @test_throws ArgumentError JSON.parse(s, T)
     end
+    # long in-range tokens, and BigFloat at the current precision
+    for T in (Float16, Float32)
+        @test JSON.parse("1" * "0"^300 * "e-300", T) === T(1)
+    end
+    setprecision(BigFloat, 64) do
+        @test precision(JSON.parse("0.1", BigFloat)) == 64
+        @test precision(JSON.parse("1e400")) == 64
+    end
+    # just above or below the midpoint after 1, written with a long integer part
+    for (T, mid) in ((Float32, "1000000059604644775390625"), (Float16, "100048828125"))
+        k = 200
+        e = length(mid) - 1 + k + 1
+        @test JSON.parse(mid * "0"^k * "1e-$e", T) === nextfloat(one(T))
+        below = string(parse(BigInt, mid * "0"^(k + 1)) - 1)
+        @test JSON.parse(below * "e-$e", T) === one(T)
+        # rounding doesn't depend on the current BigFloat precision
+        setprecision(BigFloat, 8) do
+            @test JSON.parse(mid * "0"^k * "1e-$e", T) === nextfloat(one(T))
+        end
+    end
+    # isvalidjson and parse agree on a long number past Float64's range
+    long = "1" * "0"^1100 * ".5"
+    @test JSON.isvalidjson(long) && JSON.parse(long) isa BigFloat
+    # long tokens just inside the overflow midpoint round to ±floatmax, whatever the sign
+    for (T, s) in ((Float16, "65519" * "9"^200 * "e-200"),
+                   (Float32, "340282356779733661637539395458142568447" * "9"^200 * "e-200"))
+        @test JSON.parse(s, T) === floatmax(T)
+        @test JSON.parse("-" * s, T) === -floatmax(T)
+    end
+    # the same next to Float64's midpoint, with more than 1080 integer digits
+    s = string(BigInt(floatmax(Float64)) + big(2)^970 - 1) * "0"^800 * ".9e-800"
+    @test JSON.parse(s) === floatmax(Float64)
+    @test JSON.parse("-" * s) === -floatmax(Float64)
 end
 
 struct AnyField
