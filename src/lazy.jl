@@ -943,7 +943,7 @@ const UINT128_MAXLAST = rem(typemax(UInt128), 10)
 # Convert a validated decimal or exponent token to an exact fixed-width integer.
 # UInt128 keeps the common path allocation-free. The fallback for longer
 # coefficients also retains only a bounded UInt128 result.
-function parseexactinteger(buf, first, nextpos, len, ::Type{T}) where {T}
+function parseexactinteger(buf, first, nextpos, ::Type{T}) where {T}
     pos = first
     b = getbyte(buf, pos)
     isneg = b == UInt8('-')
@@ -1024,8 +1024,7 @@ end
 # The digits of a fraction or exponent token times 10^scale, as an exact `BigInt`. The
 # exponent may add at most LONGINTEGER digits, so a short token like `1e1000000000`
 # can't build an integer far larger than the input.
-function parseexactbigint(buf, first, nextpos, len)
-    nextpos = exactintegerend(buf, first, nextpos, len)
+function parseexactbigint(buf, first, nextpos)
     digits = UInt8[]
     fractiondigits = 0
     infraction = false
@@ -1095,8 +1094,7 @@ end
     exactint = isbitstype(T) && sizeof(T) <= sizeof(UInt128) &&
         (T === Bool || T <: Signed || T <: Unsigned)
     if isfloat && exactint
-        # with Parsers 2 the scanner stops inside the fraction, so `nextpos` isn't the end
-        if SCANFLOATTAIL && !overflow
+        if !overflow
             # `12.0`, `-3.00`: a zero fraction and no exponent; `val` is the value
             p = nextpos - 1
             while getbyte(buf, p) == UInt8('0')
@@ -1104,9 +1102,9 @@ end
             end
             getbyte(buf, p) == UInt8('.') && return NumberResult(val), nextpos
         end
-        return parseexactinteger(buf, startpos, nextpos, len, T)
+        return parseexactinteger(buf, startpos, nextpos, T)
     elseif isfloat && T === BigInt
-        return parseexactbigint(buf, startpos, nextpos, len)
+        return parseexactbigint(buf, startpos, nextpos)
     elseif isfloat || (opts.allownan && !(T <: Integer))
         # in the target's own precision: through Float64, Float32 and Float16 would be
         # rounded twice and BigFloat would lose digits (a Float32 or Float16 is exact as a Float64)
