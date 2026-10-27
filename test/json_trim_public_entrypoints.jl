@@ -22,6 +22,17 @@ struct TrimRoot
     note::Union{Nothing,String}
 end
 
+struct TrimBox{T}
+    value::T
+end
+
+# Containers and a parametric struct inside a struct inside a struct.
+struct TrimNested
+    root::TrimRoot
+    counts::Dict{String,Int}
+    box::TrimBox{Vector{Int}}
+end
+
 JSON.StructUtils.@defaults struct TrimTagged
     value::Int = 0 & (json=(name="wire",),)
     secret::Int = 9 & (json=(ignore=true,),)
@@ -187,6 +198,17 @@ function exercise_write_entrypoints()::Nothing
     checked(JSON.json(JSON.JSONText("{\"raw\":true}")) == "{\"raw\":true}", "JSONText write failed")
     checked(JSON.json(JSON.Null()) == "null", "JSON.Null write failed")
     checked(JSON.json(TrimCode("beta")) == "\"beta\"", "custom lower write failed")
+    nested = TrimNested(
+        TrimRoot(TrimLeaf(1, "a"), [TrimLeaf(2, "b")], ["x"], nothing),
+        Dict("n" => 1),
+        TrimBox([1, 2]),
+    )
+    checked(
+        JSON.json(nested) ==
+        "{\"root\":{\"item\":{\"id\":1,\"name\":\"a\"},\"items\":[{\"id\":2,\"name\":\"b\"}]," *
+        "\"tags\":[\"x\"],\"note\":null},\"counts\":{\"n\":1},\"box\":{\"value\":[1,2]}}",
+        "nested struct write failed",
+    )
 
     # Date, DateTime, and Time round-trip through their canonical ISO text.
     temporal = TrimTemporal(

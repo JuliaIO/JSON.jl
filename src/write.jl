@@ -871,6 +871,15 @@ end
 # for other closures, and for values a custom `lower` turned into another type
 _writenested(f, key, val) = f(key, val)
 
+# `applyeach` writes each field of a struct by calling the closure with the field's type. For a
+# struct inside a struct, that call repeats the call further up the stack, and when the field's
+# type is more complex (a `Vector` field, say), inference widens it, which `juliac --trim`
+# cannot resolve. The writer only recurses into the types of nested values, so let inference
+# follow the recursion without widening.
+if hasfield(Method, :recursion_relation)
+    which(Tuple{WriteClosure, Any, Any}).recursion_relation = Returns(true)
+end
+
 @noinline throwjsonlines() = throw(ArgumentError("jsonlines only supported for arraylike"))
 
 # assume x is lowered value
