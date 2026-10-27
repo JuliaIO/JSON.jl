@@ -753,6 +753,33 @@ using Serialization
         @test c["x"] == 1
     end
 
+    # streams from JSON ≤ 1.12, which used Serialization's default layout: each node's fields
+    # in turn, with the next node as `child` (byte-identical to JSON 1.12.2's output)
+    function oldserialize(s, x::JSON.Object)
+        Serialization.serialize_cycle(s, x) && return
+        Serialization.serialize_type(s, typeof(x), true)
+        for f in (:key, :value, :child)
+            v = getfield(x, f)
+            v isa JSON.Object ? oldserialize(s, v) : serialize(s, v)
+        end
+    end
+    function oldroundtrip(x)
+        io = IOBuffer()
+        s = Serialization.Serializer(io)
+        Serialization.writeheader(s)
+        oldserialize(s, x)
+        return deserialize(seekstart(io))
+    end
+    for o in (objs..., JSON.Object{Int,Int}(1 => 10, 2 => 20), JSON.Object{String,Any}("o" => JSON.Object{Symbol,Int}(:y => 2, :z => 3), "p" => shared))
+        c = oldroundtrip(o)
+        @test typeof(c) == typeof(o)
+        @test isequal(collect(c), collect(o))
+    end
+    c = oldroundtrip(JSON.Object{String,Any}("p" => shared, "q" => shared))
+    @test c["p"] === c["q"]
+    c = oldroundtrip(cyclic)
+    @test c["self"] === c
+
     # long enough to overflow the stack if each entry is copied by a recursive call
     n = 200_000
     big = JSON.parse("{" * join(("\"k$i\":$i" for i in 1:n), ",") * "}")
