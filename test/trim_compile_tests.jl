@@ -13,7 +13,10 @@ end
 
 function _prepare_trim_project(project_path::String, trim_project::String)::Nothing
     mkpath(trim_project)
-    cp(joinpath(@__DIR__, "trim", "Project.toml"), joinpath(trim_project, "Project.toml"))
+    project_file = joinpath(trim_project, "Project.toml")
+    cp(joinpath(@__DIR__, "trim", "Project.toml"), project_file)
+    # An installed package's files are read-only, and cp keeps that mode.
+    chmod(project_file, 0o644)
     original_project = Base.active_project()
     try
         Pkg.activate(trim_project)
