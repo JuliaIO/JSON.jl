@@ -739,6 +739,9 @@ const LONGINTEGER = 2000
     # value; if the two ends round to different `T`s, the midpoint between those `T`s is one of
     # the ends (it is a 256-bit value), and the exact value lies on the other side of it
     @noinline function parsecorrectlyrounded(::Type{T}, buf, first, last) where {T}
+        # rounding to nearest is symmetric, so a negative token rounds its magnitude; only
+        # the positive overflow midpoint (above `floatmax(T)`) needs handling below
+        getbyte(buf, first) == UInt8('-') && return -parsecorrectlyrounded(T, buf, first + 1, last)
         lo = parsebigfloat(buf, first, last, RoundDown)
         hi = parsebigfloat(buf, first, last, RoundUp)
         a, b = T(lo), T(hi)

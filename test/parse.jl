@@ -1173,6 +1173,16 @@ end
     # isvalidjson and parse agree on a long number past Float64's range
     long = "1" * "0"^1100 * ".5"
     @test JSON.isvalidjson(long) && JSON.parse(long) isa BigFloat
+    # long tokens just inside the overflow midpoint round to ±floatmax, whatever the sign
+    for (T, s) in ((Float16, "65519" * "9"^200 * "e-200"),
+                   (Float32, "340282356779733661637539395458142568447" * "9"^200 * "e-200"))
+        @test JSON.parse(s, T) === floatmax(T)
+        @test JSON.parse("-" * s, T) === -floatmax(T)
+    end
+    # the same next to Float64's midpoint, with more than 1080 integer digits
+    s = string(BigInt(floatmax(Float64)) + big(2)^970 - 1) * "0"^800 * ".9e-800"
+    @test JSON.parse(s) === floatmax(Float64)
+    @test JSON.parse("-" * s) === -floatmax(Float64)
 end
 
 struct AnyField
