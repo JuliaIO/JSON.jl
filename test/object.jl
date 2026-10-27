@@ -698,6 +698,9 @@ end
     sym = JSON.Object{String,Any}("a" => 1, "b" => 2)
     @test same(merge!(sym, Dict(:a => 5, :c => 6)), JSON.Object{String,Any}("a" => 5, "b" => 2, "c" => 6))
     @test_throws MethodError merge!(JSON.Object{String,Any}(), Dict(1 => 2))
+    # other keys convert to the key type, as `merge!` into a `Dict` does
+    @test same(merge!(JSON.Object{Float64,Int}(1.0 => 1), Dict(2 => 3)), JSON.Object{Float64,Int}(1.0 => 1, 2.0 => 3))
+    @test same(mergewith!(+, JSON.Object{Float64,Int}(1.0 => 1), Dict(1 => 5)), JSON.Object{Float64,Int}(1.0 => 6))
     @test JSON.Object{Symbol,Any}(:a => 1) == JSON.Object{String,Any}("a" => 1)
     @test_throws MethodError JSON.parse!("[1]", JSON.Object{String,Any}()) # not an object: the generic path
 

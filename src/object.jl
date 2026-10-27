@@ -283,8 +283,8 @@ Base.merge(a::NamedTuple, b::Object{String,Any}) = merge(a, (Symbol(k) => v for 
 # its first entry, as `setindex!` does.
 const SCAN_LIMIT = 16
 
-# the key `setindex!(obj, value, key)` stores
-storedkey(::Object{K}, key::K) where {K} = key
+# the key `merge!` stores: `setindex!`'s String/Symbol conversions, else `convert(K, key)` as for a `Dict`
+storedkey(::Object{K}, key) where {K} = convert(K, key)
 storedkey(::Object{String}, key::Union{AbstractString,Symbol}) = String(key)
 storedkey(::Object{Symbol}, key::String) = Symbol(key)
 
