@@ -20,9 +20,14 @@ function _prepare_trim_project(project_path::String, trim_project::String)::Noth
     original_project = Base.active_project()
     try
         Pkg.activate(trim_project)
-        Pkg.develop(Pkg.PackageSpec(path = project_path))
-        Pkg.add(Pkg.PackageSpec(name = "Parsers", version = pkgversion(JSON.Parsers)))
+        # Preserve the loaded Parsers source, including unregistered checkouts.
+        Pkg.develop([
+            Pkg.PackageSpec(path = project_path),
+            Pkg.PackageSpec(path = pkgdir(JSON.Parsers)),
+        ])
         Pkg.instantiate()
+        @test realpath(Pkg.dependencies()[Base.PkgId(JSON.Parsers).uuid].source) ==
+              realpath(pkgdir(JSON.Parsers))
     finally
         if original_project !== nothing
             Pkg.activate(dirname(original_project))
