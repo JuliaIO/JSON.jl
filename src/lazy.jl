@@ -624,6 +624,30 @@ end
 # integer digits are accumulated as a negative number so typemin(Int64) fits
 const INT64_MIN_DIV10 = div(typemin(Int64), 10)
 const INT64_MIN_LASTDIGIT = -rem(typemin(Int64), 10)
+# the number of leading ASCII digits among the 8 bytes of `w`, first byte in the low bits:
+# `x` maps '0'-'9' to 0-9, and adding 0x76 sets a byte's high bit exactly when it is 10 or
+# more (masking the high bit first keeps carries inside each byte)
+@inline function leadingdigits(w::UInt64)
+    x = w ⊻ 0x3030303030303030
+    nondigit = (((x & 0x7f7f7f7f7f7f7f7f) + 0x7676767676767676) | x) & 0x8080808080808080
+    return trailing_zeros(nondigit) >> 3
+end
+
+# the position of the first non-digit byte at or after `pos`, 8 bytes at a time while 8 remain
+@inline function skipdigits(buf, pos, len)
+    if ENDIAN_BOM == 0x04030201
+        GC.@preserve buf while pos + 7 <= len
+            n = leadingdigits(unsafe_load(Ptr{UInt64}(pointer(buf, pos))))
+            pos += n
+            n == 8 || return pos
+        end
+    end
+    while pos <= len && UInt8('0') <= getbyte(buf, pos) <= UInt8('9')
+        pos += 1
+    end
+    return pos
+end
+
 # scan a JSON number token starting at `startpos`; returns the position after
 # the token, whether it has a fraction or exponent, the integer value, and whether
 # that value overflowed Int64; nextpos == startpos means the bytes at startpos are
@@ -666,9 +690,7 @@ const INT64_MIN_LASTDIGIT = -rem(typemin(Int64), 10)
         isfloat = true
         pos += 1
         (pos > len || !(UInt8('0') <= getbyte(buf, pos) <= UInt8('9'))) && return startpos, false, val, false
-        while pos <= len && UInt8('0') <= getbyte(buf, pos) <= UInt8('9')
-            pos += 1
-        end
+        pos = skipdigits(buf, pos + 1, len)
     end
     # exponent: optional sign, at least one digit
     if pos <= len && (getbyte(buf, pos) == UInt8('e') || getbyte(buf, pos) == UInt8('E'))

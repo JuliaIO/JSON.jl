@@ -427,6 +427,16 @@ end
     @test !any(JSON.isvalidjson, ("1.5f3", "[1.5f3]", "{\"a\":2.5F-1}", "[-0.5F-2]"))
     @test_throws ArgumentError JSON.parse("1.5f3")
     @test_throws ArgumentError JSON.parse("[1.5f3]", Vector{Float64})
+    # fraction digits are scanned 8 bytes at a time while 8 remain: every length up to 20,
+    # at the end of the input and before a delimiter, an exponent or a non-digit byte
+    for n in 1:20
+        s = "0." * first("1234567890123456789012", n)
+        x = Base.parse(Float64, s)
+        @test JSON.parse(s) === x && JSON.parse(Vector{UInt8}(s)) === x
+        @test JSON.parse("[$s,$s]") == [x, x]
+        @test JSON.parse("$(s)e2", Float64) === Base.parse(Float64, "$(s)e2")
+        @test JSON.isvalidjson("[$s]") && !JSON.isvalidjson("[$(s)a]") && !JSON.isvalidjson("[$(s)é]")
+    end
     @test JSON.isvalidjson("[NaN, -Infinity, +1]"; allownan=true)
     # isvalidjson, and values a typed parse skips, refuse what `parse` refuses:
     # content after the value and invalid escapes (#511)
