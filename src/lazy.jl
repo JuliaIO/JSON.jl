@@ -130,6 +130,8 @@ function lazy(buf::Union{AbstractVector{UInt8}, AbstractString}; isroot::Bool=tr
     return _lazy(buf, pos, len, b, opts, isroot, Int32(0))
 
 @label invalid
+    # JSON Lines input with no lines (nothing but a BOM and whitespace) is an empty array
+    opts.jsonlines && error == UnexpectedEOF && return LazyValue(buf, len + 1, JSONTypes.ARRAY, opts, isroot, Int32(0))
     invalid(error, buf, pos, Any)
 end
 
@@ -411,19 +413,15 @@ function applyarray(keyvalfunc, x::LazyValues)
     opts = getopts(x)
     depth = getdepth(x) + Int32(1)
     depth > opts.maxdepth && toodeep(pos, opts.maxdepth)
-    jsonlines = opts.jsonlines
+    opts.jsonlines && return applylines(keyvalfunc, buf, pos, len, opts, depth)
     b = getbyte(buf, pos)
-    if !jsonlines
-        if b != UInt8('[')
-            error = ExpectedOpeningArrayChar
-            @goto invalid
-        end
-        pos += 1
-        @nextbyte
-        b == UInt8(']') && return pos + 1
-    else
-        opts = lineopts(opts)
+    if b != UInt8('[')
+        error = ExpectedOpeningArrayChar
+        @goto invalid
     end
+    pos += 1
+    @nextbyte
+    b == UInt8(']') && return pos + 1
     i = 1
     while true
         # we're now positioned at the start of the value
@@ -434,19 +432,37 @@ function applyarray(keyvalfunc, x::LazyValues)
         # updated `pos`, then we need to skip val ourselves
         # WARNING: parsing can get corrupted if random Int values are returned from keyvalfunc
         pos = (ret isa Int && ret > pos) ? ret : skip(val)
-        if jsonlines
-            @jsonlines_checks
-        else
-            @nextbyte
-            if b == UInt8(']')
-                return pos + 1
-            elseif b != UInt8(',')
-                error = ExpectedComma
-                @goto invalid
-            end
-            pos += 1 # move past ','
-            @nextbyte
+        @nextbyte
+        if b == UInt8(']')
+            return pos + 1
+        elseif b != UInt8(',')
+            error = ExpectedComma
+            @goto invalid
         end
+        pos += 1 # move past ','
+        @nextbyte
+        i += 1
+    end
+
+@label invalid
+    invalid(error, buf, pos, "array")
+end
+
+# `applyarray` for JSON Lines input: an implicit array of the input's lines, delimited by
+# newlines rather than brackets and commas (see `@jsonlines_checks`)
+function applylines(keyvalfunc, buf, pos::Int, len, opts, depth)
+    local error::Error # set inside the loop, read at the label after it
+    # an input with no lines starts past its end
+    pos > len && return pos
+    opts = lineopts(opts)
+    b = getbyte(buf, pos)
+    i = 1
+    while true
+        val = _lazy(buf, pos, len, b, opts, false, depth)
+        ret = keyvalfunc(i, val)
+        ret isa StructUtils.EarlyReturn && return ret
+        pos = (ret isa Int && ret > pos) ? ret : skip(val)
+        @jsonlines_checks
         i += 1
     end
 
