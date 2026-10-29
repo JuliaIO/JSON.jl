@@ -83,6 +83,16 @@ function exercise_parse_entrypoints()::Nothing
     checked(JSON.parse(ARRAY_JSON, Vector{Int}) == [1, 2, 3], "typed array parse failed")
     checked(JSON.parse("{\"score\":7}", Dict{String,Int}) == Dict("score" => 7),
         "typed dictionary parse failed")
+    checked(JSON.parse("[7,\"Ada\"]", Tuple{Int,String}) == (7, "Ada"), "typed tuple parse failed")
+    checked(JSON.parse("[]", Tuple{}) == (), "empty tuple parse failed")
+    checked(JSON.parse("{\"a\":7,\"b\":\"Ada\"}", Tuple{Int,String}) == (7, "Ada"), "object tuple parse failed")
+    extra = try
+        JSON.parse("[7,\"Ada\",1]", Tuple{Int,String}; unknown_fields=:error)
+        nothing
+    catch err
+        err
+    end
+    checked(extra isa ArgumentError, "extra tuple member diagnostic failed")
 
     root = JSON.parse(
         "{\"item\":{\"id\":1,\"name\":\"one\"},\"items\":[{\"id\":2,\"name\":\"two\"}],\"tags\":[\"a\"],\"note\":null}",

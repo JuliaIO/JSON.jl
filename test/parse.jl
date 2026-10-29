@@ -1076,6 +1076,20 @@ end
     @test JSON.parse("{\"a\":1,\"b\":2,\"c\":3,\"d\":4}", Tuple{Int, Int, Int}) == (1, 2, 3)
     @test_throws ArgumentError JSON.parse("{}", Tuple{Int, Int, Int})
     @test_throws ArgumentError JSON.parse("{\"a\":1,\"b\":2}", Tuple{Int, Int, Int})
+    # the empty tuple, which `JSON.json(())` writes as `[]`
+    @test JSON.parse("[]", Tuple{}) === ()
+    @test JSON.parse(" { } ", Tuple{}) === ()
+    @test JSON.parse("[1,2]", Tuple{}) === ()
+    @test JSON.parse(JSON.json((1, (), "a")), Tuple{Int, Tuple{}, String}) == (1, (), "a")
+    # members past the tuple's length are unknown fields, as for structs
+    @test_throws ArgumentError JSON.parse("[1,2]", Tuple{Int}; unknown_fields=:error)
+    @test_throws ArgumentError JSON.parse("{\"a\":1,\"b\":2}", Tuple{Int}; unknown_fields=:error)
+    @test_throws ArgumentError JSON.parse("[1]", Tuple{}; unknown_fields=:error)
+    @test_throws "ExpectedComma" JSON.parse("[1,2 3]", Tuple{Int})
+    @test_throws "ExpectedColon" JSON.parse("{\"a\":1,\"b\" 2}", Tuple{Int})
+    let err = try JSON.parse("[1,2]", Tuple{Int}; unknown_fields=:error, error_context=true) catch e; e end
+        @test err isa JSON.ParseError && err.path == "/1" && err.cause isa ArgumentError
+    end
 end
 
 @testset "isroot=false allows trailing" begin

@@ -893,6 +893,50 @@ function StructUtils.make(::StructStyle, ::Type{JSONText}, x::LazyValues)
     return val, endpos
 end
 
+# `unknownfield` for a member past a tuple's length; under `error_context=true` a rejection
+# points at that member, as it does for a struct's unknown field
+@inline unknownmember(st, ::Type{T}, key, x) where {T} =
+    _contextcallback(st, (k, v) -> StructUtils.unknownfield(st, T, k, v))(key, x)
+
+# The members of a tuple's source past its `i`th, from `pos` (where the next one starts) to
+# the closing bracket; returns the position after it. Each member goes to `unknownfield`, as
+# a struct's unknown field does: skipped by default, rejected with `unknown_fields=:error`.
+@noinline function skipmembers(st, ::Type{T}, buf, pos::Int, len, b, typ, opts, depth, i::Int) where {T}
+    local error::Error # set inside the loop, read at the label after it
+    while true
+        i += 1
+        GC.@preserve buf begin
+            if typ == JSONTypes.OBJECT
+                key, pos = @inline parsestring(LazyValue(buf, pos, JSONTypes.STRING, opts, false, depth))
+                @nextbyte
+                if b != UInt8(':')
+                    error = ExpectedColon
+                    @goto invalid
+                end
+                pos += 1
+                @nextbyte
+                x = _lazy(buf, pos, len, b, opts, false, depth)
+                ret = unknownmember(st, T, key, x)
+            else
+                x = _lazy(buf, pos, len, b, opts, false, depth)
+                ret = unknownmember(st, T, i, x)
+            end
+        end
+        pos = (ret isa Int && ret > pos) ? ret : skip(x)
+        @nextbyte
+        if b == (typ == JSONTypes.OBJECT ? UInt8('}') : UInt8(']'))
+            return pos + 1
+        elseif b != UInt8(',')
+            error = ExpectedComma
+            @goto invalid
+        end
+        pos += 1
+        @nextbyte
+    end
+@label invalid
+    invalid(error, buf, pos, "tuple")
+end
+
 @generated function StructUtils.maketuple(st::StructStyle, ::Type{T}, x::LazyValues) where {T<:Tuple}
     N = fieldcount(T)
     ex = quote
@@ -916,6 +960,8 @@ end
         end
         pos += 1
         @nextbyte
+        # an empty tuple reads no members: only its source's closing bracket, or extra members
+        $(N == 0 ? :(b == (typ == JSONTypes.OBJECT ? UInt8('}') : UInt8(']')) && return (), pos + 1) : nothing)
         Base.@nexprs $N i -> begin
             if typ == JSONTypes.OBJECT
                 # consume key
@@ -952,34 +998,7 @@ end
             pos += 1
             @nextbyte
         end
-        # skip extra fields not used by tuple
-        while true
-            if typ == JSONTypes.OBJECT
-                # consume key
-                GC.@preserve buf begin
-                    _, pos = @inline parsestring(LazyValue(buf, pos, JSONTypes.STRING, opts, false, depth))
-                end
-                @nextbyte
-                if b != UInt8(':')
-                    error = ExpectedColon
-                    @goto invalid
-                end
-                pos += 1
-                @nextbyte
-            end
-            pos = skip(_lazy(buf, pos, len, b, opts, false, depth))
-            @nextbyte
-            if typ == JSONTypes.OBJECT && b == UInt8('}')
-                return Base.@ntuple($N, j), pos + 1
-            elseif typ == JSONTypes.ARRAY && b == UInt8(']')
-                return Base.@ntuple($N, j), pos + 1
-            elseif b != UInt8(',')
-                error = ExpectedComma
-                @goto invalid
-            end
-            pos += 1
-            @nextbyte
-        end
+        return Base.@ntuple($N, j), skipmembers(st, T, buf, pos, len, b, typ, opts, depth, $N)
         @label invalid
         invalid(error, buf, pos, "tuple")
     end
