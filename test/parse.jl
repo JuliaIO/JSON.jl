@@ -604,7 +604,20 @@ end
     @test JSON.parsefile(makefile("jsonlines.jsonl", "1\n2\n3\n4")) == [1, 2, 3, 4]
     # missing newline
     @test_throws ArgumentError JSON.parse("1 \t\bnull"; jsonlines=true)
-    @test_throws ArgumentError JSON.parse(""; jsonlines=true)
+    # input with no lines is an empty array, including what `JSON.json([]; jsonlines=true)` writes
+    for empty in ("", "\n", " \t\r\n\n", "\ufeff", "\ufeff\n")
+        @test JSON.parse(empty; jsonlines=true) == []
+        @test JSON.parse(Vector{UInt8}(empty); jsonlines=true) == []
+        @test JSON.parse(empty, Vector{Int}; jsonlines=true) == Int[]
+        @test JSON.isvalidjson(empty; jsonlines=true)
+        @test isempty(JSON.lazy(empty; jsonlines=true)[])
+    end
+    @test JSON.parse(JSON.json([]; jsonlines=true); jsonlines=true) == []
+    @test_throws ArgumentError JSON.parse("", Tuple{Int}; jsonlines=true)
+    @test_throws ArgumentError JSON.parse("1\n2", Tuple{Int,Int}; jsonlines=true)
+    @test JSON.parsefile(makefile("empty.jsonl", "")) == []
+    @test_throws ArgumentError JSON.parse("")
+    @test_throws ArgumentError JSON.parse("\xff\xfe"; jsonlines=true)
     @test JSON.parse("1\n2\n3\n4"; jsonlines=true) == [1, 2, 3, 4]
     @test JSON.parse("[1]\n[2]\n[3]\n[4]"; jsonlines=true) == [[1], [2], [3], [4]]
     @test JSON.parse("{\"a\": 1}\n{\"b\": 2}\n{\"c\": 3}\n{\"d\": 4}"; jsonlines=true) == [Dict("a" => 1), Dict("b" => 2), Dict("c" => 3), Dict("d" => 4)]

@@ -937,6 +937,8 @@ end
     invalid(error, buf, pos, "tuple")
 end
 
+@noinline jsonlinestuple() = throw(ArgumentError("JSON Lines input can't be read as a tuple; parse it as a vector"))
+
 @generated function StructUtils.maketuple(st::StructStyle, ::Type{T}, x::LazyValues) where {T<:Tuple}
     N = fieldcount(T)
     ex = quote
@@ -944,6 +946,8 @@ end
         buf = getbuf(x)
         len = getlength(buf)
         opts = getopts(x)
+        # a JSON Lines input has no brackets (and an empty one starts past its last byte)
+        opts.jsonlines && jsonlinestuple()
         b = getbyte(buf, pos)
         typ = gettype(x)
         depth = getdepth(x) + Int32(1)
