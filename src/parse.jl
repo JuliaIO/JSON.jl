@@ -564,8 +564,14 @@ end
 _objectkey(ctx, ::Type, k) = String(k) # untyped parse: keys are Strings
 _objectkey(st::StructStyle, ::Type{K}, k) where {K} = StructUtils.liftkey(st, K, k)
 
+# a typed parse with the caller's own style rather than the default one
+_customstyle(ctx) = ctx isa StructStyle && !(ctx isa _DefaultReadStyle)
+
 function (oc::ObjectClosure{K,V})(k, v) where {K,V}
-    V === Any && return applyvalue(val -> insert_or_overwrite!(oc, _objectkey(oc.ctx, K, k), val), v, oc.ctx)
+    # a custom style's hooks give values of any type, and handing one to the callback below
+    # would be a dynamic call, which `juliac --trim` can't compile
+    V === Any && !_customstyle(oc.ctx) &&
+        return applyvalue(val -> insert_or_overwrite!(oc, _objectkey(oc.ctx, K, k), val), v, oc.ctx)
     val, pos = StructUtils.make(oc.ctx, V, v)
     insert_or_overwrite!(oc, _objectkey(oc.ctx, K, k), val)
     return pos
@@ -675,15 +681,29 @@ function applyvalue(f, x::LazyValues, st::_DefaultReadStyle)
     end
 end
 
+# An object or array value as `make(st, Any, x)` builds it for a custom style, typed as the
+# style's object type or `Vector{Any}`.
+function _makecontainer(st::StructStyle, x::LazyValues)
+    gettype(x) == JSONTypes.ARRAY && return StructUtils.make(st, Vector{Any}, x)
+    O = objecttype(st)
+    # `_makeobjectvalue` appends in O(n); the generic `makedict` scans the object per key
+    st isa JSONReadStyle && O <: Object && return _makeobjectvalue(st, O, x)
+    return StructUtils.make(st, O, x)
+end
+
+# `_makeobject` for a value already known to be an object, without its fallback into
+# StructUtils' generic `make`. Among a custom style's recursive calls that fallback keeps
+# `juliac --trim` from compiling them (Julia 1.14) or a later default-style parse (1.13).
+function _makeobjectvalue(st::JSONReadStyle, ::Type{O}, x::LazyValues) where {O<:Object}
+    obj = StructUtils.initialize(st, O, x)
+    pos = applyobject(_contextcallback(st, ObjectClosure(obj, st)), x)
+    return obj, pos
+end
+
 function StructUtils.make(st::StructStyle, ::Type{Any}, x::LazyValues)
     type = gettype(x)
-    if type == JSONTypes.OBJECT
-        O = objecttype(st)
-        # `_makeobject` appends in O(n); the generic `makedict` scans the object per key
-        st isa JSONReadStyle && O <: Object && return _makeobject(st, O, x)
-        return StructUtils.make(st, O, x)
-    elseif type == JSONTypes.ARRAY
-        return StructUtils.make(st, Vector{Any}, x)
+    if type == JSONTypes.OBJECT || type == JSONTypes.ARRAY
+        return _makecontainer(st, x)
     elseif type == JSONTypes.STRING
         return StructUtils.lift(st, String, x)
     elseif type == JSONTypes.NUMBER
@@ -693,7 +713,7 @@ function StructUtils.make(st::StructStyle, ::Type{Any}, x::LazyValues)
     elseif type == JSONTypes.TRUE || type == JSONTypes.FALSE
         return StructUtils.lift(st, Bool, x)
     else
-        throw(ArgumentError("cannot parse $x"))
+        throw(ArgumentError("cannot parse json"))
     end
 end
 
@@ -842,15 +862,19 @@ function StructUtils.lift(style::JSONReadStyle, ::Type{T}, x::LazyValues, tags=(
         # (with the default ones, that is the untyped path itself)
         plain = style isa JSONReadStyle{DEFAULT_OBJECT_TYPE,Nothing,StructUtils.DefaultStyle,Nothing}
         if T === Any && !plain
-            val1, pos = StructUtils.make(style, Any, x)
+            val1, pos = _customstyle(style) ? _makecontainer(style, x) : StructUtils.make(style, Any, x)
             # a `lift` tag or a custom style's `lift` still applies to the materialized value
             style isa _DefaultReadStyle && !haskey(tags, :lift) && return val1, pos
             val, _ = StructUtils.lift(style, T, val1, tags)
             return val, pos
         end
-        out = ValueClosure()
-        pos = plain ? applyvalue(out, x, nothing) : applyvalue(out, x, style)
-        val1 = out.value
+        if _customstyle(style)
+            val1, pos = _makecontainer(style, x)
+        else
+            out = ValueClosure()
+            pos = plain ? applyvalue(out, x, nothing) : applyvalue(out, x, style)
+            val1 = out.value
+        end
         # big switch here for --trim verify-ability
         if val1 isa objecttype(style)
             val, _ = StructUtils.lift(style, T, val1, tags)

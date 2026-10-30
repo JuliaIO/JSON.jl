@@ -12,6 +12,17 @@ StructUtils.liftkey(::JSON.JSONReadStyle{O,N,CustomStyle}, ::Type{String}, x::St
 struct BareStyle <: StructUtils.StructStyle end
 StructUtils.lower(::BareStyle, x::String) = uppercase(x)
 
+struct AnyHolder
+    value::Any
+end
+
+@testset "A custom style builds Any values as the parse's dicttype" begin
+    x = JSON.parse("{\"value\":{\"a\":[1,{\"b\":2}]}}", AnyHolder; style=BareStyle(), dicttype=Dict{String,Any})
+    @test x.value isa Dict{String,Any}
+    @test x.value == Dict("a" => Any[1, Dict("b" => 2)])
+    @test x.value["a"][2] isa Dict{String,Any}
+end
+
 struct KeyStyle <: JSON.JSONStyle
     seen::Vector{Int}
 end

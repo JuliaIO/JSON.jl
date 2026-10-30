@@ -48,6 +48,13 @@ struct TrimTemporal
     tick::Dates.Time
 end
 
+# A read style that overrides nothing: values still go through its hooks.
+struct TrimReadStyle <: JSON.StructUtils.StructStyle end
+
+struct TrimAnyField
+    value::Any
+end
+
 # Close the extension point for the types produced by untyped parsing.
 struct TrimJSONStyle <: JSON.JSONStyle end
 JSON.applyany(::TrimJSONStyle, f, key, @nospecialize(value)) =
@@ -156,6 +163,34 @@ function exercise_parse_entrypoints()::Nothing
     return nothing
 end
 
+function exercise_custom_style_parse()::Nothing
+    style = TrimReadStyle()
+    checked(JSON.parse("42", Int64; style) == 42, "custom-style scalar parse failed")
+    leaf = JSON.parse("{\"id\":1,\"name\":\"one\"}", TrimLeaf; style)
+    checked(leaf.id == 1 && leaf.name == "one", "custom-style struct parse failed")
+    text = "{\"value\":{\"a\":[1,1.5,\"x\",null,true,{\"b\":12345678901234567890123}]}}"
+    any_field = JSON.parse(text, TrimAnyField; style)
+    object = any_field.value::JSON.Object{String,Any}
+    values = object["a"]::Vector{Any}
+    checked(length(values) == 6, "custom-style nested array length failed")
+    checked((values[1]::Int64) == 1 && (values[2]::Float64) == 1.5, "custom-style nested numbers failed")
+    checked((values[3]::String) == "x" && values[4] === nothing && (values[5]::Bool),
+        "custom-style nested scalars failed")
+    inner = values[6]::JSON.Object{String,Any}
+    checked((inner["b"]::BigInt) == big"12345678901234567890123", "custom-style nested bigint failed")
+    dict = JSON.parse("{\"k\":{\"n\":[2]}}", Dict{String,Any}; style)
+    nested = dict["k"]::JSON.Object{String,Any}
+    checked(((nested["n"]::Vector{Any})[1]::Int64) == 2, "custom-style dictionary parse failed")
+    mismatch = try
+        JSON.parse("[1]", Int64; style)
+        nothing
+    catch err
+        err
+    end
+    checked(mismatch isa MethodError, "custom-style mismatch did not throw a MethodError")
+    return nothing
+end
+
 function exercise_write_entrypoints()::Nothing
     obj = JSON.Object{String, Int}("score" => 7.0)
     obj[:score] = 10
@@ -236,6 +271,7 @@ end
 function run_json_trim_public_entrypoints()::Nothing
     exercise_lazy_entrypoints()
     exercise_parse_entrypoints()
+    exercise_custom_style_parse()
     exercise_write_entrypoints()
     exercise_nested_any()
     return nothing
