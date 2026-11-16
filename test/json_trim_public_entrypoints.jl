@@ -140,6 +140,8 @@ function exercise_parse_entrypoints()::Nothing
     checked(tagged == TrimTagged(4, 9), "field-tag parse failed")
     lifted = JSON.parse("{\"value\":[1,null,3]}", TrimLiftAny; null=missing)
     checked((lifted.value::Int) == 3, "lift tag on an Any field with null= failed")
+    lifted = JSON.parse("{\"value\":{\"a\":null}}", TrimLiftAny; null=missing)
+    checked((lifted.value::Int) == -1, "lift tag on an object-valued Any field with null= failed")
 
     mutable_value = TrimMutable()
     JSON.parse!("{\"value\":8}", mutable_value; unknown_fields=:error)
