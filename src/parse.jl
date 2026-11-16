@@ -709,7 +709,8 @@ function StructUtils.make(st::StructStyle, ::Type{Any}, x::LazyValues)
     elseif type == JSONTypes.NUMBER
         return StructUtils.lift(st, Number, x)
     elseif type == JSONTypes.NULL
-        return StructUtils.lift(st, Nothing, x)
+        # lifted to the type of the parse's `null` value, so `null=missing` reaches nested values
+        return StructUtils.lift(st, typeof(nullvalue(st)), x)
     elseif type == JSONTypes.TRUE || type == JSONTypes.FALSE
         return StructUtils.lift(st, Bool, x)
     else

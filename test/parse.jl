@@ -1291,6 +1291,16 @@ JSON.lift(::Type{LiftedWhole}, x) = LiftedWhole(x)
     @test JSON.parse("{\"c\":{\"a\":null}}", @NamedTuple{c::LiftedWhole}).c.d isa JSON.Object{String,Any}
 end
 
+@testset "a custom style's Any values get the parse's null" begin
+    for style in (PlainStructStyle(), CustomJSONStyle())
+        @test JSON.parse("{\"a\":null}", Dict{String,Any}; null=missing, style)["a"] === missing
+        @test JSON.parse("{\"a\":[null]}", Dict{String,Any}; null=missing, style)["a"][1] === missing
+        @test JSON.parse("[{\"b\":null}]", Vector{Any}; null=missing, style)[1]["b"] === missing
+        # the default `null` is unchanged
+        @test JSON.parse("{\"a\":[null]}", Dict{String,Any}; style)["a"][1] === nothing
+    end
+end
+
 StructUtils.@tags struct AnyLiftTag
     a::Any &(json=(lift=x -> length(x),),)
 end
