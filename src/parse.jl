@@ -681,7 +681,7 @@ function applyvalue(f, x::LazyValues, st::_DefaultReadStyle)
     end
 end
 
-# An object or array value as `make(st, Any, x)` builds it for a custom style, typed as the
+# An object or array value as `make(st, Any, x)` builds it, typed as the
 # style's object type or `Vector{Any}`.
 function _makecontainer(st::StructStyle, x::LazyValues)
     gettype(x) == JSONTypes.ARRAY && return StructUtils.make(st, Vector{Any}, x)
@@ -862,9 +862,10 @@ function StructUtils.lift(style::JSONReadStyle, ::Type{T}, x::LazyValues, tags=(
         # (with the default ones, that is the untyped path itself)
         plain = style isa JSONReadStyle{DEFAULT_OBJECT_TYPE,Nothing,StructUtils.DefaultStyle,Nothing}
         if T === Any && !plain
-            val1, pos = _customstyle(style) ? _makecontainer(style, x) : StructUtils.make(style, Any, x)
-            # a `lift` tag or a custom style's `lift` still applies to the materialized value
-            style isa _DefaultReadStyle && !haskey(tags, :lift) && return val1, pos
+            style isa _DefaultReadStyle && !haskey(tags, :lift) && return StructUtils.make(style, Any, x)
+            # a `lift` tag or a custom style's `lift` still applies to the materialized value,
+            # built with its concrete type so that call stays static
+            val1, pos = _makecontainer(style, x)
             val, _ = StructUtils.lift(style, T, val1, tags)
             return val, pos
         end
