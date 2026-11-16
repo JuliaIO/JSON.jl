@@ -1,5 +1,12 @@
 using JSON, Test, Tar
 
+# `@elapsed`, `@allocated` and `@allocations` make Julia compile the whole top-level expression
+# they appear in, which takes minutes for the large testsets (over 40 minutes on Julia 1.13.4).
+# Those testsets measure through these functions instead, so they run in the interpreter.
+elapsed(f) = @elapsed f()
+allocated(f) = @allocated f()
+allocations(f) = @allocations f()
+
 include(joinpath(dirname(pathof(JSON)), "../test/object.jl"))
 include(joinpath(dirname(pathof(JSON)), "../test/lazy.jl"))
 include(joinpath(dirname(pathof(JSON)), "../test/parse.jl"))

@@ -108,7 +108,7 @@ JSON.applyany(::ClosedStyle, f, k, v) = throw(ArgumentError("closed"))
     # a long BigInt is converted by GMP, not one quadratic-cost digit at a time
     long = parse(BigInt, "-1" * "7"^99_999)
     @test JSON.json(long) == string(long)
-    @test @allocated(JSON.json(long)) < 10_000_000
+    @test allocated(() -> JSON.json(long)) < 10_000_000
     # a BigFloat keeps all its digits; `parse` returns one for numbers beyond Float64's range
     @test JSON.json(big"1.5") == "1.5"
     @test JSON.json(big(pi)) == string(big(pi))
@@ -865,10 +865,10 @@ end
     # keys are converted once, and values are not looked up again (a scan per key in an Object)
     ints = Dict{Int,Float64}(k => k * 1.5 for k in 0:99)
     @test JSON.json(ints) == "{" * join(("\"$k\":$(k * 1.5)" for k in sort(0:99; by=string)), ",") * "}"
-    @test @allocated(JSON.json(ints)) < 30_000
+    @test allocated(() -> JSON.json(ints)) < 30_000
     big = JSON.parse("{" * join(("\"k$i\":$i" for i in 40_000:-1:1), ",") * "}")
     @test JSON.json(big; sort_keys=true) == "{" * join(("\"k$i\":$i" for i in sort(1:40_000; by=i -> "k$i")), ",") * "}"
-    @test @elapsed(JSON.json(big; sort_keys=true)) < 1
+    @test elapsed(() -> JSON.json(big; sort_keys=true)) < 1
 end
 
 @testset "jsonlines keeps the custom style for nested values" begin
@@ -901,7 +901,7 @@ end
         x = JSON.parse(s; dicttype)
         @test JSON.parse(JSON.json(x; sort_keys=false); dicttype) == x
         # a recursive write that isn't compiled statically boxes the closure for each container
-        @test @allocations(JSON.json(x; sort_keys=false)) < 100
+        @test allocations(() -> JSON.json(x; sort_keys=false)) < 100
     end
     # the closure's call has one method, so writing a value of unknown type infers as `nothing`
     # and no element's result is checked for an `EarlyReturn` at run time
