@@ -11,6 +11,8 @@ jobs:
   test:
     name: Julia ${{ matrix.version }} - ${{ matrix.os }} - ${{ matrix.arch }} - ${{ github.event_name }} - Parsers ${{ matrix.parsers }}
     runs-on: ${{ matrix.os }}
+    # The slowest jobs take about 25 minutes; a hung test fails here instead of after 6 hours.
+    timeout-minutes: 60
     continue-on-error: ${{ matrix.version == 'pre' }}
     # Per job, not per workflow, so a newer push cancels superseded tests but never a docs deploy.
     concurrency:
