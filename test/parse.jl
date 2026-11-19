@@ -1184,6 +1184,12 @@ end
     @test JSON.parse(s, BigFloat) == parse(BigFloat, s)
     @test JSON.parse("{\"x\":[0.1]}", @NamedTuple{x::Vector{BigFloat}}).x == [big"0.1"]
     @test isequal(JSON.parse("[1e40, -0.0, 1e-50]", Vector{Float32}), [Inf32, -0.0f0, 0.0f0])
+    # just below or above the midpoint between two adjacent values; Parsers 2.8.8 to 2.8.10
+    # rounded these to the wrong side
+    @test JSON.parse("0.0553436279296874999", Float16) === Float16(0.05533)
+    @test JSON.parse("0.17999267578125001", Float16) === Float16(0.18)
+    @test JSON.parse("8321.3012695312501", Float32) === 8321.302f0
+    @test JSON.parse("3040267862015.9999", Float32) === 3.0402677f12
     for T in (Float16, Float32, BigFloat), s in ("1.5e", "1.5e+", "-1.e5")
         @test_throws ArgumentError JSON.parse(s, T)
     end
