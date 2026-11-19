@@ -44,7 +44,7 @@ jobs:
           - os: ubuntu-latest
             arch: x64
             version: 1
-            parsers: '2.8.8'
+            parsers: '2.8.11'
     steps:
       - uses: actions/checkout@v7
       - uses: julia-actions/setup-julia@v3
