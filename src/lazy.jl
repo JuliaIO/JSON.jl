@@ -1127,6 +1127,9 @@ end
         (T === Float32 || T === Float16 || T === BigFloat) && return parsefloatas(T, buf, startpos, nextpos, len)
         return parsefloat64(buf, startpos, nextpos, len, opts.allownan)
     end
+    # a float target keeps the sign of `-0`, as it does for `-0.0`
+    T <: Union{Nothing,Missing,AbstractFloat} && iszero(val) && getbyte(buf, startpos) == UInt8('-') &&
+        return NumberResult(-0.0), nextpos
     overflow || return NumberResult(val), nextpos
     # promote to BigInt
     return parsebigint(buf, startpos, nextpos - 1), nextpos
