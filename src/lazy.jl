@@ -637,7 +637,7 @@ end
     return pos + n
 end
 
-# integer digits are accumulated as a negative number so typemin(Int64) fits
+# the overflow-checked digit loop adds digits as a negative number, so typemin(Int64) fits
 const INT64_MIN_DIV10 = div(typemin(Int64), 10)
 const INT64_MIN_LASTDIGIT = -rem(typemin(Int64), 10)
 # the number of leading ASCII digits among the 8 bytes of `w`, first byte in the low bits:
