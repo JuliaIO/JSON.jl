@@ -713,6 +713,15 @@ end
         x = JSON.parse("170141183460469231731687303715884105728")
         @test x isa BigInt && x == 170141183460469231731687303715884105728
         @test JSON.parse("170141183460469231731687303715884105728") !== x
+        # integers on both sides of 18 digits, past which the scanner checks for overflow
+        for n in 17:20, sign in ("", "-"), d in ("1", "9")
+            s = sign * d^n
+            want = parse(BigInt, s)
+            got = JSON.parse(s)
+            @test got == want && got isa (typemin(Int64) <= want <= typemax(Int64) ? Int64 : BigInt)
+            @test only(JSON.parse("[$s]", Vector{Int128})) == want
+            @test JSON.parse(s * ".0", Int128) == want
+        end
         # long integers convert through GMP, whose conversion is subquadratic
         for n in (1999, 2000, 2001, 2002, 5000), sign in ("", "-")
             s = sign * "1" * "7"^(n - 1)

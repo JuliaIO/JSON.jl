@@ -637,7 +637,7 @@ end
     return pos + n
 end
 
-# integer digits are accumulated as a negative number so typemin(Int64) fits
+# the overflow-checked digit loop adds digits as a negative number, so typemin(Int64) fits
 const INT64_MIN_DIV10 = div(typemin(Int64), 10)
 const INT64_MIN_LASTDIGIT = -rem(typemin(Int64), 10)
 # the number of leading ASCII digits among the 8 bytes of `w`, first byte in the low bits:
@@ -685,17 +685,30 @@ end
         pos += 1
         pos <= len && UInt8('0') <= getbyte(buf, pos) <= UInt8('9') && return startpos, false, val, false
     elseif UInt8('1') <= b <= UInt8('9')
+        # The digits add up as a positive number, one multiply-add each. 18 digits always
+        # fit in an Int64; a longer run is added up again below, checking for overflow.
+        first = pos
+        digit = UInt64(b - UInt8('0'))
+        n = Int64(0)
         while true
-            digit = Int64(b - UInt8('0'))
-            if val < INT64_MIN_DIV10 || (val == INT64_MIN_DIV10 && digit > INT64_MIN_LASTDIGIT)
-                overflow = true
-            else
-                val = Int64(10) * val - digit
-            end
+            n = Int64(10) * n + (digit % Int64)
             pos += 1
             pos > len && break
-            b = getbyte(buf, pos)
-            UInt8('0') <= b <= UInt8('9') || break
+            # a byte below '0' wraps around, so one comparison checks both bounds
+            digit = UInt64(getbyte(buf, pos)) - UInt64('0')
+            digit <= 9 || break
+        end
+        val = -n
+        if pos - first > 18
+            val = Int64(0)
+            for p = first:pos-1
+                d = Int64(getbyte(buf, p) - UInt8('0'))
+                if val < INT64_MIN_DIV10 || (val == INT64_MIN_DIV10 && d > INT64_MIN_LASTDIGIT)
+                    overflow = true
+                    break
+                end
+                val = Int64(10) * val - d
+            end
         end
     else
         return startpos, false, val, false
