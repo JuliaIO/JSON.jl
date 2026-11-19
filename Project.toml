@@ -22,7 +22,7 @@ JSONSerializationExt = ["Serialization"]
 [compat]
 Arrow = "2.8.0"
 ArrowTypes = "2.2"
-Parsers = "2.8.8, 3"
+Parsers = "2.8.11, 3"
 PrecompileTools = "1"
 StructUtils = "2.10"
 julia = "1.10"
