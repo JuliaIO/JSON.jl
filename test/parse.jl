@@ -1190,6 +1190,9 @@ end
     @test JSON.parse("0.17999267578125001", Float16) === Float16(0.18)
     @test JSON.parse("8321.3012695312501", Float32) === 8321.302f0
     @test JSON.parse("3040267862015.9999", Float32) === 3.0402677f12
+    # exponents past typemax(Int64), which those versions wrapped around
+    @test JSON.parse("1e9999999999999999999", Float64) === Inf
+    @test JSON.parse("1e-9999999999999999999"; allownan=true) === 0.0
     for T in (Float16, Float32, BigFloat), s in ("1.5e", "1.5e+", "-1.e5")
         @test_throws ArgumentError JSON.parse(s, T)
     end
