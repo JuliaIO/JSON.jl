@@ -841,6 +841,10 @@ function StructUtils.lift(style::JSONReadStyle, ::Type{T}, x::LazyValues, tags=(
             direct && T === BigInt && return num.bigint::BigInt, pos
             bigint, _ = StructUtils.lift(style, T, num.bigint::BigInt, tags)
             return bigint, pos
+        elseif isnegzero(num)
+            # `-0` reads like `0`, except that a float zero keeps the sign, as it does for `-0.0`
+            z, _ = StructUtils.lift(style, T, Int64(0), tags)
+            return (z isa AbstractFloat && iszero(z) ? -abs(z) : z), pos
         else
             direct && T === BigFloat && return num.bigfloat::BigFloat, pos
             bigfloat, _ = StructUtils.lift(style, T, num.bigfloat::BigFloat, tags)

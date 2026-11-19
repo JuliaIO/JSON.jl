@@ -730,6 +730,8 @@ const INT = 0x00
 const FLOAT = 0x01
 const BIGINT = 0x02
 const BIGFLOAT = 0x03
+# the integer token `-0`, which has no Int64 form; only typed reads get it
+const NEGZERO = 0x04
 
 struct NumberResult
     tag::UInt8
@@ -741,12 +743,14 @@ struct NumberResult
     NumberResult(float::Float64) = new(FLOAT, Int64(0), float, nothing, nothing)
     NumberResult(bigint::BigInt) = new(BIGINT, Int64(0), 0.0, bigint, nothing)
     NumberResult(bigfloat::BigFloat) = new(BIGFLOAT, Int64(0), 0.0, nothing, bigfloat)
+    NumberResult(tag::UInt8) = new(tag, Int64(0), 0.0, nothing, nothing)
 end
 
 isint(x::NumberResult) = x.tag == INT
 isfloat(x::NumberResult) = x.tag == FLOAT
 isbigint(x::NumberResult) = x.tag == BIGINT
 isbigfloat(x::NumberResult) = x.tag == BIGFLOAT
+isnegzero(x::NumberResult) = x.tag == NEGZERO
 
 # Parsers converts the validated token span; Parsers 2 and 3 have different APIs
 @inline numberbytes(buf::AbstractString) = codeunits(buf)
@@ -1127,6 +1131,9 @@ end
         (T === Float32 || T === Float16 || T === BigFloat) && return parsefloatas(T, buf, startpos, nextpos, len)
         return parsefloat64(buf, startpos, nextpos, len, opts.allownan)
     end
+    # `-0` has no Int64 form, so a target that `0` might lift to a float gets it as its own result
+    !(T === Any || T <: Integer) && iszero(val) && getbyte(buf, startpos) == UInt8('-') &&
+        return NumberResult(NEGZERO), nextpos
     overflow || return NumberResult(val), nextpos
     # promote to BigInt
     return parsebigint(buf, startpos, nextpos - 1), nextpos

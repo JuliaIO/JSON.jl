@@ -1175,6 +1175,11 @@ end
     @test @allocations(JSON.parse(floats)) < 10_100
 end
 
+StructUtils.@tags struct LiftedZero
+    a::Float64 &(json=(lift=x -> x / 2,),)
+    b::Float64 &(json=(lift=x -> x + 1.0,),)
+end
+
 @testset "Float32, Float16 and BigFloat targets are parsed at their own precision" begin
     # just above the midpoint after 1.0: through Float64 these read as the midpoint, then round down
     @test JSON.parse("1.00000005960464477550", Float32) === nextfloat(1.0f0)
@@ -1193,6 +1198,20 @@ end
     # exponents past typemax(Int64), which those versions wrapped around
     @test JSON.parse("1e9999999999999999999", Float64) === Inf
     @test JSON.parse("1e-9999999999999999999"; allownan=true) === 0.0
+    # a float target keeps the sign of `-0`, as it does with allownan=true; untyped, it is the Int 0
+    for T in (Float16, Float32, Float64, BigFloat, Union{Nothing,Float64})
+        @test signbit(JSON.parse("-0", T))
+        @test signbit(only(JSON.parse(b"[-0]", Vector{T})))
+    end
+    @test JSON.parse("-0") === 0
+    # in a union, `-0` reads as the member `0` reads as, with the sign when that is a float
+    @test JSON.parse("-0", Union{Float32,Float64}) === -0.0f0
+    @test JSON.parse("-0", Union{Float64,String}) === -0.0
+    @test JSON.parse("[-0]", Vector{Union{Nothing,Float32,String}})[1] === -0.0f0
+    @test JSON.parse("-0", Union{Int,Float64}) === 0
+    # a `lift` tag gets the integer 0, and only a float zero it returns takes the sign
+    z = JSON.parse("{\"a\":-0,\"b\":-0}", LiftedZero)
+    @test z.a === -0.0 && z.b === 1.0
     for T in (Float16, Float32, BigFloat), s in ("1.5e", "1.5e+", "-1.e5")
         @test_throws ArgumentError JSON.parse(s, T)
     end
