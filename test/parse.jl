@@ -1184,6 +1184,12 @@ end
     @test JSON.parse(s, BigFloat) == parse(BigFloat, s)
     @test JSON.parse("{\"x\":[0.1]}", @NamedTuple{x::Vector{BigFloat}}).x == [big"0.1"]
     @test isequal(JSON.parse("[1e40, -0.0, 1e-50]", Vector{Float32}), [Inf32, -0.0f0, 0.0f0])
+    # a float target keeps the sign of `-0`, as it does with allownan=true; untyped, it is the Int 0
+    for T in (Float16, Float32, Float64, BigFloat, Union{Nothing,Float64})
+        @test signbit(JSON.parse("-0", T))
+        @test signbit(only(JSON.parse(b"[-0]", Vector{T})))
+    end
+    @test JSON.parse("-0") === 0
     for T in (Float16, Float32, BigFloat), s in ("1.5e", "1.5e+", "-1.e5")
         @test_throws ArgumentError JSON.parse(s, T)
     end
