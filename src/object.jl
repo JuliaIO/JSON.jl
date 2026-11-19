@@ -370,6 +370,26 @@ end
 Base.mergewith!(combine::F, d::Object, other::AbstractDict) where {F} =
     (mergeinto!(combine, d, mergedest(d, length(d) + length(other)), other); d)
 
+# `merge` and `mergewith` return an `Object` in insertion order, with key and value
+# types promoted as for a `Dict`
+function mergetarget(d::Object, others::Vararg{AbstractDict,N}) where {N}
+    K = promote_type(keytype(d), map(keytype, others)...)
+    V = promote_type(valtype(d), map(valtype, others)...)
+    return Object{K,V}()
+end
+Base.merge(d::Object, others::Vararg{AbstractDict,N}) where {N} = merge!(mergetarget(d, others...), d, others...)
+function Base.mergewith(combine::F, d::Object, others::Vararg{AbstractDict,N}) where {F,N}
+    target = mergetarget(d, others...)
+    dest = mergedest(target, length(d) + sum(length, others; init=0))
+    mergeinto!(nothing, target, dest, d)
+    for other in others
+        mergeinto!(combine, target, dest, other)
+    end
+    return target
+end
+Base.merge(combine::F, d::Object, others::Vararg{AbstractDict,N}) where {F<:Base.Callable,N} =
+    mergewith(combine, d, others...)
+
 function Base.filter(f, d::Object)
     df = empty(d)
     dest = df
